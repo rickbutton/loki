@@ -61,31 +61,48 @@
 (define (let? x)
     (and (list? x) (eq? (prim-op x) 'let)))
 
+(define-type env-entry var val)
 (define (empty-env) '())
-(define (add-to-env env var val) (cons (cons var val) env))
-(define (env-binding->var b) (car b))
-(define (env-binding->val b) (cdr b))
+(define (add-to-env env var val) (cons (make-env-entry var val) env))
 
 (define (let-bindings x) (list-ref x 1))
 (define (let-body x) (cdr (cdr x)))
 (define (let-binding->var b) (car b))
 (define (let-binding->val b) (car (cdr b)))
 
-(define-type func-def name env bindings body)
+(define (lambda? x)
+    (and (list? x) (eq? (prim-op x) 'lambda)))
+(define (lambda-formals x) (list-ref x 1))
+(define (lambda-body x) (cdr (cdr x)))
+
+(define (apply-func x) (list-ref x 0))
+(define (apply-args x) (cdr x))
+
+(define (define? x)
+    (and (list? x) (eq? (prim-op x) 'define)))
+(define (define-var) (list-ref x 1))
+(define (define-body) (cdr (cdr x)))
+
+(define-type func-def idx env bindings body)
+(define (func-def->func-name f)
+            (string->symbol (string-append "$" (number->string (func-def-idx f)))))
 (define (symbol->func-var s) (string->symbol (string-append "$" (symbol->string s))))
 
 (define stack-top-addr 0)
 (define stack-addr 1024)
 (define stack-obj-size 4)
 
+(define (inline-comment c)
+    (string->symbol (string-append "^^-" c "-^^")))
+
 (define (compile-fixnum x env def-func)
-    `(i32.const ,(fixnum->wfixnum x)))
+    `(i32.const ,(inline-comment (string-append "fixnum:" (number->string x))) ,(fixnum->wfixnum x)))
 
 (define (compile-boolean x env def-func)
-    `(i32.const ,(boolean->wboolean x)))
+    `(i32.const ,(inline-comment (if x "bool:#t" "bool:#f")) ,(boolean->wboolean x)))
 
 (define (compile-null x env def-func)
-    `(i32.const ,null-tag))
+    `(i32.const (inline-comment "null") ,null-tag))
 
 (define (compile-prim x env def-func)
     (case (prim-op x)
@@ -101,19 +118,33 @@
 
 (define (generate-set-ret x env def-func)
     (if (null? (cdr x)) `((set_local $ret ,(compile-expr (car x) env def-func)))
-                        (cons (compile-expr (car x) env def-func) (compile-func (cdr x) env def-func))))
+                        (cons (compile-expr (car x) env def-func) (generate-set-ret (cdr x) env def-func))))
 
 (define (compile-let x env def-func)
     (let ((vars (map (lambda (b) (let-binding->var b)) (let-bindings x)))
-         (new-env (reduce (lambda (b e) (add-to-env e (let-binding->var b) (let-binding->val b))) env (let-bindings x))))
-        (let ((func-name (def-func new-env vars (generate-set-ret (let-body x) new-env def-func))))
+         (new-env (reduce (lambda (b e) (add-to-env e (let-binding->var b) (compile-expr (let-binding->val b) env def-func))) env (let-bindings x))))
+        (let ((func (def-func new-env vars (generate-set-ret (let-body x) new-env def-func))))
             `(block (result i32)
                 ,@(map (lambda (b) (compile-binding-to-push b new-env def-func)) (let-bindings x))
-                (call ,func-name)))))
+                (call ,(func-def->func-name func))))))
 
-; get index into array for binding name, translate to $get-stack-obj call with index + 1?
+(define (compile-lambda x env def-func)
+    (let ((formals (lambda-formals x))
+          (body (lambda-body x))
+          (new-env (reduce (lambda (f e) (add-to-env e f 0)) env (lambda-formals x))))
+          (let ((func (def-func new-env formals (generate-set-ret body new-env def-func))))
+            `(i32.const ,(inline-comment (string-append "func:" (number->string (func-def-idx func)))) ,(func-def-idx func)))))
+        
+(define (compile-apply-arg-to-push a env def-func) 
+    `(call $push-to-stack ,(compile-expr a env def-func)))
+
+(define (compile-apply x env def-func)
+    `(block (result i32)
+        ,@(map (lambda (a) (compile-apply-arg-to-push a env def-func)) (apply-args x))
+        (call_indirect (type $_func-sig) ,(compile-expr (apply-func x) env def-func))))
+
 (define (compile-var-ref x env def-func)
-    `(call $get-stack-obj (i32.const ,(index x (map (lambda (e) (env-binding->var e)) env)))))
+    `(call $get-stack-obj (i32.const ,(inline-comment (string-append "var-ref:" (symbol->string x))) ,(index x (map (lambda (e) (env-entry-var e)) (reverse env))))))
 
 (define (compile-expr x env def-func) 
     (cond
@@ -121,31 +152,36 @@
         ((boolean? x) (compile-boolean x env def-func))
         ((null? x) (compile-null x env def-func))
         ((prim? x) (compile-prim x env def-func))
-        ((let? x) (compile-let x env def-func))
         ((symbol? x) (compile-var-ref x env def-func))
+        ((let? x) (compile-let x env def-func))
+        ((lambda? x) (compile-lambda x env def-func))
+        ((list? x) (compile-apply x env def-func))
         (else '())))
-
-(define (generate-function-param-defs bindings)
-    (map (lambda (b) `(param ,(string->symbol (string-append "$" (symbol->string b))) i32)) bindings))
 
 (define (generate-function-defs funcs def-func) 
     (map (lambda (f) 
         `(func 
-            ,(func-def-name f) (result i32)
+            ,(func-def->func-name f) (result i32)
             (local $ret i32)
             ,@(func-def-body f)
             (call $pop-all-params (i32.const ,(list-count (func-def-bindings f))))
             (return (get_local $ret)))) funcs))
 
+(define (generate-table-defs funcs)
+    `(elem (i32.const 0) ,@(map (lambda (f) (func-def->func-name f)) (reverse funcs))))
+
 (define (compile-program x) 
     (let ((funcs '()))
         (define (def-func env bindings body) 
-            (let ((func-name (string->symbol (string-append "$func" (number->string (+ 1 (list-count funcs)))))))
-                (set! funcs (cons (make-func-def func-name env bindings body) funcs))
-                func-name))
+            (let ((func-idx (list-count funcs)))
+                (let ((new-func (make-func-def func-idx env bindings body)))
+                    (set! funcs (cons new-func funcs))
+                    new-func)))
         (let ((prog (compile-expr x (empty-env) def-func)))
             `(module
                 (memory $0 1024)
+                (table $0 ,(list-count funcs) anyfunc)
+                (type $_func-sig (func (result i32)))
                 (func $push-to-stack (param $val i32)
                     (local $stack-top i32)
                     (local $addr i32)
@@ -167,6 +203,7 @@
                 (func $get-stack-obj (param $offset i32) (result i32)
                     (local $addr i32)
                     (set_local $addr (i32.add (i32.const ,stack-addr) 
+                                              ;(i32.mul (i32.const ,stack-obj-size) (get_local $offset))))
                                               (i32.mul (i32.const ,stack-obj-size) (i32.add (get_local $offset) (i32.const 1)))))
                     (return (i32.load (get_local $addr))))
                 
@@ -180,6 +217,7 @@
                 (func $entry (result i32) ,prog)
                 (func $main (result i32) (call $entry))
                 ,@(generate-function-defs funcs def-func)
+                ,(generate-table-defs funcs)
                 (export "main" (func $main)))
             )))
 

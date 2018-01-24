@@ -1,3 +1,3 @@
-(let ((x 99) (y 3))
-    (sub x (let ((x 2))
-        (add x y))))
+(let ((add1 (lambda (x) (add x 1)))
+      (sub2 (lambda (x) (sub x 5))))
+    (sub2 (add1 2)))
