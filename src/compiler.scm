@@ -1,34 +1,16 @@
-(define input-file "test.scm")
-(define output-file "bin/a.wat")
+(import (src/util) (rnrs) (chezscheme))
 
-(define (list-count-internal l count)
- (if (null? l) count
-     (list-count-internal (cdr l) (+ count 1))))
-(define (list-count l) (list-count-internal l 0))
+(if (not (eq? (length (command-line)) 3))
+    (print-help-and-exit))
 
-(define (last l)
-    (cond ((null? l) '())
-          ((null? (cdr l)) (car l))
-          (else (last (cdr l)))))
-
-(define (index a b)
-  (let ((tail (member a (reverse b))))
-    (and tail (length (cdr tail)))))
-
-(define (contains? l i)
-  (if (null? l) #f
-      (or (eq? (car l) i) (contains? (cdr l) i))))
-
-(define (reduce fn base-value lis)
-   (if (null? lis)
-       base-value
-       (fn (car lis)
-           (reduce fn base-value (cdr lis)))))
+(define input-file (list-ref (command-line) 1))
+(define output-file (list-ref (command-line) 2))
 
 (define (read-input-file)
-    (with-input-from-file input-file read-all))
+    (with-input-from-file input-file read))
 
 (define (write-output-file output)
+    (delete-file output-file)
     (let ((p (open-output-file output-file)))
         (pretty-print output p)
         (close-output-port p)))
@@ -47,8 +29,8 @@
 (define (wboolean? i) (genw? boolean-tag))
 (define (wnull? i) (genw? null-tag))
 
-(define (fixnum->wfixnum i) (bitwise-ior (arithmetic-shift i type-shift) fixnum-tag))
-(define (wfixnum->fixnum i) (arithmetic-shift i (- 0 type-shift)))
+(define (fixnum->wfixnum i) (bitwise-ior (ash i type-shift) fixnum-tag))
+(define (wfixnum->fixnum i) (ash i (- 0 type-shift)))
 (define (boolean->wboolean b) (bitwise-ior (arithmetic-shift (if b 1 0) type-shift) boolean-tag))
 (define (wboolean->boolean i) (if (eq (arithmetic-shift i (- 0 type-shift)) 1) #t #f))
 
@@ -61,7 +43,7 @@
 (define (let? x)
     (and (list? x) (eq? (prim-op x) 'let)))
 
-(define-type env-entry var val)
+(define-record-type env-entry (fields var val))
 (define (empty-env) '())
 (define (add-to-env env var val) (cons (make-env-entry var val) env))
 
@@ -83,7 +65,7 @@
 (define (define-var) (list-ref x 1))
 (define (define-body) (cdr (cdr x)))
 
-(define-type func-def idx env bindings body)
+(define-record-type func-def (fields idx env bindings body))
 (define (func-def->func-name f)
             (string->symbol (string-append "$" (number->string (func-def-idx f)))))
 (define (symbol->func-var s) (string->symbol (string-append "$" (symbol->string s))))
@@ -109,9 +91,6 @@
         ((add) `(i32.add ,(compile-expr (prim-param x 0) env def-func) ,(compile-expr (prim-param x 1) env def-func)))
         ((sub) `(i32.sub ,(compile-expr (prim-param x 0) env def-func) ,(compile-expr (prim-param x 1) env def-func)))
         (else "error, unknown primitive")))
-
-
-(define (compile-exprs x env def-func) (map (lambda (expr) (compile-expr expr env def-func)) x))
 
 (define (compile-binding-to-push b env def-func)
     `(call $push-to-stack ,(compile-expr (let-binding->val b) env def-func)))
@@ -145,6 +124,8 @@
 
 (define (compile-var-ref x env def-func)
     `(call $get-stack-obj (i32.const ,(inline-comment (string-append "var-ref:" (symbol->string x))) ,(index x (map (lambda (e) (env-entry-var e)) (reverse env))))))
+
+(define (compile-define x env def-func))
 
 (define (compile-expr x env def-func) 
     (cond
@@ -221,6 +202,7 @@
                 (export "main" (func $main)))
             )))
 
-(let ((prog (compile-program (car (read-input-file)))))
+(let ((prog (compile-program (read-input-file))))
     (pretty-print prog)
     (write-output-file prog))
+(exit)
