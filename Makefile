@@ -6,6 +6,9 @@ compile: prereq
 
 run: compile
 	node --expose-wasm bootstrap.js bin/a.wasm
+	
+debug: compile
+	node --inspect --debug-brk --expose-wasm bootstrap.js bin/a.wasm
 
 webserver:
 	http-server

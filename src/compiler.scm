@@ -44,8 +44,21 @@
     (and (list? x) (eq? (prim-op x) 'let)))
 
 (define-record-type env-entry (fields var val))
-(define (empty-env) '())
+(define (empty-env) (cons (make-env-entry #f #f) '()))
 (define (add-to-env env var val) (cons (make-env-entry var val) env))
+
+(define (mutate-add-to-env env var val)
+    (let ((ecar (car env)) 
+          (ecdr (cdr env))
+          (vars (map (lambda (e) (env-entry-var e)) env))
+          (entry (make-env-entry var val)))
+        ;(if (contains? vars var)
+        ;     (let ((idx (index var vars)))
+        ;        (let ((oldEntry (list-ref env idx)))
+        ;           (env-entry-val-set! val)))
+            (begin 
+                (set-car! env entry)
+                (set-cdr! env (cons ecar ecdr)))))
 
 (define (let-bindings x) (list-ref x 1))
 (define (let-body x) (cdr (cdr x)))
@@ -62,8 +75,8 @@
 
 (define (define? x)
     (and (list? x) (eq? (prim-op x) 'define)))
-(define (define-var) (list-ref x 1))
-(define (define-body) (cdr (cdr x)))
+(define (define-var x) (list-ref x 1))
+(define (define-body x) (car (cdr (cdr x))))
 
 (define-record-type func-def (fields idx env bindings body))
 (define (func-def->func-name f)
@@ -84,7 +97,7 @@
     `(i32.const ,(inline-comment (if x "bool:#t" "bool:#f")) ,(boolean->wboolean x)))
 
 (define (compile-null x env def-func)
-    `(i32.const (inline-comment "null") ,null-tag))
+    `(i32.const ,(inline-comment "null") ,null-tag))
 
 (define (compile-prim x env def-func)
     (case (prim-op x)
@@ -123,9 +136,16 @@
         (call_indirect (type $_func-sig) ,(compile-expr (apply-func x) env def-func))))
 
 (define (compile-var-ref x env def-func)
-    `(call $get-stack-obj (i32.const ,(inline-comment (string-append "var-ref:" (symbol->string x))) ,(index x (map (lambda (e) (env-entry-var e)) (reverse env))))))
+    (let ((idx (- (index x (map (lambda (e) (env-entry-var e)) (reverse env))) 1)))
+        (pretty-print env)
+        `(call $get-stack-obj (i32.const ,(inline-comment (string-append "var-ref:" (symbol->string x) ":" (number->string idx))) ,idx))))
 
-(define (compile-define x env def-func))
+(define (compile-define x env def-func)
+    (let ((var (define-var x))
+          (val (define-body x)))
+          (mutate-add-to-env env var val))
+          (pretty-print (define-body x))
+          `(call $push-to-stack ,(compile-expr (define-body x) env def-func)))
 
 (define (compile-expr x env def-func) 
     (cond
@@ -136,6 +156,7 @@
         ((symbol? x) (compile-var-ref x env def-func))
         ((let? x) (compile-let x env def-func))
         ((lambda? x) (compile-lambda x env def-func))
+        ((define? x) (compile-define x env def-func))
         ((list? x) (compile-apply x env def-func))
         (else '())))
 
