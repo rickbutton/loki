@@ -20,7 +20,7 @@ make run
 - free variable capture (lambdas are converted to closures and properly lifted, but frees are not handled)
 - a heap + heap allocated values (pairs, strings, runtime symbols, etc)
 - a real parser (currently using the host's parser, since I don't have strings)
-- 
+- FFI with JavaScript
 
 ### Example
 
