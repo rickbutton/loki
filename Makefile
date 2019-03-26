@@ -1,20 +1,15 @@
 compile: prereq
-	scheme --script src/compiler.scm test.scm bin/a.wat
-	.\util\jrepl1.0 "\^\^-" "(; " /f .\bin\a.wat /o -
-	.\util\jrepl1.0 "-\^\^" " ;)" /f .\bin\a.wat /o -
-	wat2wasm bin/a.wat -o bin/a.wasm --debug-names
+	guile -L src/ src/schwasm.scm  test2.scm bin/a.wat
+	wat2wasm.exe bin/a.wat -o bin/a.wasm --debug-names
 
 run: compile
 	node --expose-wasm bootstrap.js bin/a.wasm
 	
 debug: compile
-	node --inspect --debug-brk --expose-wasm bootstrap.js bin/a.wasm
-
-webserver:
-	http-server
+	node --inspect-brk --expose-wasm bootstrap.js bin/a.wasm
 
 prereq:
-	if not exist bin mkdir -p bin
+	mkdir -p bin
 
 clean:
 	rm bin/*

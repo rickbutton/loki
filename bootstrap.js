@@ -1,19 +1,34 @@
 const wasmFile = process.argv[2];
 
-var typeMask = 0b11;
-var typeShift = 2;
+const fixnumShift = 2;
+const fixnumMask = 0b11;
+const fixnumTag = 0b00;
 
-var fixnumTag = 0b00;
-var booleanTag = 0b01;
-var nullTag = 0b10;
+const booleanTag = 0b0011111;
+const booleanTrue = 0b10011111;
+const booleanFalse = 0b00011111;
+
+const charShift = 8;
+const charMask = 0b11111111;
+const charTag = 0b00001111;
+
+const nullTag = 0b00101111;
 
 var schemeToVal = function (expr) {
-    if ((expr & typeMask) == fixnumTag) {
-        return expr >> typeShift;
-    } else if ((expr & typeMask) == booleanTag) {
-        return (expr >> typeShift) == 1;
-    } else if ((expr & typeMask) == nullTag) {
+    if ((expr & fixnumMask) === fixnumTag)
+        return expr >> fixnumShift;
+    else if ((expr & charMask) === charTag)
+        return String.fromCharCode(expr >> charShift);
+    else if (expr === booleanTrue)
+        return true;
+    else if (expr === booleanFalse)
+        return false;
+    else if (expr === nullTag)
         return null;
+    else {
+        console.log("unknown expr");
+        console.log(expr);
+        throw expr;
     }
 }
 
