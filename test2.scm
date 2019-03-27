@@ -1,4 +1,3 @@
-(define make (lambda () (lambda (x y) (sub x y))))
-(define - (make))
+(define test (lambda (x) (lambda (y) (sub x y))))
 
-(- 2 10)
+((test 10) 2)

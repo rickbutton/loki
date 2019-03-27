@@ -81,12 +81,14 @@
 ; end constant
 
 ; store
-(define (store->mapping s) (car (cdr (cdr s))))
+(define (store->type s) (caddr s))
+(define (store->mapping s) (cadddr s))
 (define (compile-store s) `(set_local ,(store->mapping s)))
 ; end store
 
 ; refer
-(define (refer->mapping s) (car (cdr (cdr s))))
+(define (refer->type s) (caddr s))
+(define (refer->mapping s) (cadddr s))
 (define (compile-refer s) `(get_local ,(refer->mapping s)))
 ; end refer
 
