@@ -8,6 +8,9 @@ run: compile
 debug: compile
 	node --inspect-brk --expose-wasm bootstrap.js bin/a.wasm
 
+http:
+	http-server
+
 prereq:
 	mkdir -p bin
 

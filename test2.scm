@@ -1,3 +1,6 @@
-(define test (lambda (x) (lambda (y) (sub x y))))
+;(define make (lambda (x) (lambda (y) (add x y))))
 
-((test 10) 2)
+;((make 10) 1)
+
+(let ((num 10) (make (lambda (x) (lambda (y) (add x y)))))
+    ((make 10) 1))

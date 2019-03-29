@@ -28,7 +28,7 @@
 ; end null
 
 ; prim
-(define prim-list '(add sub))
+(define prim-list '(add sub car cdr))
 (define (sprim? x) (and (list? x) (contains? prim-list (car x))))
 (define (sprim->name x) (car x))
 (define (sprim->args x) (cdr x))
@@ -52,9 +52,9 @@
 ; pair
 (define (spair? n) (pair? n))
 (define (compile-spair x next)
-    (cond
-        ((not (list? x)) `(constant ,x ,next))
-        ((list? x) (compile-apply x next))))
+    (if (list? x) (compile-apply x next)
+    (let ((left (car x)) (right (cdr x)))
+        (compile-expr left (compile-expr right `(pair ,next))))))
 ; end pair
 
 ; symbol
