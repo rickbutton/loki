@@ -46,7 +46,7 @@
 (define (apply-args x) (cdr x))
 (define (compile-apply x next)
     (let ((op (apply-op x)) (args (apply-args x)))
-        (fold-right apply-fold (compile-expr op `(apply ,(length args) ,next)) args)))
+        (compile-expr op (fold-right apply-fold `(apply ,(length args) ,next) args))))
 ; end apply
 
 ; pair
@@ -73,7 +73,7 @@
 (define (binding->val x) (car (cdr x)))
 
 (define (compile-binding binding next)
-    (compile-expr (binding->val binding) `(var ,(binding->var binding) (store ,(binding->var binding) ,next))))
+    (compile-expr (binding->val binding) `(bound ,(binding->var binding) (store ,(binding->var binding) ,next))))
 
 (define (compile-slet x next)
     (let ((bindings (let->bindings x)) (body (let->body x)))
@@ -87,7 +87,7 @@
 (define (define->body x) (cdr (cdr x)))
 
 (define (compile-sdefine x next)
-    (compile-expr (cons 'begin (define->body x)) `(var ,(define->var x) (store ,(define->var x) ,next))))
+    (compile-expr (cons 'begin (define->body x)) `(bound ,(define->var x) (store ,(define->var x) ,next))))
 ; end define
 
 ; begin
@@ -107,7 +107,7 @@
 (define (lambda->body x ) (cdr (cdr x)))
 
 (define (compile-lambda-binding binding next)
-    `(param ,binding ,next))
+    `(bound ,binding ,next))
 (define (compile-lambda-bindings bindings next)
     (fold-right compile-lambda-binding next bindings))
 

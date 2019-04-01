@@ -4,21 +4,21 @@
 (use-modules (util))
 
 (define (close? x) (and (list? x) (eq? (car x) 'close)))
-(define (param? x) (and (list? x) (eq? (car x) 'param)))
+(define (bound? x) (and (list? x) (eq? (car x) 'bound)))
 
 (define (close->body x) (car (cdr x)))
 
 (define (close->frees x) 
     (let* ((body (close->body x))
            (refers (filter refer-free? body))
-           (params (filter param? body))
-           (mappings (map (lambda (p) (caddr p)) params))
+           (bounds (filter bound? body))
+           (mappings (map (lambda (p) (caddr p)) bounds))
            (closes (filter close? body))
            (refer-frees (map (lambda (r) (cons (refer->var r) (refer->mapping r))) refers))
            (close-frees (apply append (map (lambda (c) (close->frees c)) closes)))
-           (without-params (filter (lambda (f) (not (member (cdr f) mappings))) close-frees)))
+           (without-bounds (filter (lambda (f) (not (member (cdr f) mappings))) close-frees)))
         ;refer-frees))
-        (append refer-frees without-params)))
+        (append refer-frees without-bounds)))
 
 (define (mark-close x) 
     (let* ((body (close->body x)) (frees (close->frees x)))
@@ -34,6 +34,8 @@
 
 (define (mclose->mapped x) (cadr x))
 (define (mclose->frees x) (caddr x))
+(define (mclose-frees->insts frees) 
+    (map (lambda (f) `(free ,(car f) ,(cdr f))) frees))
 (define (mclose->body x) (cadddr x))
 (define (map-close x)
     `(referfunc ,(mclose->mapped x) ,(mclose->frees x)))
@@ -47,17 +49,13 @@
     (let* ((lifted (lift-closures (mclose->body x) #f))
            (body (car lifted))
            (funcs (cdr lifted)))
-    (cons `(func close ,(mclose->mapped x) (frees ,(mclose->frees x)) ,@body) funcs))) ; add frees from outer
+    (cons `(func close ,(mclose->mapped x) ,@(mclose-frees->insts (mclose->frees x)) ,@body) funcs))) ; add frees from outer
 (define (closes->funcs x) (apply append (map close->func x)))
-(define (entry->func x) `(func open $$fentry (frees ()) ,@x))
-
-(define (var? x) (and (list? x) (eq? (car x) 'var)))
+(define (entry->func x) `(func open $$fentry ,@x))
 
 (define (lift-closures x emit-outer-func)
     (let* ((marked   (mark-closes x))
            (closes   (filter close? marked))
-           (vars     (filter var? marked))
-           (params   (filter param? marked))
            (mapped   (map-insts marked))
            (funcs    (closes->funcs closes))
            (entry    (entry->func mapped))

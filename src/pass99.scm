@@ -2,6 +2,7 @@
     #:export (funcs->wat))
 
 (use-modules (util))
+(use-modules (srfi srfi-1))
 
 ; fixnum
 (define wfixnum-shift 2)
@@ -100,46 +101,59 @@
 (define (compile-store s) `(set_local ,(store->mapping s)))
 ; end store
 
-
-
 ; var
 (define wvar-tag   #b10)
-(define (compile-var x)
-    `(call $$alloc-slot))
 ;end var
 
 ; scope / vars
 
-(define (mapping->get-bound-or-free mapping func)
-    (let* ((frees (func->frees func)) (mappings (if (null? frees) '() (map cdr frees))))
-        (if (member mapping mappings)
-            `(call $$get-close-free-slot (get_local $$close) (i32.const ,(index mapping mappings)))
+(define (mapping->get-bound mapping func)
+    (let* ((bounds (func->bounds func)) (mappings (if (null? bounds) '() (map caddr bounds))))
+        (if (eq? (func->type func) 'close)
+            `(call $$get-bound-slot (get_local $$bounds) (i32.const ,(index mapping mappings)))
             `(get_local ,mapping))))
+(define (mapping->get-free mapping func)
+    (let* ((frees (func->frees func)) (mappings (if (null? frees) '() (map caddr frees))))
+        `(call $$get-free (get_local $$close) (i32.const ,(index mapping mappings)))))
+
+(define (mapping->get-bound-or-free mapping func)
+    (if (func-has-bound? func mapping)
+        (mapping->get-bound mapping func)
+        (if (func-has-free? func mapping)
+            (mapping->get-free mapping func)
+            `(unknown ,mapping ,(func->bounds func) ,(func->frees func)))))
+            ;(error (string-append "unknown mapping " (symbol->string mapping))))))
 
 ; refer
 (define (refer->type s) (caddr s))
 (define (refer->mapping s) (cadddr s))
-(define (compile-refer s func) `(call $$unslot ,(mapping->get-bound-or-free (refer->mapping s) func)))
+(define (compile-refer s func) 
+    (if (eq? (func->type func) 'close)
+        `(inst 
+            ,(mapping->get-bound-or-free (refer->mapping s) func)
+            (call $$unslot))
+        (mapping->get-bound-or-free (refer->mapping s) func)))
 ; end refer
 
 (define (compile-referfunc r func mappings)
-    (let ((idx (index (cadr r) mappings)) (frees (caddr r)))
-        `(block (result i32)
-          (call $$alloc-close (i32.const ,idx) (i32.const ,(length frees)))
+    (let* ((idx (index (cadr r) mappings))
+           (body (func->body func))
+           (vars (caddr r)))
+        `(inst (call $$alloc-close (i32.const ,idx) (i32.const ,(length vars)))
           ,@(apply append (map (lambda (f i) `(
              (i32.const ,i)
              ,(mapping->get-bound-or-free (cdr f) func)
-             (call $$store-close-free)
-          )) frees (range 0 (length frees) 1))))))
+             (call $$store-free)
+          )) vars (range 0 (length vars) 1))))))
          ; need to pump located frees (find if var is free in current scope, and emit insts to store in allocated close)
         ; ^ this doesn't work, we need to alloc-close first, and then call $$store-close-free for each free
         ; maybe, generate an $alloc-close for each size of closure, might suck
-(define (compile-param p) `(param ,(car (cdr (cdr p))) i32))
 
-(define (number->call-close-name n)
-    (string->symbol (string-append "$$call-close-" (number->string n))))
 (define (compile-apply a) 
-    `(call ,(number->call-close-name (cadr a))))
+    `(inst
+      (call $$alloc-bounds (i32.const ,(cadr a)))
+      ,@(map (lambda (i) `(call $$store-bound (i32.const ,i))) (range 0 (cadr a) 1))
+      (call $$call-close)))
 ; end scope / vars
 
 ; inst
@@ -152,38 +166,45 @@
             ((eq? op 'refer) (compile-refer i func))
             ((eq? op 'referfunc) (compile-referfunc i func mappings))
             ((eq? op 'primcall) (compile-primcall i))
-            ((eq? op 'param) (compile-param i))
-            ((eq? op 'var) (compile-var i))
             ((eq? op 'apply) (compile-apply i))
             (else i))))
-(define (compile-insts is func mappings) (map (lambda (i) (compile-inst i func mappings)) is))
+(define (compile-insts is func mappings) 
+    (fold-right (lambda (i rest) (if (eq? (car i) 'inst) 
+        (append (cdr i) rest)
+        (cons i rest)))
+        '() 
+        (map (lambda (i) (compile-inst i func mappings)) is)))
 ; end inst
-
-; 
 
 ; func
 (define wclose-tag #b11)
 
 (define (op-match op) (lambda (v) (and (list? v) (eq? (car v) op))))
-(define var? (op-match 'var))
-(define param? (op-match 'param))
-(define (non-env? x) (not (param? x)))
+(define free? (op-match 'free))
+(define bound? (op-match 'bound))
 
 (define (func->type f) (cadr f))
 (define (func->mapping f) (caddr f))
-(define (func->frees f) (car (cdr (cadddr f))))
-(define (func->body f) (cddddr f))
+(define (func->body f) (cdddr f))
 (define (func->name f) (string->symbol (symbol->string (func->mapping f))))
 
-(define (var->funcheader p) `(local ,(car (cdr (cdr p))) i32))
+(define (func->bounds f) (filter bound? (func->body f)))
+(define (func->frees f) (filter free? (func->body f)))
+(define (func-has-bound? f mapping) (find (lambda (i) (eq? mapping (caddr i))) (func->bounds f)))
+(define (func-has-free? f mapping) (find (lambda (i) (eq? mapping (caddr i))) (func->frees f)))
+(define (func->bounds-param f)
+    (let ((bounds (func->bounds f)))
+        (if (eq? (length bounds) 0) '() (list '(param $$bounds i32)))))
+
+(define (var? i) (or (free? i) (bound? i)))
+(define (non-var? i) (not (var? i)))
 (define (compile-func func mappings) 
     (let* ((body   (func->body func))
-          (insts  (compile-insts (filter non-env? body) func mappings))
-          (vars   (compile-insts (map var->funcheader (filter var? body)) func mappings))
-          (params (compile-insts (filter param? body) func mappings)))
+          (bounds  (compile-insts (filter bound? body) func mappings))
+          (insts  (compile-insts (filter non-var? body) func mappings)))
         (if (eq? (func->type func) 'close)
-            `(func ,(func->name func) ,@params (param $$close i32) (result i32) ,@vars ,@insts)
-            `(func ,(func->name func) ,@params (result i32) ,@vars ,@insts))))
+            `(func ,(func->name func) (param $$close i32) ,@(func->bounds-param func) (result i32) ,@insts)
+            `(func ,(func->name func) (result i32) ,@(map (lambda (b) `(local ,(caddr b) i32)) bounds) ,@insts))))
 
 (define (compile-funcs funcs) 
     (let ((mappings (funcs->mappings funcs)))
@@ -194,66 +215,18 @@
 (define (funcs->elems funcs) `(elem (i32.const 0) ,@(funcs->mappings funcs)))
 ; end func
 
-; funcsig
-(define (apply->arg-count x) (car (cdr x)))
-(define (func->max-apply-args func)
-    (let* ((applys (filter (lambda (i) (eq? (car i) 'apply)) (func->body func)))
-           (counts (map (lambda (a) (apply->arg-count a)) applys)))
-        (if (null? counts) 0 (car (sort counts >)))))
-(define (funcs->max-apply-args funcs)
-    (let ((maxs (map func->max-apply-args funcs)))
-        (car (sort maxs >))))
-    
-(define (number->funcsig-params n)
-    (if (eq? 0 n) '() (cons '(param i32) (number->funcsig-params (- n 1)))))
-
-(define (number->funcsig-name n)
-    (string->symbol (string-append "$funcsig$" (number->string n))))
-
-(define (number->funcsig n)
-    `(type
-        ,(number->funcsig-name n)
-        (func ,@(number->funcsig-params (+ 1 n)) (result i32))))
-
-(define (funcs->funcsigs funcs)
-    (let ((max (funcs->max-apply-args funcs)))
-        (map number->funcsig (range 0 (+ max 2) 1))))
-
-(define (number->call-close-param-name n)
-    (string->symbol (string-append "$$param-" (number->string n))))
-(define (number->call-close-get-param n)
-    `(get_local ,(number->call-close-param-name n)))
-(define (number->call-close n)
-    `(func ,(number->call-close-name n)
-        ,@(map (lambda (n) `(param ,(number->call-close-param-name n) i32)) (range 0 n 1))
-        (param $close i32)
-        (result i32)
-
-        ,@(map (lambda (n) (number->call-close-get-param n)) (range 0 n 1))
-
-        (get_local $close)
-        (get_local $close)
-        (call $$get-close-func-index)
-        (call_indirect (type ,(number->funcsig-name n)))))
-(define (funcs->call-close funcs)
-    (let ((max (funcs->max-apply-args funcs)))
-        (map number->call-close (range 0 (+ max 1) 1))))
-; end funcsig
-
 (define wasm-i32-size 4)
 (define wasm-heap-top-ptr 16380)
 (define (compile-program funcs)
     (let ((cfuncs (compile-funcs funcs)))
         `(module
-            ,@(funcs->funcsigs funcs)
             (memory $0 16384)
             (export "memory" (memory 0))
+            (type $$closefunc (func (param i32) (param i32) (result i32)))
             ,(funcs->table funcs)
             ,(funcs->elems funcs)
 
             (func $$main (result i32) (call $$fentry))
-
-            ,@(funcs->call-close funcs)
 
             (func $$alloc (param $size i32) (result i32) (local $ptr i32)
                 ; get current top of heap from heap top pointer (16383)
@@ -294,20 +267,6 @@
                 (i32.or)
                 )
 
-            (func $$alloc-slot (param $val i32) (result i32) (local $ptr i32)
-                (i32.const 1) ; size
-                (call $$alloc)
-                (tee_local $ptr)
-                (get_local $val) ; store car
-                (i32.store)
-
-                (get_local $ptr) ; get ptr
-                (i32.const ,wobj-shift) ; shift left
-                (i32.shl)   
-                (i32.const ,wvar-tag) ; tag as slot
-                (i32.or)
-                )
-
             (func $$alloc-close (param $findex i32) (param $size i32) (result i32) (local $ptr i32)
                 (get_local $size)
                 (i32.const 1)
@@ -325,7 +284,7 @@
                 (i32.or)
             )
 
-            (func $$store-close-free 
+            (func $$store-free 
                 (param $ptr i32) 
                 (param $index i32)
                 (param $val i32)
@@ -344,7 +303,7 @@
                 (i32.store)
                 (get_local $ptr))
 
-            (func $$get-close-free-slot
+            (func $$get-free
                 (param $ptr i32) 
                 (param $index i32)
                 (result i32)
@@ -359,10 +318,7 @@
                 (i32.mul)
                 (i32.add) ; inc to requested slot
 
-                (i32.const ,wobj-shift) ; shift left
-                (i32.shl)   
-                (i32.const ,wvar-tag) ; tag as slot
-                (i32.or))
+                (i32.load))
             
             (func $$get-close-func-index (param $close i32) (result i32)
                 (get_local $close)
@@ -370,10 +326,56 @@
                 (i32.shr_u)
                 (i32.load))
 
+            (func $$call-close (param $$close i32) (param $$bounds i32)
+                (result i32)
+                (local $$idx i32)
+
+                (get_local $$close)
+                (get_local $$bounds)
+
+                (get_local $$close)
+                (call $$get-close-func-index)
+
+                (call_indirect (type $$closefunc))
+            )
+
+            (func $$alloc-bounds (param $size i32) (result i32)
+                (get_local $size)
+                (call $$alloc))
+
+            (func $$store-bound 
+                (param $val i32) 
+                (param $ptr i32)
+                (param $index i32)
+                (result i32)
+
+                (get_local $index)
+                (i32.const ,wasm-i32-size)
+                (i32.mul)
+
+                (get_local $ptr)
+
+                (i32.add) ; inc to requested slot
+                (get_local $val)
+                (i32.store)
+                (get_local $ptr))
+
+            (func $$get-bound-slot
+                (param $ptr i32) 
+                (param $index i32)
+                (result i32)
+
+                (get_local $index)
+                (i32.const ,wasm-i32-size)
+                (i32.mul)
+
+                (get_local $ptr)
+
+                (i32.add)) ; inc to requested slot
+
+
             (func $$unslot (param $slot i32) (result i32)
                 (get_local $slot)
-                (i32.const ,wobj-shift)
-                (i32.shr_u)
                 (i32.load))
 
             (func $$car (param $pair i32) (result i32)

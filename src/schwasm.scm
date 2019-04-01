@@ -46,5 +46,6 @@
     (pretty-print funcs)
     (display "\nwat:\n")
     (pretty-print wat)
-    (write-output-file wat))
+    (write-output-file wat)
+)
 (exit)

@@ -30,15 +30,14 @@
 (define (cps->inst x) (all-but-last x))
 (define (cps->cont x) (last x))
 
-(define (var? x) (eq? (car x) 'var))
 (define (mark-var inst vars)
     (let* ((name (car (cdr inst))) (nvars (add-bound name vars)) (nvar (car (vars->bounds nvars))))
         (cons `(var ,name ,(var->mapped nvar)) nvars)))
 
-(define (param? x) (eq? (car x) 'param))
-(define (mark-param inst vars)
+(define (bound? x) (eq? (car x) 'bound))
+(define (mark-bound inst vars)
     (let* ((name (car (cdr inst))) (nvars (add-bound name vars)) (nvar (car (vars->bounds nvars))))
-        (cons `(param ,name ,(var->mapped nvar)) nvars)))
+        (cons `(bound ,name ,(var->mapped nvar)) nvars)))
 
 (define (store? x) (eq? (car x) 'store))
 (define (store->name x) (car (cdr x)))
@@ -70,8 +69,7 @@
 
 (define (map-inst inst vars)
     (cond
-        ((var?   inst) (mark-var   inst vars))
-        ((param? inst) (mark-param inst vars))
+        ((bound? inst) (mark-bound inst vars))
         ((store? inst) (mark-store inst vars))
         ((refer? inst) (mark-refer inst vars))
         ((close? inst) (mark-close inst vars))
