@@ -52,9 +52,8 @@
 ; pair
 (define (spair? n) (pair? n))
 (define (compile-spair x next)
-    (if (list? x) (compile-apply x next)
     (let ((left (car x)) (right (cdr x)))
-        (compile-expr left (compile-expr right `(pair ,next))))))
+        (compile-expr left (compile-expr right `(pair ,next)))))
 ; end pair
 
 ; symbol
@@ -62,6 +61,12 @@
 (define (compile-ssymbol x next)
     `(refer ,x ,next))
 ; end symbol
+
+; quote
+(define (squote? x) (and (list? x) (eq? (car x) 'quote)))
+(define (compile-squote x next)
+    (compile-constant (cadr x) next))
+; end quote
 
 ; let
 (define (slet? x) (and (list? x) (eq? (car x) 'let)))
@@ -118,19 +123,34 @@
 
 ; end lambda
 
-(define (compile-expr x next)
+(define (satomic? x)
+    (or
+        (sfixnum? x)
+        (sboolean? x)
+        (schar? x)
+        (ssymbol? x)
+        (snull? x)))
+
+(define (compile-constant x next)
     (cond
         ((sfixnum?  x) (compile-sfixnum x next))
         ((sboolean? x) (compile-sboolean x next))
         ((schar? x) (compile-schar x next))
         ((snull? x) (compile-snull x next))
+        ((ssymbol? x) (compile-ssymbol x next))
+        ((spair? x) (compile-spair x next))))
+
+(define (compile-expr x next)
+    (cond
+        ((satomic? x) (compile-constant x next))
+        ((squote? x) (compile-squote x next))
         ((sprim? x) (compile-sprim x next))
         ((slet? x) (compile-slet x next))
+        ((sdefine? x) (compile-sdefine x next))
         ((sbegin? x) (compile-sbegin x next))
         ((slambda? x) (compile-slambda x next))
-        ((sdefine? x) (compile-sdefine x next))
+
         ((spair? x) (compile-spair x next))
-        ((ssymbol? x) (compile-ssymbol x next))
     ))
 
 (define (scheme->pass1 x) (compile-expr (cons 'begin x) '(return)))

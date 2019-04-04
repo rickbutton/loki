@@ -36,7 +36,7 @@
 ; end boolean
 
 ; char
-(define wchar-mask #b00011111)
+(define wchar-mask #b01111111)
 (define wchar-tag  #b00001111)
 (define wchar-shift 8)
 

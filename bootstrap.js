@@ -8,7 +8,7 @@ const booleanTrue = 0b10011111;
 const booleanFalse = 0b00011111;
 
 const charShift = 8;
-const charMask = 0b00011111;
+const charMask = 0b01111111;
 const charTag =  0b00001111;
 
 const nullTag = 0b00101111;
@@ -18,16 +18,14 @@ const objShift = 3;
 
 const pairTag = 0b01;
 const slotTag = 0b10;
+const closeTag = 0b11;
 
 function schemePointerToJSPointer(ptr) {
     return (ptr >> 3) / 4;
 }
 
-function slotToString(ptr, memory) {
-    const jsPtr = schemePointerToJSPointer(ptr);
-
-    const val = memory[jsPtr];
-    return schemeToVal(val, memory);
+function closeToString(ptr, memory) {
+    return "#<procedure>";
 }
 
 function pairToString(ptr, memory) {
@@ -36,27 +34,24 @@ function pairToString(ptr, memory) {
     const car = memory[jsPtr];
     const cdr = memory[jsPtr+1];
 
-    const carValue = schemeToVal(car, memory);
-    const cdrValue = schemeToVal(cdr, memory);
-
-    return `(${carValue} . ${cdrValue})`;
+    return `(${schemeToString(car, memory)} . ${schemeToString(cdr, memory)})`;
 }
 
-function schemeToVal(expr, memory) {
-    if ((expr & fixnumMask) === fixnumTag)
-        return expr >> fixnumShift;
-    else if ((expr & charMask) === charTag)
+function schemeToString(expr, memory) {
+    if ((expr & fixnumMask) === fixnumTag) {
+        return String(expr >> fixnumShift);
+    } else if ((expr & charMask) === charTag) {
         return String.fromCharCode(expr >> charShift);
-    else if (expr === booleanTrue)
-        return true;
-    else if (expr === booleanFalse)
-        return false;
-    else if (expr === nullTag)
-        return null;
-    else if ((expr & objMask) === pairTag)
+    } else if (expr === booleanTrue) {
+        return "true";
+    } else if (expr === booleanFalse) {
+        return "false";
+    } else if (expr === nullTag) {
+        return "()";
+    } else if ((expr & objMask) === pairTag) {
         return pairToString(expr, memory);
-    else if ((expr & objMask) === slotTag) {
-        return slotToString(expr, memory);
+    } else if ((expr & objMask) === closeTag) {
+        return closeToString(expr, memory);
     } else {
         console.log("unknown expr");
         console.log(expr);
@@ -70,8 +65,7 @@ function doExec(mod) {
 
     const main = mod.instance.exports.main;
     var out = main();
-    console.log(out);
-    console.log(schemeToVal(out, memory));
+    console.log(schemeToString(out, memory));
 }
 
 async function getModuleBrowser() {
