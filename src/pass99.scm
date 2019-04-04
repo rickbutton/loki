@@ -65,9 +65,10 @@
 
 (define wobj-mask   #b111)
 (define wobj-shift   3)
-; pair
-(define wpair-tag   #b01)
+(define wpair-tag    #b01)
+(define wclose-tag   #b11)
 
+; pair
 (define (compile-pair x)
     `(call $$alloc-pair))
 ; end pair
@@ -82,6 +83,7 @@
             ((eq? op 'sub) '(i32.sub))
             ((eq? op 'car) '(call $$car))
             ((eq? op 'cdr) '(call $$cdr))
+            ((eq? op 'cons) '(call $$alloc-pair))
             (else (error (string-append "invalid primcall: " op))))))
 ; end prim
 
@@ -101,39 +103,36 @@
 (define (compile-store s) `(set_local ,(store->mapping s)))
 ; end store
 
-; var
-(define wvar-tag   #b10)
-;end var
-
 ; scope / vars
-
-(define (mapping->get-bound mapping func)
-    (let* ((bounds (func->bounds func)) (mappings (if (null? bounds) '() (map caddr bounds))))
-        (if (eq? (func->type func) 'close)
-            `(call $$get-bound-slot (get_local $$bounds) (i32.const ,(index mapping mappings)))
-            `(get_local ,mapping))))
+(define (mapping->get-slot mapping func)
+    (let* ((slots (func->slots func)) (mappings (if (null? slots) '() (map caddr slots))))
+            `(call $$unslot (get_local ,mapping))))
+(define (mapping->get-param mapping func)
+    (let* ((params (func->params func)) (mappings (if (null? params) '() (map caddr params))))
+            `(get_local ,mapping)))
 (define (mapping->get-free mapping func)
     (let* ((frees (func->frees func)) (mappings (if (null? frees) '() (map caddr frees))))
         `(call $$get-free (get_local $$close) (i32.const ,(index mapping mappings)))))
 
-(define (mapping->get-bound-or-free mapping func)
-    (if (func-has-bound? func mapping)
-        (mapping->get-bound mapping func)
-        (if (func-has-free? func mapping)
-            (mapping->get-free mapping func)
-            `(unknown ,mapping ,(func->bounds func) ,(func->frees func)))))
-            ;(error (string-append "unknown mapping " (symbol->string mapping))))))
+(define (mapping->get-ref mapping func)
+    (if (func-has-slot? func mapping)
+        (mapping->get-slot mapping func)
+        (if (func-has-param? func mapping)
+            (mapping->get-param mapping func)
+            (if (func-has-free? func mapping)
+                (mapping->get-free mapping func)
+                `(unknown ,mapping ,(func->slots func) ,(func->params func) ,(func->frees func))))))
 
-; refer
+(define (mapping->copy-ref mapping func)
+    (mapping->get-ref mapping func))
+
+(define (mapping->unslot-ref mapping func)
+    (mapping->get-ref mapping func))
+
 (define (refer->type s) (caddr s))
 (define (refer->mapping s) (cadddr s))
 (define (compile-refer s func) 
-    (if (eq? (func->type func) 'close)
-        `(inst 
-            ,(mapping->get-bound-or-free (refer->mapping s) func)
-            (call $$unslot))
-        (mapping->get-bound-or-free (refer->mapping s) func)))
-; end refer
+    (mapping->unslot-ref (refer->mapping s) func))
 
 (define (compile-referfunc r func mappings)
     (let* ((idx (index (cadr r) mappings))
@@ -142,18 +141,17 @@
         `(inst (call $$alloc-close (i32.const ,idx) (i32.const ,(length vars)))
           ,@(apply append (map (lambda (f i) `(
              (i32.const ,i)
-             ,(mapping->get-bound-or-free (cdr f) func)
+             ,(mapping->copy-ref (cdr f) func)
              (call $$store-free)
           )) vars (range 0 (length vars) 1))))))
-         ; need to pump located frees (find if var is free in current scope, and emit insts to store in allocated close)
-        ; ^ this doesn't work, we need to alloc-close first, and then call $$store-close-free for each free
-        ; maybe, generate an $alloc-close for each size of closure, might suck
+        
+(define (compile-slot s)
+    `(call $$alloc-slot))
 
+(define (number->funcsig-name n) (string->symbol (string-append "$$close" (number->string n))))
+(define (number->call-close-name n) (string->symbol (string-append "$$call-close-" (number->string n))))
 (define (compile-apply a) 
-    `(inst
-      (call $$alloc-bounds (i32.const ,(cadr a)))
-      ,@(map (lambda (i) `(call $$store-bound (i32.const ,i))) (range 0 (cadr a) 1))
-      (call $$call-close)))
+    `(call ,(number->call-close-name (cadr a))))
 ; end scope / vars
 
 ; inst
@@ -165,6 +163,7 @@
             ((eq? op 'store) (compile-store i))
             ((eq? op 'refer) (compile-refer i func))
             ((eq? op 'referfunc) (compile-referfunc i func mappings))
+            ((eq? op 'slot) (compile-slot i))
             ((eq? op 'primcall) (compile-primcall i))
             ((eq? op 'apply) (compile-apply i))
             (else i))))
@@ -177,34 +176,42 @@
 ; end inst
 
 ; func
-(define wclose-tag #b11)
 
 (define (op-match op) (lambda (v) (and (list? v) (eq? (car v) op))))
 (define free? (op-match 'free))
-(define bound? (op-match 'bound))
+(define slot? (op-match 'slot))
+(define param? (op-match 'param))
 
 (define (func->type f) (cadr f))
 (define (func->mapping f) (caddr f))
 (define (func->body f) (cdddr f))
 (define (func->name f) (string->symbol (symbol->string (func->mapping f))))
 
-(define (func->bounds f) (filter bound? (func->body f)))
+(define (func->slots f) (filter slot? (func->body f)))
+(define (func->params f) (filter param? (func->body f)))
 (define (func->frees f) (filter free? (func->body f)))
-(define (func-has-bound? f mapping) (find (lambda (i) (eq? mapping (caddr i))) (func->bounds f)))
+(define (func-has-slot? f mapping) (find (lambda (i) (eq? mapping (caddr i))) (func->slots f)))
+(define (func-has-param? f mapping) (find (lambda (i) (eq? mapping (caddr i))) (func->params f)))
 (define (func-has-free? f mapping) (find (lambda (i) (eq? mapping (caddr i))) (func->frees f)))
-(define (func->bounds-param f)
-    (let ((bounds (func->bounds f)))
-        (if (eq? (length bounds) 0) '() (list '(param $$bounds i32)))))
 
-(define (var? i) (or (free? i) (bound? i)))
-(define (non-var? i) (not (var? i)))
+(define (func->wparams f)
+    (let ((params (func->params f)))
+        (map (lambda (p) `(param ,(caddr p) i32)) params)))
+(define (func->wlocals f)
+    (let ((slots (func->slots f)))
+        (map (lambda (s) `(local ,(caddr s) i32)) slots)))
+
+(define (non-param? i) (not (param? i)))
+(define (non-free? i) (not (free? i)))
+(define (non-var? i) (and (non-param? i) (non-free? i)))
 (define (compile-func func mappings) 
     (let* ((body   (func->body func))
-          (bounds  (compile-insts (filter bound? body) func mappings))
+          (slots  (compile-insts (filter slot? body) func mappings))
+          (params  (compile-insts (filter param? body) func mappings))
           (insts  (compile-insts (filter non-var? body) func mappings)))
         (if (eq? (func->type func) 'close)
-            `(func ,(func->name func) (param $$close i32) ,@(func->bounds-param func) (result i32) ,@insts)
-            `(func ,(func->name func) (result i32) ,@(map (lambda (b) `(local ,(caddr b) i32)) bounds) ,@insts))))
+            `(func ,(func->name func) ,@(func->wparams func) (param $$close i32) (result i32) ,@insts)
+            `(func ,(func->name func) ,@(func->wparams func) (result i32) ,@(func->wlocals func) ,@insts))))
 
 (define (compile-funcs funcs) 
     (let ((mappings (funcs->mappings funcs)))
@@ -220,9 +227,11 @@
 (define (compile-program funcs)
     (let ((cfuncs (compile-funcs funcs)))
         `(module
+            (type $$close0 (func (param i32) (result i32)))
+            (type $$close1 (func (param i32) (param i32) (result i32)))
+            (type $$close2 (func (param i32) (param i32) (param i32) (result i32)))
             (memory $0 16384)
             (export "memory" (memory 0))
-            (type $$closefunc (func (param i32) (param i32) (result i32)))
             ,(funcs->table funcs)
             ,(funcs->elems funcs)
 
@@ -244,6 +253,16 @@
                 (i32.store)
 
                 ; return pointer
+                (get_local $ptr))
+
+            (func $$alloc-slot (param $val i32) (result i32) (local $ptr i32)
+                (i32.const 1) ; size
+                (call $$alloc)
+                (tee_local $ptr)
+
+                (get_local $val) ; store val
+                (i32.store)
+
                 (get_local $ptr))
 
             (func $$alloc-pair (param $car i32) (param $cdr i32) (result i32) (local $ptr i32)
@@ -326,53 +345,44 @@
                 (i32.shr_u)
                 (i32.load))
 
-            (func $$call-close (param $$close i32) (param $$bounds i32)
+            (func $$call-close-0 (param $$close i32)
                 (result i32)
                 (local $$idx i32)
 
                 (get_local $$close)
-                (get_local $$bounds)
 
                 (get_local $$close)
                 (call $$get-close-func-index)
 
-                (call_indirect (type $$closefunc))
+                (call_indirect (type $$close0))
             )
 
-            (func $$alloc-bounds (param $size i32) (result i32)
-                (get_local $size)
-                (call $$alloc))
-
-            (func $$store-bound 
-                (param $val i32) 
-                (param $ptr i32)
-                (param $index i32)
+            (func $$call-close-1 (param $$close i32) (param $$0 i32)
                 (result i32)
+                (local $$idx i32)
 
-                (get_local $index)
-                (i32.const ,wasm-i32-size)
-                (i32.mul)
+                (get_local $$0)
+                (get_local $$close)
 
-                (get_local $ptr)
+                (get_local $$close)
+                (call $$get-close-func-index)
 
-                (i32.add) ; inc to requested slot
-                (get_local $val)
-                (i32.store)
-                (get_local $ptr))
+                (call_indirect (type $$close1))
+            )
 
-            (func $$get-bound-slot
-                (param $ptr i32) 
-                (param $index i32)
+            (func $$call-close-2 (param $$close i32) (param $$0 i32) (param $$1 i32)
                 (result i32)
+                (local $$idx i32)
 
-                (get_local $index)
-                (i32.const ,wasm-i32-size)
-                (i32.mul)
+                (get_local $$0)
+                (get_local $$1)
+                (get_local $$close)
 
-                (get_local $ptr)
+                (get_local $$close)
+                (call $$get-close-func-index)
 
-                (i32.add)) ; inc to requested slot
-
+                (call_indirect (type $$close2))
+            )
 
             (func $$unslot (param $slot i32) (result i32)
                 (get_local $slot)

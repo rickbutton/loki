@@ -1,5 +1,5 @@
 compile: prereq
-	guile -L src/ src/schwasm.scm  test2.scm bin/a.wat
+	guile -L src/ src/schwasm.scm  test2.scm bin/a.wat bin/a.funcs
 	wat2wasm.exe --debug-names bin/a.wat -o bin/a.wasm
 
 run: compile

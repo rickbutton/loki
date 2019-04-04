@@ -7,14 +7,15 @@
 (use-modules (ice-9 pretty-print))
 
 (define (print-help-and-exit) 
-        (display "arguments: schwasm.scm [input.scm] [out.wat]")
+        (display "arguments: schwasm.scm [input.scm] [out.wat] [out.funcs]")
         (exit))
 
-(if (not (eq? (length (command-line)) 3))
+(if (not (eq? (length (command-line)) 4))
     (print-help-and-exit))
 
 (define input-file (list-ref (command-line) 1))
 (define output-file (list-ref (command-line) 2))
+(define funcs-file (list-ref (command-line) 3))
 
 (define (read-all)
     (let ((o (read)))
@@ -23,9 +24,9 @@
 (define (read-input-file)
     (with-input-from-file input-file read-all))
 
-(define (write-output-file output)
-    (if (file-exists? output-file) (delete-file output-file))
-    (let ((p (open-output-file output-file)))
+(define (write-file output file)
+    (if (file-exists? file) (delete-file file))
+    (let ((p (open-output-file file)))
         (pretty-print output p)
         (close-output-port p)))
 
@@ -33,8 +34,7 @@
        (pass1 (scheme->pass1 input))
        (pass2 (pass1->pass2 pass1))
        (flat  (flatten-cps pass2))
-       (funcs (lift-closures flat #t))
-       (wat   (funcs->wat funcs)))
+       (funcs (lift-closures flat #t)))
 
     (display "pass1:\n")
     (pretty-print pass1)
@@ -44,8 +44,10 @@
     (pretty-print flat)
     (display "\nfuncs:\n")
     (pretty-print funcs)
-    (display "\nwat:\n")
-    (pretty-print wat)
-    (write-output-file wat)
+    (write-file funcs funcs-file)
+    (let ((wat   (funcs->wat funcs)))
+        (display "\nwat:\n")
+        (pretty-print wat)
+        (write-file wat output-file))
 )
 (exit)

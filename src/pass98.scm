@@ -4,7 +4,10 @@
 (use-modules (util))
 
 (define (close? x) (and (list? x) (eq? (car x) 'close)))
-(define (bound? x) (and (list? x) (eq? (car x) 'bound)))
+
+(define (slot? x) (and (list? x) (eq? (car x) 'slot)))
+(define (param? x) (and (list? x) (eq? (car x) 'param)))
+(define (bound? x) (or (slot? x) (param? x)))
 
 (define (close->body x) (car (cdr x)))
 

@@ -34,10 +34,15 @@
     (let* ((name (car (cdr inst))) (nvars (add-bound name vars)) (nvar (car (vars->bounds nvars))))
         (cons `(var ,name ,(var->mapped nvar)) nvars)))
 
-(define (bound? x) (eq? (car x) 'bound))
-(define (mark-bound inst vars)
+(define (param? x) (eq? (car x) 'param))
+(define (mark-param inst vars)
     (let* ((name (car (cdr inst))) (nvars (add-bound name vars)) (nvar (car (vars->bounds nvars))))
-        (cons `(bound ,name ,(var->mapped nvar)) nvars)))
+        (cons `(param ,name ,(var->mapped nvar)) nvars)))
+
+(define (slot? x) (eq? (car x) 'slot))
+(define (mark-slot inst vars)
+    (let* ((name (car (cdr inst))) (nvars (add-bound name vars)) (nvar (car (vars->bounds nvars))))
+        (cons `(slot ,name ,(var->mapped nvar)) nvars)))
 
 (define (store? x) (eq? (car x) 'store))
 (define (store->name x) (car (cdr x)))
@@ -69,7 +74,8 @@
 
 (define (map-inst inst vars)
     (cond
-        ((bound? inst) (mark-bound inst vars))
+        ((param? inst) (mark-param inst vars))
+        ((slot? inst)  (mark-slot inst vars))
         ((store? inst) (mark-store inst vars))
         ((refer? inst) (mark-refer inst vars))
         ((close? inst) (mark-close inst vars))

@@ -28,7 +28,7 @@
 ; end null
 
 ; prim
-(define prim-list '(add sub car cdr))
+(define prim-list '(add sub cons car cdr))
 (define (sprim? x) (and (list? x) (contains? prim-list (car x))))
 (define (sprim->name x) (car x))
 (define (sprim->args x) (cdr x))
@@ -73,7 +73,7 @@
 (define (binding->val x) (car (cdr x)))
 
 (define (compile-binding binding next)
-    (compile-expr (binding->val binding) `(bound ,(binding->var binding) (store ,(binding->var binding) ,next))))
+    (compile-expr (binding->val binding) `(slot ,(binding->var binding) (store ,(binding->var binding) ,next))))
 
 (define (compile-slet x next)
     (let ((bindings (let->bindings x)) (body (let->body x)))
@@ -87,7 +87,7 @@
 (define (define->body x) (cdr (cdr x)))
 
 (define (compile-sdefine x next)
-    (compile-expr (cons 'begin (define->body x)) `(bound ,(define->var x) (store ,(define->var x) ,next))))
+    (compile-expr (cons 'begin (define->body x)) `(slot ,(define->var x) (store ,(define->var x) ,next))))
 ; end define
 
 ; begin
@@ -107,7 +107,7 @@
 (define (lambda->body x ) (cdr (cdr x)))
 
 (define (compile-lambda-binding binding next)
-    `(bound ,binding ,next))
+    `(param ,binding ,next))
 (define (compile-lambda-bindings bindings next)
     (fold-right compile-lambda-binding next bindings))
 
