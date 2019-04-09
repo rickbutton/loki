@@ -1,6 +1,7 @@
 (define-library 
     (p01_scheme2cps)
     (import (scheme base))
+    (import (scheme write))
     (import (util))
     (export p01_scheme2cps)
     (begin
@@ -96,7 +97,11 @@
         (define (define->var x) (car (cdr x)))
         (define (define->body x) (cdr (cdr x)))
         (define (compile-sdefine x next)
-            (compile-expr (cons 'begin (define->body x)) `(slot ,(define->var x) (store ,(define->var x) ,next))))
+            (let ((var (define->var x)))
+                (cond
+                    ((list? var) (compile-sdefine `(define ,(car var) (lambda ,(cdr var) ,@(define->body x))) next))
+                    ((pair? var) (compile-sdefine `(define ,(car var) (lambda (,(cdr var)) ,@(define->body x))) next))
+                    (else (compile-expr (cons 'begin (define->body x)) `(slot ,(define->var x) (store ,(define->var x) ,next)))))))
 
         (define (begin->body x) (cdr x))
         (define (begin-fold x r) (compile-expr x r))
