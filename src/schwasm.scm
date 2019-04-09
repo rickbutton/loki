@@ -6,11 +6,11 @@
 (import (scheme process-context))
 (import (util))
 
-(import (pass1))
-(import (pass2))
-(import (pass97))
-(import (pass98))
-(import (pass99))
+(import (p01_scheme2cps))
+(import (p02_markvars))
+(import (p03_flattencps))
+(import (p04_closes2funcs))
+(import (p05_funcs2wat))
 
 (import (srfi 159))
 (import (chibi show pretty))
@@ -40,16 +40,19 @@
         (show p (pretty output))
         (close-output-port p)))
 
+(define (compile prog)
+    (p05_funcs2wat
+    (p04_closes2funcs
+    (p03_flattencps
+    (p02_markvars
+    (p01_scheme2cps
+        prog))))))
+
 (define (main)
     (let* ((input (read-input-file))
-        (pass1 (scheme->pass1 input))
-        (pass2 (pass1->pass2 pass1))
-        (flat  (flatten-cps pass2))
-        (funcs (lift-closures flat #t)))
+           (wat (compile input)))
 
-        (write-file funcs funcs-file)
-        (let ((wat   (funcs->wat funcs)))
-            (write-file wat output-file))))
+            (write-file wat output-file)))
 
 (main)
 (exit)

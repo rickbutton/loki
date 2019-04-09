@@ -1,8 +1,8 @@
 (define-library 
-(pass98)
+(p04_closes2funcs)
 (import (scheme base))
 (import (util))
-(export lift-closures)
+(export p04_closes2funcs)
 (begin
 (define funcid (makeid "$$f"))
 
@@ -67,4 +67,7 @@
            (entry    (entry->func mapped))
            (outer    `(,entry ,@(if (null? funcs) '() funcs))))
         (if emit-outer-func outer (cons mapped funcs))))
+
+(define (p04_closes2funcs x)
+        (lift-closures x #t))
 ))

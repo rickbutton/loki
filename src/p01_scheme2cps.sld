@@ -1,8 +1,8 @@
 (define-library 
-    (pass1)
+    (p01_scheme2cps)
     (import (scheme base))
     (import (util))
-    (export scheme->pass1)
+    (export p01_scheme2cps)
     (begin
         (define (sfixnum? i) (integer? i))
         (define (sboolean? b) (boolean? b))
@@ -106,5 +106,5 @@
                 ((spair? x) (compile-apply x next))
             ))
 
-        (define (scheme->pass1 x) (compile-expr (cons 'begin x) '(return)))
+        (define (p01_scheme2cps x) (compile-expr (cons 'begin x) '(return)))
 ))

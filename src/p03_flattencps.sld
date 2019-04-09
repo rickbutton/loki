@@ -1,8 +1,8 @@
 (define-library 
-(pass97)
+(p03_flattencps)
 (import (scheme base))
 (import (util))
-(export flatten-cps)
+(export p03_flattencps)
 (begin
 
 (define (close? x) (and (list? x) (eq? (car x) 'close)))
@@ -10,12 +10,12 @@
 (define (close->next x) (car (cdr (cdr x))))
 
 (define (flatten-close x)
-    (cons `(close ,(flatten-cps (close->body x))) (flatten-cps (close->next x))))
+    (cons `(close ,(p03_flattencps (close->body x))) (p03_flattencps (close->next x))))
 
-(define (flatten-cps x)
+(define (p03_flattencps x)
     (cond
         ((eq? (length x) 1) (cons x '()))
         ((close? x) (flatten-close x))
-        (else (cons (all-but-last x) (flatten-cps (last x))))))
+        (else (cons (all-but-last x) (p03_flattencps (last x))))))
 
 ))

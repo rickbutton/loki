@@ -1,9 +1,9 @@
 (define-library 
-(pass99)
+(p05_funcs2wat)
 (import (scheme base))
 (import (srfi 151))
 (import (util))
-(export funcs->wat)
+(export p05_funcs2wat)
 (begin
 
 ; fixnum
@@ -407,6 +407,6 @@
             (export "main" (func $$main))
         )))
 
-(define (funcs->wat funcs) (compile-program funcs))
+(define (p05_funcs2wat funcs) (compile-program funcs))
 
 ))

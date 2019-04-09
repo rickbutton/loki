@@ -1,8 +1,8 @@
 (define-library 
-    (pass2)
+    (p02_markvars)
     (import (scheme base))
     (import (util))
-    (export pass1->pass2)
+    (export p02_markvars)
     (begin
         (define varid (makeid "$$v"))
 
@@ -96,7 +96,7 @@
                     (cons (append ninst (list ncont)) nnvars))))
 
 
-        (define (pass1->pass2 x)
+        (define (p02_markvars x)
             (let* ((pass (map-cps x map-inst (empty-vars)))
                 (end-pass  (car pass))
                 (end-vars  (cdr pass)))
