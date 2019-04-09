@@ -407,6 +407,4 @@
             (export "main" (func $$main))
         )))
 
-(define (p05_funcs2wat funcs) (compile-program funcs))
-
-))
+(define (p05_funcs2wat funcs) (compile-program funcs))))

@@ -4,6 +4,7 @@
 (import (util))
 (export p04_closes2funcs)
 (begin
+
 (define funcid (makeid "$$f"))
 
 (define (close? x) (and (list? x) (eq? (car x) 'close)))
@@ -69,5 +70,4 @@
         (if emit-outer-func outer (cons mapped funcs))))
 
 (define (p04_closes2funcs x)
-        (lift-closures x #t))
-))
+        (lift-closures x #t))))

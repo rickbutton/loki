@@ -55,4 +55,3 @@
             (write-file wat output-file)))
 
 (main)
-(exit)

@@ -16,6 +16,4 @@
     (cond
         ((eq? (length x) 1) (cons x '()))
         ((close? x) (flatten-close x))
-        (else (cons (all-but-last x) (p03_flattencps (last x))))))
-
-))
+        (else (cons (all-but-last x) (p03_flattencps (last x))))))))
