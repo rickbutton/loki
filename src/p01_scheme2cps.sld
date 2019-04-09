@@ -35,12 +35,41 @@
         (define (compile-ssymbol x next) `(refer ,x ,next))
         (define (compile-squote x next) (compile-constant (cadr x) next))
 
-        (define (sprim->name x) (car x))
+        (define (sprim->op x) (car x))
         (define (sprim->args x) (cdr x))
-        (define (sprim-fold x r) (compile-expr x r))
-        (define (compile-sprim x next)
-            (let ((name (sprim->name x)) (args (sprim->args x)))
-                (fold-right sprim-fold `(primcall ,name ,next) args)))
+        (define (sprim->argc x) (length (sprim->args x)))
+
+    (define (ensure-sprim-argc p name c inst)
+        (if (eq? (sprim->argc p) c)
+            inst
+            (error (string-append 
+                "invalid number of args to prim " 
+                (symbol->string name)
+                ", expected "
+                (number->string c)
+                ", received "
+                (number->string (sprim->argc p))))))       
+
+    (define (compile-mathprim-rest args prim next)
+        (fold-right (lambda (a r) (compile-expr a `(primcall ,prim ,r))) next args))
+
+    (define (compile-mathprim p next)
+        (let ((op (sprim->op p)) (args (sprim->args p)) (argc (sprim->argc p)))
+            (cond
+                ((eq? argc 0) (compile-expr 0 next))
+                ((eq? argc 1) (compile-expr (car args) next))
+                ((eq? argc 2) (compile-expr (car args) (compile-expr (cadr args) `(primcall ,op ,next))))
+                (else (compile-expr (car args) (compile-expr (cadr args) `(primcall ,op ,(compile-mathprim-rest (cddr args) op next))))))))
+
+    (define (compile-sprim p next)
+        (let ((op (sprim->op p)))
+            (cond
+                ((eq? op 'add) (compile-mathprim p next))
+                ((eq? op 'sub) (compile-mathprim p next))
+                ((eq? op 'car) (ensure-sprim-argc p 'car 1 '(call $$car)))
+                ((eq? op 'cdr) (ensure-sprim-argc p 'cdr 1 '(call $$cdr)))
+                ((eq? op 'cons) (ensure-sprim-argc p 'cons 2 '(call $$alloc-pair)))
+                (else (error (string-append "invalid primcall: " op))))))
 
         (define (apply-fold x r) (compile-expr x r))
         (define (apply-op x) (car x))
