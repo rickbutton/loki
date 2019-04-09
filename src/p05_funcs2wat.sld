@@ -28,7 +28,7 @@
 (define true-tag #b10011111)
 
 (define (sboolean? b) (boolean? b))
-(define (wboolean? b) (eq? (bitwise-and i wboolean-mask) wboolean-tag))
+(define (wboolean? b) (eq? (bitwise-and b wboolean-mask) wboolean-tag))
 
 (define (sboolean->wboolean b) (if b true-tag false-tag))
 (define (wboolean->sboolean b) (if (eq? b true-tag) #t #f))
@@ -43,7 +43,7 @@
 (define wchar-shift 8)
 
 (define (schar? c) (char? c))
-(define (wchar? b) (eq? (bitwise-and i wchar-mask) wchar-tag))
+(define (wchar? b) (eq? (bitwise-and b wchar-mask) wchar-tag))
 
 (define (schar->wchar c) (bitwise-ior (arithmetic-shift (char->integer c) wchar-shift) wchar-tag))
 (define (wchar->schar c) (arithmetic-shift (char->integer c) (- 0 wchar-shift)))
