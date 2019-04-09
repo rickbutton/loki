@@ -9,12 +9,10 @@
         filter
         fold-left
         fold-right
-        list-count
         last
         all-but-last
         index
         contains?
-        reduce
         range
         makeid)
 (begin
@@ -48,12 +46,6 @@
         (f (car seq) 
             (fold-right f init (cdr seq))))) 
 
-(define (list-count-internal l count)
-        (if (null? l) count
-            (list-count-internal (cdr l) (+ count 1))))
-
-(define (list-count l) (list-count-internal l 0))
-
 (define (last l)
     (cond ((null? l) '())
         ((null? (cdr l)) (car l))
@@ -69,12 +61,6 @@
     (if (null? l) #f
         (or (eq? (car l) i) (contains? (cdr l) i))))
 
-(define (reduce fn base-value lis)
-    (if (null? lis)
-        base-value
-        (fn (car lis)
-            (reduce fn base-value (cdr lis)))))
-    
 (define (range start end step)
     (reverse (range-reversed '() start end step)))
 (define (range-reversed fold-var pos end step)
