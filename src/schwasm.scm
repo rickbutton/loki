@@ -36,22 +36,23 @@
 (define (write-file output file)
     (if (file-exists? file) (delete-file file))
     (let ((p (open-output-file file)))
-        (display (show #f (pretty output)))
         (show p (pretty output))
         (close-output-port p)))
 
 (define (compile prog)
-    (p05_funcs2wat
-    (p04_closes2funcs
-    (p03_flattencps
-    (p02_markvars
-    (p01_scheme2cps
-        prog))))))
+    (let ((p01 (p01_scheme2cps prog)))
+    (display (show #f (pretty p01)))
+    (let ((p02 (p02_markvars p01)))
+    (display (show #f (pretty p02)))
+    (let ((p03 (p03_flattencps p02)))
+    (let ((p04 (p04_closes2funcs p03)))
+    (let ((p05 (p05_funcs2wat p04)))
+    (display (show #f (pretty p05)))
+        p05))))))
 
 (define (main)
     (let* ((input (read-input-file))
            (wat (compile input)))
-
             (write-file wat output-file)))
 
 (main)
