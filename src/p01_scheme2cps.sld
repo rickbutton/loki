@@ -6,7 +6,7 @@
     (export p01_scheme2cps)
 (begin
 
-(define (satomic? x)
+(define (atomic? x)
     (or
         (integer? x)
         (boolean? x)
@@ -19,7 +19,6 @@
 (define prim-list '(add sub cons car cdr))
 (define (prim? x) (and (list? x) (contains? prim-list (car x))))
 
-(define (spair? n) (pair? n))
 (define (let? x) (and (list? x) (eq? (car x) 'let)))
 (define (define? x) (and (list? x) (eq? (car x) 'define)))
 (define (begin? x) (and (list? x) (eq? (car x) 'begin)))
@@ -75,20 +74,21 @@
     (let ((op (apply-op x)) (args (apply-args x)))
         (compile-expr op (fold-right apply-fold `(apply ,(length args) ,next) args))))
 
-(define (compile-spair x next)
+(define (compile-pair x next)
     (let ((left (car x)) (right (cdr x)))
         (compile-expr left (compile-expr right `(pair ,next)))))
-
 
 (define (let->bindings x) (car (cdr x)))
 (define (let->body x ) (cdr (cdr x)))
 (define (binding->var x) (car x))
 (define (binding->val x) (car (cdr x)))
 (define (compile-binding binding next)
-    (compile-expr (binding->val binding) `(slot ,(binding->var binding) (store ,(binding->var binding) ,next))))
+    (compile-expr (binding->val binding) `(slot (store ,(binding->var binding) ,next))))
+; TODO - separate binding values and the "body" of the let, so that the body can be marked with the new scope, but the bindings won't 
+; currently, bindings can see their sibling bindings (because the scope is the parent of the bindings and body)
 (define (compile-let x next)
     (let ((bindings (let->bindings x)) (body (let->body x)))
-        (fold-right compile-binding (compile-expr (cons 'begin body) next) bindings)))
+        `(scope ,(map car bindings) ,(fold-right compile-binding (compile-expr (cons 'begin body) '(end)) bindings) ,next)))
 
 (define (define->var x) (car (cdr x)))
 (define (define->body x) (cdr (cdr x)))
@@ -97,16 +97,11 @@
         (cond
             ((list? var) (compile-define `(define ,(car var) (lambda ,(cdr var) ,@(define->body x))) next))
             ((pair? var) (compile-define `(define ,(car var) (lambda (,(cdr var)) ,@(define->body x))) next))
-            (else (compile-expr (cons 'begin (define->body x)) `(slot ,(define->var x) (store ,(define->var x) ,next)))))))
+            (else `(define ,var ,(compile-expr (cons 'begin (define->body x)) `(slot (store ,(define->var x) ,next))))))))
 
 (define (begin->body x) (cdr x))
 (define (begin-fold x r) (compile-expr x r))
 (define (compile-begin x next) (fold-right begin-fold next (begin->body x)))
-
-
-; let - `(scope ,var ,(fold-right compile-let-binding (compile (cons 'begin body) '(end)) bindings) ,next)))
-; define - `(define ,name ,(compile body `(slot ,name (store ,name ,next)))))
-; lambda - `(close ,bindings ,(compile `(begin ,@body) '(return)) ,next))
 
 (define (lambda->bindings x) (car (cdr x)))
 (define (lambda->body x ) (cdr (cdr x)))
@@ -115,9 +110,8 @@
 (define (compile-lambda-bindings bindings next)
     (fold-right compile-lambda-binding next bindings))
 (define (compile-lambda x next)
-    (let* ((body (compile-expr (cons 'begin (lambda->body x)) '(return)))
-            (bindings (compile-lambda-bindings (lambda->bindings x) body)))
-    `(close ,bindings ,next)))
+    (let ((body (compile-expr (cons 'begin (lambda->body x)) '(return))))
+    `(close ,(lambda->bindings x) ,body ,next)))
 
 (define (compile-constant x next)
     (cond
@@ -126,11 +120,50 @@
         ((char? x) (compile-char x next))
         ((null? x) (compile-null x next))
         ((symbol? x) (compile-symbol x next))
-        ((spair? x) (compile-spair x next))))
+        ((pair? x) (compile-pair x next))))
+
+; integer 1
+; (constant 1 next)
+
+; boolean #t
+; (constant #t next)
+
+; char a
+; (constant #\a next)
+
+; null/()
+; (constant '() next)
+
+; symbol sym
+; (refer sym next)
+
+; pair (1 . 2)
+; (constant 1 (constant 2 (pair)))
+
+; quote '(1 2)
+; (constant 1 (constant 2 (pair (constant '() (pair next)))
+
+; prim add
+; (primcall add)
+
+; let (let ((x 1)) (add x 1))
+; (scope (x) (constant 1 (slot (store x (end)))) next)
+
+; define (define x 10)
+; (define x (constant 10 next))
+
+; begin (begin 1 2)
+; (constant 1 (constant 2 next))
+
+; lambda (lambda (x) (add x 1))
+; (close (param x (refer x (constant 1 (primcall add (return))))) next)
+
+; apply (func 1 2)
+; (constant 1 (constant 2 (apply 2)))
 
 (define (compile-expr x next)
     (cond
-        ((satomic? x) (compile-constant x next))
+        ((atomic? x) (compile-constant x next))
         ((quote? x) (compile-quote x next))
         ((prim? x) (compile-prim x next))
         ((let? x) (compile-let x next))
@@ -138,7 +171,7 @@
         ((begin? x) (compile-begin x next))
         ((lambda? x) (compile-lambda x next))
 
-        ((spair? x) (compile-apply x next))
+        ((pair? x) (compile-apply x next))
     ))
 
 (define (p01_scheme2cps x) (compile-expr (cons 'begin x) '(return)))))

@@ -5,6 +5,7 @@
         caddr
         cadddr
         cdddr
+        unique
         find
         filter
         fold-left
@@ -14,12 +15,21 @@
         index
         contains?
         range
-        makeid)
+        make-anon-id
+        make-named-id)
 (begin
 
 (define (caddr x) (car (cdr (cdr x))))
 (define (cadddr x) (car (cdr (cdr (cdr x)))))
 (define (cdddr x) (cdr (cdr (cdr x))))
+
+(define (unique lst)
+  (fold-right (lambda (e a)
+        (if (not (member e a))
+            (cons e a)
+            a))
+        '()
+         lst))
 
 (define (find pred list)
     (if (null? list) #f
@@ -74,8 +84,14 @@
         step)
         fold-var))
 
-(define (makeid prefix)
+(define (make-anon-id prefix)
     (let ((count 0))
         (lambda () 
             (set! count (+ 1 count))
-            (string->symbol (string-append prefix (number->string count))))))))
+            (string->symbol (string-append prefix (number->string count))))))
+
+(define (make-named-id prefix)
+    (let ((count 0))
+        (lambda (name) 
+            (set! count (+ 1 count))
+            (string->symbol (string-append prefix (number->string count) "_" (symbol->string name))))))))

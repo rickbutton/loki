@@ -1,4 +1,7 @@
-(define make-add (lambda (x) (lambda (y) (add x y))))
-(define add-to-12 (make-add 12))
+(define (+ a b c) (add a b c))
 
-(add-to-12 45)
+(define (test x)
+    (let ((y (add x 2)) (z (add x 3)))
+        (+ x y z)))
+
+(test 5)

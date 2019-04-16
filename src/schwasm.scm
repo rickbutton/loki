@@ -41,9 +41,7 @@
 
 (define (compile prog)
     (let ((p01 (p01_scheme2cps prog)))
-    (display (show #f (pretty p01)))
     (let ((p02 (p02_markvars p01)))
-    (display (show #f (pretty p02)))
     (let ((p03 (p03_flattencps p02)))
     (let ((p04 (p04_closes2funcs p03)))
     (let ((p05 (p05_funcs2wat p04)))
