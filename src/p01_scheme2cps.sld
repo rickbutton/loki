@@ -82,13 +82,12 @@
 (define (let->body x ) (cdr (cdr x)))
 (define (binding->var x) (car x))
 (define (binding->val x) (car (cdr x)))
-(define (compile-binding binding next)
-    (compile-expr (binding->val binding) `(slot (store ,(binding->var binding) ,next))))
-; TODO - separate binding values and the "body" of the let, so that the body can be marked with the new scope, but the bindings won't 
-; currently, bindings can see their sibling bindings (because the scope is the parent of the bindings and body)
+(define (compile-binding binding)
+    (cons (binding->var binding) (compile-expr (binding->val binding) `(slot (store ,(binding->var binding) (end))))))
+
 (define (compile-let x next)
     (let ((bindings (let->bindings x)) (body (let->body x)))
-        `(scope ,(map car bindings) ,(fold-right compile-binding (compile-expr (cons 'begin body) '(end)) bindings) ,next)))
+        `(scope ,(map compile-binding bindings) ,(compile-expr (cons 'begin body) '(end)) ,next)))
 
 (define (define->var x) (car (cdr x)))
 (define (define->body x) (cdr (cdr x)))
@@ -147,7 +146,7 @@
 ; (primcall add)
 
 ; let (let ((x 1)) (add x 1))
-; (scope (x) (constant 1 (slot (store x (end)))) next)
+; (scope (x (constant 1 (slot (store x (end))))) (refer x (constant 1 (primcall add (end)))) next)
 
 ; define (define x 10)
 ; (define x (constant 10 next))
