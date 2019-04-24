@@ -1,5 +1,5 @@
 compile: prereq
-	chibi-scheme -I src src/schwasm.scm test2.scm bin/a.wat bin/a.funcs
+	chibi-scheme -I compiler compiler/schwasm.scm test2.scm bin/a.wat bin/a.funcs
 	wat2wasm.exe --debug-names bin/a.wat -o bin/a.wasm
 
 run: compile
