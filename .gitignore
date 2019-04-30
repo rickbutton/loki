@@ -1,1 +1,10 @@
-bin/*
+examples/*.wasm
+examples/*.wat
+
+compiler/bin/*.wasm
+compiler/bin/*.wat
+
+wasm-pack.log
+Cargo.lock
+**/*.rs.bk
+runtime/target

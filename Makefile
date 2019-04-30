@@ -1,18 +1,31 @@
-compile: prereq
-	chibi-scheme -I compiler compiler/schwasm.scm test2.scm bin/a.wat bin/a.funcs
-	wat2wasm.exe --debug-names bin/a.wat -o bin/a.wasm
+RUST_TARGET = wasm32-unknown-unknown
+RUST_ARGS = --release --target $(RUST_TARGET)
+RUST_TOML = runtime/Cargo.toml
 
-run: compile
-	node --expose-wasm bootstrap.js bin/a.wasm
-	
-debug: compile
-	node --inspect-brk --expose-wasm bootstrap.js bin/a.wasm
+RUST_OUT_DIR = runtime/target/wasm32-unknown-unknown/release
+RUST_RUNTIME_WASM = runtime/target/wasm32-unknown-unknown/release/runtime.wasm
+
+example: examples/runtime.wat examples/test.wasm examples/test.wat
+	node --expose-wasm --experimental-modules javascript/src/node.mjs examples/runtime.wasm examples/test.wasm
+
+%.wat: %.scm compiler/src/**
+	chibi-scheme -I compiler/src compiler/src/schwasm.scm $< $@
+
+%.wasm: %.wat
+	wat2wasm.exe --debug-names $< -o $@
+
+$(RUST_RUNTIME_WASM): runtime/src/**
+	cargo +nightly build $(RUST_ARGS) --manifest-path $(RUST_TOML)
+
+examples/runtime.wasm:$(RUST_RUNTIME_WASM)
+	cp $< $@
+
+examples/runtime.wat: examples/runtime.wasm
+	wasm2wat.exe $< -o $@
 
 http:
 	http-server
 
-prereq:
-	mkdir -p bin
-
 clean:
-	rm bin/*
+	rm -f examples/*.wasm examples/*.wat
+	rm -rf runtime/target

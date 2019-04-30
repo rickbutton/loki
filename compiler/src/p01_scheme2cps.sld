@@ -62,9 +62,9 @@
         (cond
             ((eq? op 'add) (compile-mathprim p next))
             ((eq? op 'sub) (compile-mathprim p next))
-            ((eq? op 'car) (ensure-prim-argc p 'car 1 '(call $$car)))
-            ((eq? op 'cdr) (ensure-prim-argc p 'cdr 1 '(call $$cdr)))
-            ((eq? op 'cons) (ensure-prim-argc p 'cons 2 '(call $$alloc-pair)))
+            ((eq? op 'car) (ensure-prim-argc p 'car 1 (compile-expr (cadr p) `(primcall car ,next))))
+            ((eq? op 'cdr) (ensure-prim-argc p 'cdr 1 (compile-expr (cadr p) `(primcall cdr ,next))))
+            ((eq? op 'cons) (ensure-prim-argc p 'cons 2 (compile-expr (cadr p) (compile-expr (caddr p) `(primcall cons ,next)))))
             (else (error (string-append "invalid primcall: " op))))))
 
 (define (apply-fold x r) (compile-expr x r))

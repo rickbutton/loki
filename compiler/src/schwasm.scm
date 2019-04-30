@@ -16,15 +16,14 @@
 (import (chibi show pretty))
 
 (define (print-help-and-exit) 
-        (display "arguments: schwasm.scm [input.scm] [out.wat] [out.funcs]")
+        (display "arguments: schwasm.scm [input.scm] [out.wat]")
         (exit))
 
-(if (not (eq? (length (command-line)) 4))
+(if (not (eq? (length (command-line)) 3))
     (print-help-and-exit))
 
 (define input-file (list-ref (command-line) 1))
 (define output-file (list-ref (command-line) 2))
-(define funcs-file (list-ref (command-line) 3))
 
 (define (read-all)
     (let ((o (read)))

@@ -72,7 +72,7 @@
 
 ; pair
 (define (compile-pair x)
-    `(call $$alloc-pair))
+    `(call $$alloc_pair))
 ; end pair
 
 ; prim
@@ -85,7 +85,7 @@
             ((eq? op 'sub) '(i32.sub))
             ((eq? op 'car) '(call $$car))
             ((eq? op 'cdr) '(call $$cdr))
-            ((eq? op 'cons) '(call $$alloc-pair))
+            ((eq? op 'cons) '(call $$alloc_pair))
             (else (error (string-append "invalid primcall: " op))))))
 ; end prim
 
@@ -111,7 +111,7 @@
         (if (member mapping bounds)
             `(get_local ,mapping)
             (if (member mapping frees)
-                `(call $$get-free (get_local $$close) (i32.const ,(index mapping frees)))
+                `(call $$get_free (get_local $$close) (i32.const ,(index mapping frees)))
                 `(call $$unslot (get_local ,mapping))))))
 
 (define (refer->type s) (caddr s))
@@ -123,15 +123,15 @@
     (let* ((idx (index (cadr r) mappings))
            (body (func->body func))
            (vars (caddr r)))
-        `(inst (call $$alloc-close (i32.const ,idx) (i32.const ,(length vars)))
+        `(inst (call $$alloc_close (i32.const ,idx) (i32.const ,(length vars)))
           ,@(apply append (map (lambda (f i) `(
              (i32.const ,i)
              ,(mapping->get-ref (cdr f) func)
-             (call $$store-free)
+             (call $$store_free)
           )) vars (range 0 (length vars) 1))))))
         
 (define (compile-slot s)
-    `(call $$alloc-slot))
+    `(call $$alloc_slot))
 
 (define (number->funcsig-name n) (string->symbol (string-append "$$close" (number->string n))))
 (define (number->call-close-name n) (string->symbol (string-append "$$call-close-" (number->string n))))
@@ -208,6 +208,7 @@
 
 (define wasm-i32-size 4)
 (define wasm-heap-top-ptr 16380)
+
 (define (compile-program funcs)
     (let ((cfuncs (compile-funcs funcs)))
         `(module
@@ -215,120 +216,22 @@
             (type $$close1 (func (param i32) (param i32) (result i32)))
             (type $$close2 (func (param i32) (param i32) (param i32) (result i32)))
             (type $$close3 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
-            (memory $0 16384)
-            (export "memory" (memory 0))
+            (import "env" "memory" (memory 0))
+
+            (import "env" "$$alloc_slot"  (func $$alloc_slot (param i32) (result i32)))
+            (import "env" "$$unslot"      (func $$unslot (param i32) (result i32)))
+            (import "env" "$$alloc_pair"  (func $$alloc_pair (param i32 i32) (result i32)))
+            (import "env" "$$car"         (func $$car (param i32) (result i32)))
+            (import "env" "$$cdr"         (func $$cdr (param i32) (result i32)))
+            (import "env" "$$alloc_close" (func $$alloc_close (param i32 i32) (result i32)))
+            (import "env" "$$store_free"  (func $$store_free (param i32 i32 i32) (result i32)))
+            (import "env" "$$get_free"    (func $$get_free (param i32 i32) (result i32)))
+            (import "env" "$$get_close_func_index"    (func $$get_close_func_index (param i32) (result i32)))
+
             ,(funcs->table funcs)
             ,(funcs->elems funcs)
 
             (func $$main (result i32) (call $$fentry))
-
-            (func $$alloc (param $size i32) (result i32) (local $ptr i32)
-                ; get current top of heap from heap top pointer (16383)
-                (i32.const ,wasm-heap-top-ptr)
-                (i32.load)
-                (set_local $ptr)
-
-                ; inc pointer by param
-                (i32.const ,wasm-heap-top-ptr)
-                (get_local $ptr)
-                (get_local $size)
-                (i32.const ,wasm-i32-size)
-                (i32.mul)
-                (i32.add)
-                (i32.store)
-
-                ; return pointer
-                (get_local $ptr))
-
-            (func $$alloc-slot (param $val i32) (result i32) (local $ptr i32)
-                (i32.const 1) ; size
-                (call $$alloc)
-                (tee_local $ptr)
-
-                (get_local $val) ; store val
-                (i32.store)
-
-                (get_local $ptr))
-
-            (func $$alloc-pair (param $car i32) (param $cdr i32) (result i32) (local $ptr i32)
-                (i32.const 2) ; size
-                (call $$alloc)
-                (tee_local $ptr)
-
-                (get_local $car) ; store car
-                (i32.store)
-
-                (get_local $ptr) ; store cdr
-                (i32.const ,wasm-i32-size)
-                (i32.add)
-                (get_local $cdr)
-                (i32.store)
-
-                (get_local $ptr) ; get ptr
-                (i32.const ,wobj-shift) ; shift left
-                (i32.shl)   
-                (i32.const ,wpair-tag) ; tag as pair
-                (i32.or)
-                )
-
-            (func $$alloc-close (param $findex i32) (param $size i32) (result i32) (local $ptr i32)
-                (get_local $size)
-                (i32.const 1)
-                (i32.add)
-                (call $$alloc)
-
-                (tee_local $ptr)
-                (get_local $findex)
-                (i32.store)
-
-                (get_local $ptr)
-                (i32.const ,wobj-shift) ; shift left
-                (i32.shl)   
-                (i32.const ,wclose-tag) ; tag as slot
-                (i32.or)
-            )
-
-            (func $$store-free 
-                (param $ptr i32) 
-                (param $index i32)
-                (param $val i32)
-                (result i32)
-
-                (get_local $ptr)
-                (i32.const ,wobj-shift)
-                (i32.shr_u) ; convert to real pointer
-                (i32.const ,wasm-i32-size)
-                (i32.add) ; inc to first slot
-                (get_local $index)
-                (i32.const ,wasm-i32-size)
-                (i32.mul)
-                (i32.add) ; inc to requested slot
-                (get_local $val)
-                (i32.store)
-                (get_local $ptr))
-
-            (func $$get-free
-                (param $ptr i32) 
-                (param $index i32)
-                (result i32)
-
-                (get_local $ptr)
-                (i32.const ,wobj-shift)
-                (i32.shr_u) ; convert to real pointer
-                (i32.const ,wasm-i32-size)
-                (i32.add) ; inc to first slot
-                (get_local $index)
-                (i32.const ,wasm-i32-size)
-                (i32.mul)
-                (i32.add) ; inc to requested slot
-
-                (i32.load))
-            
-            (func $$get-close-func-index (param $close i32) (result i32)
-                (get_local $close)
-                (i32.const ,wobj-shift)
-                (i32.shr_u)
-                (i32.load))
 
             (func $$call-close-0 (param $$close i32)
                 (result i32)
@@ -337,7 +240,7 @@
                 (get_local $$close)
 
                 (get_local $$close)
-                (call $$get-close-func-index)
+                (call $$get_close_func_index)
 
                 (call_indirect (type $$close0))
             )
@@ -350,7 +253,7 @@
                 (get_local $$close)
 
                 (get_local $$close)
-                (call $$get-close-func-index)
+                (call $$get_close_func_index)
 
                 (call_indirect (type $$close1))
             )
@@ -364,7 +267,7 @@
                 (get_local $$close)
 
                 (get_local $$close)
-                (call $$get-close-func-index)
+                (call $$get_close_func_index)
 
                 (call_indirect (type $$close2))
             )
@@ -379,27 +282,10 @@
                 (get_local $$close)
 
                 (get_local $$close)
-                (call $$get-close-func-index)
+                (call $$get_close_func_index)
 
                 (call_indirect (type $$close3))
             )
-
-            (func $$unslot (param $slot i32) (result i32)
-                (get_local $slot)
-                (i32.load))
-
-            (func $$car (param $pair i32) (result i32)
-                (get_local $pair)
-                (i32.const ,wobj-shift)
-                (i32.shr_u)
-                (i32.load))
-            (func $$cdr (param $pair i32) (result i32)
-                (get_local $pair)
-                (i32.const ,wobj-shift)
-                (i32.shr_u)
-                (i32.const ,wasm-i32-size)
-                (i32.add)
-                (i32.load))
 
             ,@cfuncs
             (export "main" (func $$main))

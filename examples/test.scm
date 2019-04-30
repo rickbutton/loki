@@ -4,4 +4,4 @@
     (let ((y (add x 2)) (z (add x 3)))
         (+ x y z)))
 
-(test 5)
+(cons (test 5) (test 10))

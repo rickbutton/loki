@@ -1,5 +1,0 @@
-(let ((test 2))
-  (define x 4)
-  (define y 5)
-  (define add1 (lambda (x) (add x 1)))
-  (add1 y))
