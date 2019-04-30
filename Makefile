@@ -6,7 +6,7 @@ RUST_OUT_DIR = runtime/target/wasm32-unknown-unknown/release
 RUST_RUNTIME_WASM = runtime/target/wasm32-unknown-unknown/release/runtime.wasm
 
 example: examples/runtime.wat examples/test.wasm examples/test.wat
-	node --expose-wasm --experimental-modules javascript/src/node.mjs examples/runtime.wasm examples/test.wasm
+	node --expose-wasm --experimental-modules host/src/node.mjs examples/runtime.wasm examples/test.wasm
 
 %.wat: %.scm compiler/src/**
 	chibi-scheme -I compiler/src compiler/src/schwasm.scm $< $@
