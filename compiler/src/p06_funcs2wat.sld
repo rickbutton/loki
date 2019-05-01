@@ -1,9 +1,9 @@
 (define-library 
-(p05_funcs2wat)
+(p06_funcs2wat)
 (import (scheme base))
 (import (srfi 151))
 (import (util))
-(export p05_funcs2wat)
+(export p06_funcs2wat)
 (begin
 
 ; fixnum
@@ -201,8 +201,10 @@
 (define (funcs->elems funcs) `(elem (i32.const 0) ,@(funcs->mappings funcs)))
 ; end func
 
-(define (compile-program funcs)
-    (let ((cfuncs (compile-funcs funcs)))
+(define (compile-program funcs-and-heap-values)
+    (let* ((funcs (car funcs-and-heap-values))
+           (heap-values (cdr funcs-and-heap-values))
+           (cfuncs (compile-funcs funcs)))
         `(module
             (type $$close0 (func (param i32) (result i32)))
             (type $$close1 (func (param i32) (param i32) (result i32)))
@@ -283,4 +285,4 @@
             (export "main" (func $$main))
         )))
 
-(define (p05_funcs2wat funcs) (compile-program funcs))))
+(define (p06_funcs2wat funcs) (compile-program funcs))))

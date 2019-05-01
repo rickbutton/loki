@@ -1,6 +1,9 @@
 (define-library 
     (util)
     (import (scheme base))
+    (import (scheme write))
+    (import (srfi 159))
+    (import (chibi show pretty))
     (export 
         caddr
         cadddr
@@ -15,6 +18,7 @@
         index
         contains?
         range
+        debug
         make-anon-id
         make-named-id)
 (begin
@@ -83,6 +87,15 @@
         end
         step)
         fold-var))
+
+(define-syntax debug
+    (syntax-rules ()
+        ((debug exp)
+            (begin
+                (display (show #f (quote exp)))
+                (display ": ")
+                (display exp)
+                (display "\n")))))
 
 (define (make-anon-id prefix)
     (let ((count 0))

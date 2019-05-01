@@ -6,12 +6,12 @@
     (export p01_scheme2cps)
 (begin
 
-(define (atomic? x)
+(define (constant? x)
     (or
         (integer? x)
         (boolean? x)
         (char? x)
-        (symbol? x)
+        (string? x)
         (null? x)))
 
 (define (quote? x) (and (list? x) (eq? (car x) 'quote)))
@@ -28,7 +28,19 @@
 (define (compile-boolean x next) `(constant ,x ,next))
 (define (compile-char x next) `(constant ,x ,next))
 (define (compile-null x next) `(constant ,x ,next))
-(define (compile-symbol x next) `(refer ,x ,next))
+(define (compile-symbol x next) `(constant ,x ,next))
+(define (compile-string x next) `(string ,x ,next))
+(define (compile-refer x next) `(refer ,x ,next))
+
+(define (compile-constant x next)
+    (cond
+        ((integer?  x) (compile-integer x next))
+        ((boolean? x) (compile-boolean x next))
+        ((char? x) (compile-char x next))
+        ((string? x) (compile-string x next))
+        ((null? x) (compile-null x next))
+        ((symbol? x) (compile-symbol x next))
+        ((pair? x) (compile-pair x next))))
 (define (compile-quote x next) (compile-constant (cadr x) next))
 
 (define (prim->op x) (car x))
@@ -112,15 +124,6 @@
     (let ((body (compile-expr (cons 'begin (lambda->body x)) '(return))))
     `(close ,(lambda->bindings x) ,body ,next)))
 
-(define (compile-constant x next)
-    (cond
-        ((integer?  x) (compile-integer x next))
-        ((boolean? x) (compile-boolean x next))
-        ((char? x) (compile-char x next))
-        ((null? x) (compile-null x next))
-        ((symbol? x) (compile-symbol x next))
-        ((pair? x) (compile-pair x next))))
-
 ; integer 1
 ; (constant 1 next)
 
@@ -162,7 +165,8 @@
 
 (define (compile-expr x next)
     (cond
-        ((atomic? x) (compile-constant x next))
+        ((symbol? x) (compile-refer x next))
+        ((constant? x) (compile-constant x next))
         ((quote? x) (compile-quote x next))
         ((prim? x) (compile-prim x next))
         ((let? x) (compile-let x next))
