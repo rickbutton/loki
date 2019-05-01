@@ -12,24 +12,26 @@ const charTag =  0b00001111;
 const nullTag = 0b00101111;
 
 const objMask = 0b111;
+const objTag = 0b001;
 
-const pairTag = 0b01;
-const slotTag = 0b10;
-const closeTag = 0b11;
+function pairToString(val, runtime) {
+    const car = runtime.car(val);
+    const cdr = runtime.cdr(val);
 
-function closeToString(ptr, runtime) {
-    return "#<procedure>";
+    return `(${valueToString(car, runtime)} . ${valueToString(cdr, runtime)})`;
 }
 
-function pairToString(ptr, runtime) {
-
-    const car = runtime.car(ptr);
-    const cdr = runtime.cdr(ptr);
-
-    return `(${schemeToString(car, runtime)} . ${schemeToString(cdr, runtime)})`;
+function objToString(val, runtime) {
+    if (runtime.isPair(val)) {
+        return pairToString(val, runtime);
+    } else if (runtime.isClose(val)) {
+        return "#<procedure>";
+    } else if (runtime.isSlot(val)) {
+        return `slot(${valueToString(runtime.unslot(val))})`;
+    }
 }
 
-function schemeToString(expr, runtime) {
+function valueToString(expr, runtime) {
     if ((expr & fixnumMask) === fixnumTag) {
         return String(expr >> fixnumShift);
     } else if ((expr & charMask) === charTag) {
@@ -40,13 +42,12 @@ function schemeToString(expr, runtime) {
         return "false";
     } else if (expr === nullTag) {
         return "()";
-    } else if ((expr & objMask) === pairTag) {
-        return pairToString(expr, runtime);
-    } else if ((expr & objMask) === closeTag) {
-        return closeToString(expr, runtime);
+    } else if ((expr & objMask) == objTag) {
+        return objToString(expr, runtime);
     } else {
         console.log("unknown expr");
         console.log(expr);
+        console.log(expr.toString(2));
         throw expr;
     }
 }
@@ -61,8 +62,14 @@ class Runtime {
         return this.module.instance.exports;
     }
 
+    isSlot(val) { return this.exports.is_slot(val); }
+    unslot(val) { return this.exports.unslot(val); }
+
+    isPair(val) { return this.exports.is_pair(val); }
     car(pair) { return this.exports.car(pair); }
     cdr(pair) { return this.exports.cdr(pair); }
+
+    isClose(val) { return this.exports.is_close(val); }
 }
 
 export class Schwasm {
@@ -88,6 +95,6 @@ export class Schwasm {
 
         const main = mod.instance.exports.main;
         const ret = main();
-        return schemeToString(ret, this.runtime);
+        return valueToString(ret, this.runtime);
     }
 }

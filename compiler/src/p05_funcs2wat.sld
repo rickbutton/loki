@@ -65,11 +65,6 @@
     `(i32.const ,(snull->wnull x)))
 ; end null
 
-(define wobj-mask   #b111)
-(define wobj-shift   3)
-(define wpair-tag    #b01)
-(define wclose-tag   #b11)
-
 ; pair
 (define (compile-pair x)
     `(call $$alloc_pair))
@@ -205,9 +200,6 @@
 (define (funcs->mappings funcs) (map func->mapping funcs))
 (define (funcs->elems funcs) `(elem (i32.const 0) ,@(funcs->mappings funcs)))
 ; end func
-
-(define wasm-i32-size 4)
-(define wasm-heap-top-ptr 16380)
 
 (define (compile-program funcs)
     (let ((cfuncs (compile-funcs funcs)))

@@ -2,6 +2,7 @@
 
 use std::mem;
 use std::ptr::NonNull;
+use std::panic;
 
 /*
 0 = 0
@@ -24,50 +25,29 @@ boolean = XXXXXXXXXXXXXXXXXXXXXXXX?X011111
 null immediate tag = 10             VV
 null    = XXXXXXXXXXXXXXXXXXXXXXXXXX101111
 
-objects, 0??? LSB
+objects, 001 LSB
 
-pair object tag = 001                  VVV
-pair    = ?????????????????????????????001
-
-close object tag = 010                  VVV
-close    = ????????????????????????????010
-
-slot object tag = 011                  VVV
-slot    = ????????????????????????????011
-
-string? 100
-vector? 101
-record? 110
 */
 
 const OBJECT_MASK: usize = 0b111;
-const PAIR_TAG: usize = 0b01;
-const CLOSE_TAG: usize = 0b10;
-const SLOT_TAG: usize = 0b11;
+const OBJECT_TAG: usize = 0b001;
+
+enum Object {
+    Pair(Val, Val),
+    Close(usize, usize, Vec<Val>),
+    Slot(Val),
+}
 
 #[derive(PartialEq,Clone,Copy,Debug)]
 pub struct Val(usize);
 
-#[derive(PartialEq,Debug)]
-pub struct Pair {
-    car: Val,
-    cdr: Val,
-}
-
-#[derive(PartialEq,Debug)]
-pub struct Close {
-    index: usize,
-    size: usize,
-    frees: Vec<Val>,
-}
-
-fn tag<T>(b: Box<T>, tag: usize) -> Val {
+fn tag<T>(b: Box<T>) -> Val {
     unsafe {
         let raw = Box::into_raw(b);
         let ptr: usize = mem::transmute(raw);
         assert!(ptr & OBJECT_MASK == 0);
 
-        let tagged = ptr | tag;
+        let tagged = ptr | OBJECT_TAG;
         return mem::transmute(tagged);
     }
 }
@@ -81,56 +61,74 @@ fn untag<'a, T>(v: Val) -> &'a mut T {
     }
 }
 
+fn is_tagged(v: Val) -> bool {
+    unsafe {
+        let ptr: usize = mem::transmute(v);
+        return (ptr & OBJECT_MASK) == OBJECT_TAG;
+    }
+}
+
 impl Val {
     fn is_pair(&self) -> bool {
-        self.get_object_tag() == PAIR_TAG
+        if !is_tagged(*self) {
+            return false;
+        }
+
+        let obj: &Object = untag(*self);
+        match obj {
+            Object::Pair(car, cdr) => true,
+            _ => false,
+        }
     }
     fn is_close(&self) -> bool {
-        self.get_object_tag() == CLOSE_TAG
+        if !is_tagged(*self) {
+            return false;
+        }
+
+        let obj: &Object = untag(*self);
+        match obj {
+            Object::Close(index, size, frees) => true,
+            _ => false,
+        }
     }
     fn is_slot(&self) -> bool {
-        self.get_object_tag() == SLOT_TAG
-    }
-    fn get_object_tag(&self) -> usize {
-        self.0 & OBJECT_MASK
+        if !is_tagged(*self) {
+            return false;
+        }
+
+        let obj: &Object = untag(*self);
+        match obj {
+            Object::Slot(val) => true,
+            _ => false,
+        }
     }
 
     fn int(n: usize) -> Val {
         Val(n << 2)
     }
 
-    fn unwrap_slot(self) -> Val {
+    fn unwrap_slot<'a>(self) -> &'a mut Object {
         assert!(self.is_slot());
-        *untag(self)
+        untag(self)
     }
     fn slot(val: Val) -> Val {
-        let b = Box::new(val);
-        tag(b, SLOT_TAG)
+        tag(Box::new(Object::Slot(val)))
     }
 
-    fn unwrap_pair<'a>(self) -> &'a mut Pair {
+    fn unwrap_pair<'a>(self) -> &'a mut Object {
         assert!(self.is_pair());
         untag(self)
     }
     fn pair(car: Val, cdr: Val) -> Val {
-        let b = Box::new(Pair {
-            car: car,
-            cdr: cdr,
-        });
-        tag(b, PAIR_TAG)
+        tag(Box::new(Object::Pair(car, cdr)))
     }
 
-    fn unwrap_close<'a>(self) -> &'a mut Close {
+    fn unwrap_close<'a>(self) -> &'a mut Object {
         assert!(self.is_close());
         untag(self)
     }
     fn close(index: usize, size: usize) -> Val {
-        let b = Box::new(Close {
-            index: index,
-            size: size,
-            frees: Vec::with_capacity(size),
-        });
-        tag(b, CLOSE_TAG)
+        tag(Box::new(Object::Close(index, size, Vec::with_capacity(size))))
     }
 }
 
@@ -141,7 +139,11 @@ pub fn alloc_slot(val: Val) -> Val {
 
 #[no_mangle]
 pub fn unslot(val: Val) -> Val {
-    val.unwrap_slot()
+    let slot = val.unwrap_slot();
+    match slot {
+        Object::Slot(val) => *val,
+        _ => panic!()
+    }
 }
 
 #[no_mangle]
@@ -151,12 +153,20 @@ pub fn alloc_pair(car: Val, cdr: Val) -> Val {
 
 #[no_mangle]
 pub fn car(val: Val) -> Val {
-    val.unwrap_pair().car
+    let pair = val.unwrap_pair();
+    match pair {
+        Object::Pair(car, cdr) => *car,
+        _ => panic!()
+    }
 }
 
 #[no_mangle]
 pub fn cdr(val: Val) -> Val {
-    val.unwrap_pair().cdr
+    let pair = val.unwrap_pair();
+    match pair {
+        Object::Pair(car, cdr) => *cdr,
+        _ => panic!()
+    }
 }
 
 #[no_mangle]
@@ -167,21 +177,47 @@ pub fn alloc_close(index: usize, size: usize) -> Val {
 #[no_mangle]
 pub fn store_free(close_val: Val, index: usize, val: Val) -> Val {
     let close = close_val.unwrap_close();
-    assert!(index == close.frees.len());
-    close.frees.push(val);
-    close_val
+    match close {
+        Object::Close(findex, size, frees) => {
+            assert!(index == frees.len());
+            frees.push(val);
+            close_val
+        },
+        _ => panic!(),
+    }
 }
 
 #[no_mangle]
 pub fn get_free(close_val: Val, index: usize) -> Val {
     let close = close_val.unwrap_close();
-    close.frees[index]
+    match close {
+        Object::Close(findex, size, frees) => frees[index],
+        _ => panic!(),
+    }
 }
 
 #[no_mangle]
 pub fn get_close_func_index(close_val: Val) -> usize {
     let close = close_val.unwrap_close();
-    close.index
+    match close {
+        Object::Close(findex, size, frees) => *findex,
+        _ => panic!(),
+    }
+}
+
+#[no_mangle]
+pub fn is_slot(val: Val) -> bool {
+    val.is_slot()
+}
+
+#[no_mangle]
+pub fn is_close(val: Val) -> bool {
+    val.is_close()
+}
+
+#[no_mangle]
+pub fn is_pair(val: Val) -> bool {
+    val.is_pair()
 }
 
 #[cfg(test)]
