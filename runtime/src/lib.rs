@@ -1,8 +1,13 @@
 #![crate_type = "cdylib"]
 
+#[macro_use]
+extern crate lazy_static;
+
 use std::mem;
 use std::ptr::NonNull;
 use std::panic;
+use std::sync::Mutex;
+use std::str;
 
 /*
 0 = 0
@@ -32,10 +37,19 @@ objects, 001 LSB
 const OBJECT_MASK: usize = 0b111;
 const OBJECT_TAG: usize = 0b001;
 
+const RODATA_SIZE: usize = 4096;
+
+lazy_static! {
+    static ref RODATAS: Mutex<Vec<Box<[u8; RODATA_SIZE]>>> = {
+        Mutex::new(Vec::new())
+    };
+}
+
 enum Object {
     Pair(Val, Val),
     Close(usize, usize, Vec<Val>),
     Slot(Val),
+    String(String),
 }
 
 #[derive(PartialEq,Clone,Copy,Debug)]
@@ -102,33 +116,64 @@ impl Val {
             _ => false,
         }
     }
+    fn is_string(&self) -> bool {
+        if !is_tagged(*self) {
+            return false;
+        }
+
+        let obj: &Object = untag(*self);
+        match obj {
+            Object::String(str) => true,
+            _ => false,
+        }
+    }
 
     fn int(n: usize) -> Val {
         Val(n << 2)
     }
 
-    fn unwrap_slot<'a>(self) -> &'a mut Object {
-        assert!(self.is_slot());
+    fn unwrap<'a>(self) -> &'a mut Object {
         untag(self)
-    }
-    fn slot(val: Val) -> Val {
-        tag(Box::new(Object::Slot(val)))
     }
 
-    fn unwrap_pair<'a>(self) -> &'a mut Object {
-        assert!(self.is_pair());
-        untag(self)
+    fn slot(val: Val) -> Val {
+        tag(Box::new(Object::Slot(val)))
     }
     fn pair(car: Val, cdr: Val) -> Val {
         tag(Box::new(Object::Pair(car, cdr)))
     }
-
-    fn unwrap_close<'a>(self) -> &'a mut Object {
-        assert!(self.is_close());
-        untag(self)
-    }
     fn close(index: usize, size: usize) -> Val {
         tag(Box::new(Object::Close(index, size, Vec::with_capacity(size))))
+    }
+    fn string_from_rodata(id: usize, offset: usize, size: usize) -> Val {
+        let rodatas = RODATAS.lock().unwrap();
+        assert!(id < rodatas.len());
+        let rodata = &rodatas[id];
+
+        let end = offset + size;
+        let s = str::from_utf8(&rodata[offset..end]).unwrap();
+
+        tag(Box::new(Object::String(s.to_string())))
+    }
+}
+
+#[no_mangle]
+pub fn alloc_rodata() -> usize {
+    let mut rodatas = RODATAS.lock().unwrap();
+    let rodata: [u8; RODATA_SIZE] = [0; RODATA_SIZE];
+    let id = rodatas.len();
+    rodatas.push(Box::new(rodata));
+    id
+}
+
+#[no_mangle]
+pub fn get_rodata_offset(id: usize) -> usize {
+    let rodatas = RODATAS.lock().unwrap();
+
+    assert!(id < rodatas.len());
+    let rodata = &rodatas[id];
+    unsafe {
+        return mem::transmute(rodata.as_ptr());
     }
 }
 
@@ -139,8 +184,8 @@ pub fn alloc_slot(val: Val) -> Val {
 
 #[no_mangle]
 pub fn unslot(val: Val) -> Val {
-    let slot = val.unwrap_slot();
-    match slot {
+    let obj = val.unwrap();
+    match obj {
         Object::Slot(val) => *val,
         _ => panic!()
     }
@@ -153,8 +198,8 @@ pub fn alloc_pair(car: Val, cdr: Val) -> Val {
 
 #[no_mangle]
 pub fn car(val: Val) -> Val {
-    let pair = val.unwrap_pair();
-    match pair {
+    let obj = val.unwrap();
+    match obj {
         Object::Pair(car, cdr) => *car,
         _ => panic!()
     }
@@ -162,8 +207,8 @@ pub fn car(val: Val) -> Val {
 
 #[no_mangle]
 pub fn cdr(val: Val) -> Val {
-    let pair = val.unwrap_pair();
-    match pair {
+    let obj = val.unwrap();
+    match obj {
         Object::Pair(car, cdr) => *cdr,
         _ => panic!()
     }
@@ -176,8 +221,8 @@ pub fn alloc_close(index: usize, size: usize) -> Val {
 
 #[no_mangle]
 pub fn store_free(close_val: Val, index: usize, val: Val) -> Val {
-    let close = close_val.unwrap_close();
-    match close {
+    let obj = close_val.unwrap();
+    match obj {
         Object::Close(findex, size, frees) => {
             assert!(index == frees.len());
             frees.push(val);
@@ -189,8 +234,8 @@ pub fn store_free(close_val: Val, index: usize, val: Val) -> Val {
 
 #[no_mangle]
 pub fn get_free(close_val: Val, index: usize) -> Val {
-    let close = close_val.unwrap_close();
-    match close {
+    let obj = close_val.unwrap();
+    match obj {
         Object::Close(findex, size, frees) => frees[index],
         _ => panic!(),
     }
@@ -198,10 +243,35 @@ pub fn get_free(close_val: Val, index: usize) -> Val {
 
 #[no_mangle]
 pub fn get_close_func_index(close_val: Val) -> usize {
-    let close = close_val.unwrap_close();
-    match close {
+    let obj = close_val.unwrap();
+    match obj {
         Object::Close(findex, size, frees) => *findex,
         _ => panic!(),
+    }
+}
+
+#[no_mangle]
+pub fn alloc_string(id: usize, offset: usize, size: usize) -> Val {
+    Val::string_from_rodata(id, offset, size)
+}
+
+#[no_mangle]
+pub fn get_string_length(val: Val) -> usize {
+    let obj = val.unwrap();
+    match obj {
+        Object::String(string) => string.as_bytes().len(),
+        _ => panic!(),
+    }
+}
+
+#[no_mangle]
+pub fn get_string_offset(val: Val) -> usize {
+    let obj = val.unwrap();
+    unsafe {
+        match obj {
+            Object::String(string) => mem::transmute(string.as_bytes().as_ptr()),
+            _ => panic!(),
+        }
     }
 }
 
@@ -218,6 +288,11 @@ pub fn is_close(val: Val) -> bool {
 #[no_mangle]
 pub fn is_pair(val: Val) -> bool {
     val.is_pair()
+}
+
+#[no_mangle]
+pub fn is_string(val: Val) -> bool {
+    val.is_string()
 }
 
 #[cfg(test)]
@@ -278,7 +353,7 @@ mod tests {
 
         assert!(slot.is_slot());
 
-        let out = slot.unwrap_slot();
+        let out = slot.unwrap();
         assert_eq!(out, val)
     }
 
@@ -290,7 +365,7 @@ mod tests {
 
         assert!(pair.is_pair());
         
-        let out = pair.unwrap_pair();
+        let out = pair.unwrap();
 
         assert_eq!(car, out.car);
         assert_eq!(cdr, out.cdr);

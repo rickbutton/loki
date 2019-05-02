@@ -94,6 +94,56 @@
             ((snull? x) (compile-snull x)))))
 ; end constant
 
+; rodata
+
+(define (compile-string s rodata-offsets)
+    (let ((str (cadr s)) (idx (caddr s)))
+    `(call $$alloc_string 
+        (get_global $$rodata-id)
+        (i32.const ,(list-ref rodata-offsets idx))
+        (i32.const ,(string->utf8-byte-length str)))))
+
+(define (rodata-string? d)
+    (and (list? d) (eq? (car d) 'string)))
+
+(define (string->utf8-byte-length s)
+    (apply + (map char->utf8-byte-length (string->list s))))
+(define (char->utf8-byte-length c)
+    (let ((int (char->integer c)))
+        (debug int)
+        (cond
+            ((<= int #x7f) 1)
+            ((<= int #x7ff) 2)
+            ((<= int #xffff) 3)
+            ((<= int #x10ffff) 4)
+            (else "unknown utf8 character"))))
+
+(define (rodata-string->length d) (string->utf8-byte-length (cadr d)))
+(define (rodata-string->wasm-data d) (cadr d))
+(define (rodata->length d)
+    (cond 
+        ((rodata-string? d) (rodata-string->length d))
+        (else (error "unknown rodata"))))
+(define (rodata->wasm-data d)
+    (cond 
+        ((rodata-string? d) (rodata-string->wasm-data d))
+        (else (error "unknown rodata"))))
+
+(define (rodatas->lengths rodatas) (map rodata->length rodatas))
+(define (rodatas->wasm-datas rodatas) (map rodata->wasm-data rodatas))
+(define (rodatas->wasm-data-section rodatas)
+    (let ((section (string-join (rodatas->wasm-datas rodatas) "")))
+        (if (= (string-length section) 0) "" section)))
+
+(define (rodatas->offsets rodatas)
+    (let ((lengths (rodatas->lengths rodatas))
+          (total 0))
+        (map (lambda (l) 
+            (let ((t total))
+                (set! total (+ total l))
+                t)) lengths)))
+; end rodata
+
 ; store
 (define (store->type s) (caddr s))
 (define (store->mapping s) (cadddr s))
@@ -135,10 +185,11 @@
 ; end scope / vars
 
 ; inst
-(define (compile-inst i func mappings) 
+(define (compile-inst i func mappings rodata-offsets) 
     (let ((op (car i)))
         (cond
             ((eq? op 'constant) (compile-constant i))
+            ((eq? op 'string) (compile-string i rodata-offsets))
             ((eq? op 'pair) (compile-pair i))
             ((eq? op 'store) (compile-store i))
             ((eq? op 'refer) (compile-refer i func))
@@ -147,12 +198,12 @@
             ((eq? op 'primcall) (compile-primcall i))
             ((eq? op 'apply) (compile-apply i))
             (else i))))
-(define (compile-insts is func mappings) 
+(define (compile-insts is func mappings rodata-offsets) 
     (fold-right (lambda (i rest) (if (eq? (car i) 'inst) 
         (append (cdr i) rest)
         (cons i rest)))
         '() 
-        (map (lambda (i) (compile-inst i func mappings)) is)))
+        (map (lambda (i) (compile-inst i func mappings rodata-offsets)) is)))
 ; end inst
 
 ; func
@@ -184,17 +235,17 @@
     (let ((locals (func->locals f)))
         (map (lambda (l) `(local ,l i32)) locals)))
 
-(define (compile-func func mappings) 
+(define (compile-func func mappings rodata-offsets) 
     (let* ((body   (func->body func)) 
-           (insts  (compile-insts body func mappings))
+           (insts  (compile-insts body func mappings rodata-offsets))
            (locals (func->locals func)))
         (if (eq? (func->type func) 'close)
             `(func ,(func->name func) ,@(func->wparams func) (param $$close i32) (result i32) ,@(func->wlocals func) ,@insts)
             `(func ,(func->name func) ,@(func->wparams func) (result i32) ,@(func->wlocals func) ,@insts))))
 
-(define (compile-funcs funcs) 
+(define (compile-funcs funcs rodata-offsets) 
     (let ((mappings (funcs->mappings funcs)))
-        (map (lambda (func) (compile-func func mappings)) funcs)))
+        (map (lambda (func) (compile-func func mappings rodata-offsets)) funcs)))
 
 (define (funcs->table funcs) `(table ,(length funcs) anyfunc))
 (define (funcs->mappings funcs) (map func->mapping funcs))
@@ -204,14 +255,17 @@
 (define (compile-program funcs-and-rodatas)
     (let* ((funcs (car funcs-and-rodatas))
            (rodatas (cdr funcs-and-rodatas))
-           (cfuncs (compile-funcs funcs)))
+           (rodata-offsets (rodatas->offsets rodatas))
+           (cfuncs (compile-funcs funcs rodata-offsets)))
         `(module
             (type $$close0 (func (param i32) (result i32)))
             (type $$close1 (func (param i32) (param i32) (result i32)))
             (type $$close2 (func (param i32) (param i32) (param i32) (result i32)))
             (type $$close3 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
-            (import "env" "memory" (memory 0))
+            (global $$rodata-id (import "env" "$$rodata-id") i32)
+            (global $$rodata-offset (import "env" "$$rodata-offset") i32)
 
+            (import "env" "memory" (memory 0))
             (import "env" "$$alloc_slot"  (func $$alloc_slot (param i32) (result i32)))
             (import "env" "$$unslot"      (func $$unslot (param i32) (result i32)))
             (import "env" "$$alloc_pair"  (func $$alloc_pair (param i32 i32) (result i32)))
@@ -221,6 +275,9 @@
             (import "env" "$$store_free"  (func $$store_free (param i32 i32 i32) (result i32)))
             (import "env" "$$get_free"    (func $$get_free (param i32 i32) (result i32)))
             (import "env" "$$get_close_func_index"    (func $$get_close_func_index (param i32) (result i32)))
+            (import "env" "$$alloc_string"    (func $$alloc_string (param i32 i32 i32) (result i32)))
+
+            (data (get_global $$rodata-offset) ,(rodatas->wasm-data-section rodatas))
 
             ,(funcs->table funcs)
             ,(funcs->elems funcs)

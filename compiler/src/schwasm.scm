@@ -45,7 +45,6 @@
     (let ((p03 (p03_flattencps p02)))
     (let ((p04 (p04_closes2funcs p03)))
     (let ((p05 (p05_lift_rodatas p04)))
-    (display (show #f (pretty p05)))
     (let ((p06 (p06_funcs2wat p05)))
     ;(display (show #f (pretty p06)))
         p06)))))))

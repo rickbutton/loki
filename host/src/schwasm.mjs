@@ -14,6 +14,10 @@ const nullTag = 0b00101111;
 const objMask = 0b111;
 const objTag = 0b001;
 
+function stringToString(val, runtime) {
+    return `\"${runtime.getString(val)}\"`;
+}
+
 function pairToString(val, runtime) {
     const car = runtime.car(val);
     const cdr = runtime.cdr(val);
@@ -28,6 +32,8 @@ function objToString(val, runtime) {
         return "#<procedure>";
     } else if (runtime.isSlot(val)) {
         return `slot(${valueToString(runtime.unslot(val))})`;
+    } else if (runtime.isString(val)) {
+        return stringToString(val, runtime);
     }
 }
 
@@ -53,13 +59,12 @@ function valueToString(expr, runtime) {
 }
 
 class Runtime {
-    constructor(module) {
-        this.module = module;
-        this.memory = new Uint32Array(this.module.instance.exports.memory.buffer);
+    constructor(mod) {
+        this.module = mod;
     }
 
     get exports() {
-        return this.module.instance.exports;
+        return this.module.exports;
     }
 
     isSlot(val) { return this.exports.is_slot(val); }
@@ -70,15 +75,37 @@ class Runtime {
     cdr(pair) { return this.exports.cdr(pair); }
 
     isClose(val) { return this.exports.is_close(val); }
+    isString(val) { return this.exports.is_string(val); }
+
+    allocRodata() { return this.exports.alloc_rodata(); }
+    getRodataOffset(id) { return this.exports.get_rodata_offset(id); }
+
+    getStringLength(val) { return this.exports.get_string_length(val); }
+    getStringOffset(val) { return this.exports.get_string_offset(val); }
+
+    getString(val) {
+        const length = this.getStringLength(val);
+        const offset = this.getStringOffset(val);
+
+        const buffer = this.module.exports.memory.buffer;
+        const array = new Uint8Array(buffer, offset, length);
+        return new TextDecoder("utf-8").decode(array);
+    }
 }
 
 export class Schwasm {
     async init(runtimeBuffer) {
-        this.runtime = new Runtime(await WebAssembly.instantiate(runtimeBuffer));
+        const mod = await WebAssembly.compile(runtimeBuffer);
+        this.runtime = new Runtime(await WebAssembly.instantiate(mod));
     }
 
     async load(buffer) {
-        const mod = await WebAssembly.instantiate(buffer, {
+        const mod = await WebAssembly.compile(buffer);
+
+        const rodataId = this.runtime.allocRodata();
+        const rodataOffset = this.runtime.getRodataOffset(rodataId);
+
+        const instance = await WebAssembly.instantiate(mod, {
             env: {
                 memory: this.runtime.exports.memory,
                 "$$alloc_slot": this.runtime.exports.alloc_slot,
@@ -90,10 +117,14 @@ export class Schwasm {
                 "$$store_free": this.runtime.exports.store_free,
                 "$$get_free": this.runtime.exports.get_free,
                 "$$get_close_func_index": this.runtime.exports.get_close_func_index,
+                "$$alloc_string": this.runtime.exports.alloc_string,
+
+                "$$rodata-id": rodataId,
+                "$$rodata-offset": rodataOffset,
             }
         });
 
-        const main = mod.instance.exports.main;
+        const main = instance.exports.main;
         const ret = main();
         return valueToString(ret, this.runtime);
     }

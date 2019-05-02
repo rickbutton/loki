@@ -64,5 +64,4 @@
     
 (define (p05_lift_rodatas funcs)
     (let ((funcs-and-rodatas (funcs->lift-rodatas funcs (empty-rodatas))))
-        (debug (cdr funcs-and-rodatas))
         funcs-and-rodatas))))

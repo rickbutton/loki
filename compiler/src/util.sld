@@ -19,6 +19,7 @@
         contains?
         range
         debug
+        string-join
         make-anon-id
         make-named-id)
 (begin
@@ -96,6 +97,13 @@
                 (display ": ")
                 (display exp)
                 (display "\n")))))
+
+(define (string-join strings delimiter)
+    (if (null? strings)
+        ""
+        (fold-right (lambda (s so-far) (string-append so-far delimiter s))
+            (car strings)
+            (cdr strings))))
 
 (define (make-anon-id prefix)
     (let ((count 0))

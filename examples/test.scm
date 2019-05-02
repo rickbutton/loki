@@ -1,7 +1,1 @@
-(define (+ a b c) (add a b c))
-
-(define (test x)
-    (let ((y (add x 2)) (z (add x 3)))
-        (+ x y z)))
-
-(cons (test 5) (test 10))
+(cons "Hello from: " "😀 schwasm!")
