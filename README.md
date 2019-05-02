@@ -56,6 +56,8 @@ output:
                     (param i32)
                     (param i32)
                     (result i32)))
+        (global $$rodata-id (import "env" "$$rodata-id") i32)
+        (global $$rodata-offset (import "env" "$$rodata-offset") i32)
         (import "env" "memory" (memory 0))
         (import "env"
                 "$$alloc_slot"
@@ -78,6 +80,10 @@ output:
         (import "env"
                 "$$get_close_func_index"
                 (func $$get_close_func_index (param i32) (result i32)))
+        (import "env"
+                "$$alloc_string"
+                (func $$alloc_string (param i32 i32 i32) (result i32)))
+        (data (get_global $$rodata-offset) "😀 schwasm!")
         (table 3 anyfunc)
         (elem (i32.const 0) $$fentry $$f1 $$f2)
         (func $$main (result i32) (call $$fentry))
@@ -139,11 +145,12 @@ output:
               (call $$alloc_slot)
               (set_local $v5_test)
               (call $$unslot (get_local $v5_test))
-              (i32.const 20)
-              (call $$call-close-1)
-              (call $$unslot (get_local $v5_test))
               (i32.const 40)
               (call $$call-close-1)
+              (call $$alloc_string
+                    (get_global $$rodata-id)
+                    (i32.const 0)
+                    (i32.const 13))
               (call $$alloc_pair)
               (return))
         (func $$f1
@@ -182,5 +189,4 @@ output:
               (call $$call-close-3)
               (return))
         (export "main" (func $$main)))
-
 ```
