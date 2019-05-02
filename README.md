@@ -6,7 +6,6 @@ This supports almost zero percent of any scheme standard or spec. I implemented 
 
 Take caution, because this probably doesn't work on your machine without tweaks.
 
-
 ### How to run
 
 You will need [chibi scheme](https://github.com/ashinn/chibi-scheme/), [node](https://nodejs.org), and [wabt](https://github.com/WebAssembly/wabt) on your path.
@@ -17,7 +16,7 @@ make example
 
 ### TODO
 
-- more heap allocated values (strings, runtime symbols, etc)
+- more heap allocated values (runtime symbols, etc)
 - enough standard library to run the compiler 
 - modules (via define-libray)
 - test suite
@@ -41,7 +40,7 @@ input:
     (let ((y (add x 2)) (z (add x 3)))
         (+ x y z)))
 
-(cons (test 5) (test 10))
+(cons (test 10) "😀 schwasm!")
 ```
 
 output:
