@@ -20,7 +20,7 @@ make example
 - enough standard library to run the compiler 
 - modules (via define-libray)
 - test suite
-- a real parser (currently using the host's parser, since I don't have strings)
+- a real parser
 - FFI with JavaScript
 
 ## Plans?
