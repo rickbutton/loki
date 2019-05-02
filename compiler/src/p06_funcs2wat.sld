@@ -201,9 +201,9 @@
 (define (funcs->elems funcs) `(elem (i32.const 0) ,@(funcs->mappings funcs)))
 ; end func
 
-(define (compile-program funcs-and-heap-values)
-    (let* ((funcs (car funcs-and-heap-values))
-           (heap-values (cdr funcs-and-heap-values))
+(define (compile-program funcs-and-rodatas)
+    (let* ((funcs (car funcs-and-rodatas))
+           (rodatas (cdr funcs-and-rodatas))
            (cfuncs (compile-funcs funcs)))
         `(module
             (type $$close0 (func (param i32) (result i32)))
