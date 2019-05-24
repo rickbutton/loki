@@ -8,6 +8,9 @@ RUST_RUNTIME_WASM = runtime/target/wasm32-unknown-unknown/release/runtime.wasm
 example: examples/runtime.wat examples/test.wasm examples/test.wat
 	node --expose-wasm --experimental-modules host/src/node.mjs examples/runtime.wasm examples/test.wasm
 
+test:
+	chibi-scheme -I compiler/src -I compiler/tests compiler/tests/tests.scm
+
 %.wat: %.scm compiler/src/**
 	chibi-scheme -I compiler/src compiler/src/schwasm.scm $< $@
 
