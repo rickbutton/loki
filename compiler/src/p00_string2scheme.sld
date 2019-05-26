@@ -32,7 +32,7 @@
 (define (char-name? str) (regexp-search *char-name-regexp* str))
 (define (char-scalar? str) (regexp-search *char-scalar-regexp* str))
 
-(define (char-literal->char str buf) 
+(define (char-literal->char str) 
     (car (string->list (string-copy str 2 3))))
 (define (char-name->char str)
     (cond
@@ -176,6 +176,8 @@
 
 (define (paren? c) (member c *parens*))
 (define (whitespace? c) (member c *whitespace*))
+(define (newline? c) (equal? c #\newline))
+(define (return? c) (equal? c #\return))
 (define (semicolon? c) (equal? c *semicolon*))
 (define (doublequote? c) (equal? c *doublequote*))
 (define (hash? c) (equal? c *hash*))
@@ -235,17 +237,30 @@
           (line (reader->line reader)) 
           (col (reader->col reader)))
         (if (null? saves)
-            (let ((tchar (make-tchar
-                  (read-char port)
-                  (make-source-location line col))))
-                (if (eq? (tchar->char tchar) #\newline)
-                    (begin
-                        (set-reader-line reader (+ line 1))
-                        (set-reader-col reader 1)
-                        tchar)
-                    (begin
-                        (set-reader-col reader (+ col 1))
-                        tchar)))
+            (let* ((char (read-char port)) 
+                   (next (peek-char port))
+                   (tchar (make-tchar char (make-source-location line col))))
+                (if (return? char)
+                    (if (newline? next)
+                        (begin
+                            ; will be crlf, but currently on cr, only increment col
+                            (set-reader-col reader (+ col 1))
+                            tchar)
+                        (begin
+                            ; only cr, increment as cr line ending
+                            (set-reader-line reader (+ line 1))
+                            (set-reader-col reader 1)
+                            tchar))
+                    (if (newline? char)
+                        (begin
+                            ; only lf, increment as lf line ending
+                            (set-reader-line reader (+ line 1))
+                            (set-reader-col reader 1)
+                            tchar)
+                        (begin
+                            ; no line endings
+                            (set-reader-col reader (+ col 1))
+                            tchar))))
             (let ((save (car saves)))
                 (set-reader-saves reader (cdr saves))
                 save))))
@@ -310,7 +325,7 @@
                             ((equal? string "#true") (emit-string string 'boolean #t))
                             ((equal? string "#f") (emit-string string 'boolean #f))
                             ((equal? string "#false") (emit-string string 'boolean #f))
-                            ((char-literal? string) (emit-string string 'char (char-literal->char string buffer)))
+                            ((char-literal? string) (emit-string string 'char (char-literal->char string)))
                             ((char-name? string) (emit-string string 'char (char-name->char string)))
                             ((char-scalar? string) (emit-string string 'char (char-scalar->char string)))
                             (else (error-with-value "unknown value" string)))

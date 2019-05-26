@@ -9,6 +9,11 @@
     (export test_p00_string2scheme)
 (begin
 
+(define-syntax check-with-name
+    (syntax-rules ()
+        ((check name in out)
+            (test-equal name out (p00_string2scheme (open-input-string in))))))
+
 (define-syntax check
     (syntax-rules ()
         ((check in out)
@@ -26,6 +31,15 @@
 
 (define (test_p00_string2scheme)
     (test-group "p00_string2scheme"
+        (check-with-name "lf" "123\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
+        (check-with-name "cr" "123\r456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
+        (check-with-name "crlf" "123\r\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
+        (check-with-name "lfcr" "123\n\r456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
+        (check-with-name "crcr" "123\r\r456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
+        (check-with-name "lflf" "123\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
+        (check-with-name "lfcrlf" "123\n\r\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
+        (check-with-name "crlflf" "123\r\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
+
         (map 
             (lambda (in value)
                 (let ((with-prefix (string-append "#d" in)))
@@ -93,8 +107,7 @@
         (check "#\\xabc" (list (t "#\\xabc" 'char #\xabc)))
         (check-error "#\\xaq")
 
-        (check "\"this is a test\"" 
-            (list (t "\"this is a test\"" 'string "this is a test")))
+        (check "\"this is a test\"" (list (t "\"this is a test\"" 'string "this is a test")))
 
         (check-error "\"this is a test")
 
