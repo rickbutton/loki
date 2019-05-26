@@ -76,12 +76,12 @@
               "#dDEAD #ddead"
               "#xZZZ"))
 
-        (check "(" (list (t "(" 'paren #f)))
-        (check ")" (list (t ")" 'paren #f)))
+        (check "(" (list (t "(" 'lparen #f)))
+        (check ")" (list (t ")" 'rparen #f)))
 
         (check "()" 
-            (list (t "(" 'paren #f)
-                  (tl ")" 'paren 1 2 #f)))
+            (list (t "(" 'lparen #f)
+                  (tl ")" 'rparen 1 2 #f)))
 
         (check "#t" (list (t "#t" 'boolean #t)))
         (check "#true" (list (t "#true" 'boolean #t)))
@@ -123,15 +123,81 @@
 
         (check "(#f)" 
             (list 
-                (tl "(" 'paren 1 1 #f)
+                (tl "(" 'lparen 1 1 #f)
                 (tl "#f" 'boolean 1 2 #f)
-                (tl ")" 'paren 1 4 #f)))
+                (tl ")" 'rparen 1 4 #f)))
 
         (check "( #f )"
             (list 
-                (tl "(" 'paren 1 1 #f)
+                (tl "(" 'lparen 1 1 #f)
                 (tl "#f" 'boolean 1 3 #f)
-                (tl ")" 'paren 1 6 #f)))
+                (tl ")" 'rparen 1 6 #f)))
 
+        (check "(one . two)" 
+            (list 
+                (tl "(" 'lparen 1 1 #f)
+                (tl "one" 'id 1 2 'one)
+                (tl "." 'dot 1 6 #f)
+                (tl "two" 'id 1 8 'two)
+                (tl ")" 'rparen 1 11 #f)))
+
+        (check "#()"
+            (list 
+                (tl "#(" 'lvector 1 1 #f)
+                (tl ")" 'rparen 1 3 #f)))
+
+        (check "#u8()"
+            (list 
+                (tl "#u8(" 'lbytevector 1 1 #f)
+                (tl ")" 'rparen 1 5 #f)))
+
+        (check "'" (list (t "'" 'quote #f)))
+        (check "'123" (list 
+            (tl "'" 'quote 1 1 #f)
+            (tl "123" 'number 1 2 123)))
+
+        (check "'(123)" (list 
+            (tl "'" 'quote 1 1 #f)
+            (tl "(" 'lparen 1 2 #f)
+            (tl "123" 'number 1 3 123)
+            (tl ")" 'rparen 1 6 #f)))
+
+        (check "'#(123)" (list 
+            (tl "'" 'quote 1 1 #f)
+            (tl "#(" 'lvector 1 2 #f)
+            (tl "123" 'number 1 4 123)
+            (tl ")" 'rparen 1 7 #f)))
+
+        (check "'#u8(123)" (list 
+            (tl "'" 'quote 1 1 #f)
+            (tl "#u8(" 'lbytevector 1 2 #f)
+            (tl "123" 'number 1 6 123)
+            (tl ")" 'rparen 1 9 #f)))
+
+        (check "`(+ ,one ,two)" (list 
+            (tl "`" 'quasiquote 1 1 #f)
+            (tl "(" 'lparen 1 2 #f)
+
+            (tl "+" 'id 1 3 '+)
+
+            (tl "," 'unquote 1 5 #f)
+            (tl "one" 'id 1 6 'one)
+
+            (tl "," 'unquote 1 10 #f)
+            (tl "two" 'id 1 11 'two)
+            (tl ")" 'rparen 1 14 #f)))
+
+        (check "`(+ ,@one ,two)" (list 
+            (tl "`" 'quasiquote 1 1 #f)
+            (tl "(" 'lparen 1 2 #f)
+
+            (tl "+" 'id 1 3 '+)
+
+            (tl ",@" 'unquote-splice 1 5 #f)
+            (tl "one" 'id 1 7 'one)
+
+            (tl "," 'unquote 1 11 #f)
+            (tl "two" 'id 1 12 'two)
+            (tl ")" 'rparen 1 15 #f)))
     ))
 ))
