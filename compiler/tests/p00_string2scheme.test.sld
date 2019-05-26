@@ -40,6 +40,16 @@
         (check-with-name "lfcrlf" "123\n\r\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
         (check-with-name "crlflf" "123\r\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
 
+        (check "identifier" (list (t "identifier" 'id 'identifier)))
+        (check "!id" (list (t "!id" 'id '!id)))
+        (check "+" (list (t "+" 'id '+)))
+        (check "+id" (list (t "+id" 'id '+id)))
+        (check "+.id" (list (t "+.id" 'id '+.id)))
+        (check "+..id" (list (t "+..id" 'id '+..id)))
+        (check "|+0id|" (list (t "|+0id|" 'id '|+0id|)))
+        (check-error "0id")
+        (check-error "+0id")
+
         (map 
             (lambda (in value)
                 (let ((with-prefix (string-append "#d" in)))

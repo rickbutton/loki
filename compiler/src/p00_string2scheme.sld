@@ -174,6 +174,31 @@
             (make-polar xnum ynum)
             (make-rectangular realnum imagnum))))
 
+(define *initial-id-sre* '(or alpha #\! #\$ #\% #\& #\* #\/ #\: #\< #\=
+    #\> #\? #\^ #\_ #\~))
+(define *explicit-sign-sre* '(or #\+ #\-))
+(define *special-subsequent-sre* `(or ,*explicit-sign-sre* #\. #\@))
+(define *subsequent-id-sre* `(or ,*initial-id-sre* num ,*special-subsequent-sre*))
+(define *sign-subsequent-id-sre* `(or ,*initial-id-sre* ,*explicit-sign-sre* #\@))
+(define *dot-subsequent-id-sre* `(or ,*sign-subsequent-id-sre* #\.))
+(define *symbol-element-id-sre* 
+    '(or
+        (difference any ("|\\"))
+        (: #\\ #\x (+ hex-digit))
+        (or "\\a" "\\b" "\\t" "\\n" "\\r")
+        "\\|"))
+(define *id-sre* `(: bos (or 
+    (-> id (: ,*initial-id-sre* (* ,*subsequent-id-sre*)))
+    (: #\| (-> id (* ,*symbol-element-id-sre*)) #\|)
+    (-> id ,*explicit-sign-sre*)
+    (-> id (: ,*explicit-sign-sre* ,*sign-subsequent-id-sre* (* ,*subsequent-id-sre*)))
+    (-> id (: ,*explicit-sign-sre* #\. ,*dot-subsequent-id-sre* (* ,*subsequent-id-sre*)))
+    (-> id (: #\. ,*dot-subsequent-id-sre* (* ,*subsequent-id-sre*))) eos)))
+(define *id-regexp* (regexp *id-sre*))
+
+(define (parse-id string) (regexp-matches *id-regexp* string))
+(define (lexed-id->symbol matches) (regexp-match-submatch matches 'id))
+
 (define (paren? c) (member c *parens*))
 (define (whitespace? c) (member c *whitespace*))
 (define (newline? c) (equal? c #\newline))
@@ -187,7 +212,6 @@
         (eof-object? c)
         (paren? c)
         (whitespace? c)
-        (vertical? c)
         (doublequote? c)
         (semicolon? c)))
 
@@ -317,10 +341,11 @@
         (define (lex-reading)
             (let* ((tchar (reader)) (char (tchar->char tchar)))
                 (if (delimiter? char)
-                    (let* ((string (buffer->string)) (num-matches (parse-num string)))
+                    (let* ((string (buffer->string)))
                         (roll-back tchar)
                         (cond
-                            (num-matches (emit-string string 'number (lexed-num->num string num-matches)))
+                            ((parse-num string) => (lambda (matches) (emit-string string 'number (lexed-num->num string matches))))
+                            ((parse-id string) => (lambda (matches) (emit-string string 'id (string->symbol (lexed-id->symbol matches)))))
                             ((equal? string "#t") (emit-string string 'boolean #t))
                             ((equal? string "#true") (emit-string string 'boolean #t))
                             ((equal? string "#f") (emit-string string 'boolean #f))
