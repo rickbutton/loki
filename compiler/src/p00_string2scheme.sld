@@ -1,6 +1,8 @@
 (define-library 
     (p00_string2scheme)
     (import (scheme base))
+    (import (scheme char))
+    (import (scheme complex))
     (import (scheme write))
     (import (srfi 115))
     (import (srfi 159))
@@ -22,8 +24,6 @@
 (define *hash* #\#)
 (define *backslash* #\\)
 
-(define *special-initials* (string->list "!$%&*/:<=>?^_~"))
-
 (define *char-literal-regexp* (rx (: bos #\# #\\ any eos)))
 (define *char-name-regexp* (rx (: bos #\# #\\ 
     (or "alarm" "backspace" "delete" "escape" "newline" "null" "return" "space" "tab") eos)))
@@ -31,6 +31,24 @@
 (define (char-literal? str) (regexp-search *char-literal-regexp* str))
 (define (char-name? str) (regexp-search *char-name-regexp* str))
 (define (char-scalar? str) (regexp-search *char-scalar-regexp* str))
+
+(define (char-literal->char str buf) 
+    (car (string->list (string-copy str 2 3))))
+(define (char-name->char str)
+    (cond
+        ((equal? str "#\\alarm") #\alarm)
+        ((equal? str "#\\backspace") #\backspace)
+        ((equal? str "#\\delete") #\delete)
+        ((equal? str "#\\escape") #\escape)
+        ((equal? str "#\\newline") #\newline)
+        ((equal? str "#\\null") #\null)
+        ((equal? str "#\\return") #\return)
+        ((equal? str "#\\space") #\space)
+        ((equal? str "#\\tab") #\tab)
+        (else (raise "unknown character name"))))
+(define (char-scalar->char str)
+    (let ((scalar (string-copy str 3 (string-length str))))
+        (integer->char (real-string->number scalar 16 #t))))
 
 (define *num-infnan-sre* '(or "+inf.0" "-inf.0" "+nan.0" "-nan.0"))
 (define *num-sign-sre* '(or #\+ #\-))
@@ -94,6 +112,68 @@
         (regexp-matches *num-02-regexp* str)
         (regexp-matches *num-08-regexp* str)))
 
+(define (char-hex-letter? char)
+    (let ((int (char->integer char)))
+        (or
+            (and (>= int 65) (<= int 70))
+            (and (>= int 97) (<= int 102)))))
+(define (char-hex-letter->number char)
+    (let ((int (char->integer char)))
+        (+ (if (and (>= int 65) (<= int 70))
+            (- int 65)
+            (- int 97)) 10)))
+(define (radix->base radix)
+    (cond
+        ((equal? radix "#b") 2)
+        ((equal? radix "#o") 8)
+        ((equal? radix "#d") 10)
+        ((equal? radix "") 10)
+        ((equal? radix "#x") 16)
+        (else (raise "unknown radix"))))
+(define (real-string->number str base is-exact)
+    (if str
+        (cond
+            ((equal? str "+inf.0") +inf.0)
+            ((equal? str "-inf.0") -inf.0)
+            ((equal? str "+nan.0") +nan.0)
+            ((equal? str "-nan.0") -nan.0)
+            (else
+                (let* ((chars (string->list str))
+                    (sign 1)
+                    (num (fold-left (lambda (char num)
+                        (cond 
+                            ((char-numeric? char) (+ (* num base) (digit-value char)))
+                            ((char-hex-letter? char) (+ (* num base) (char-hex-letter->number char)))
+                            ((equal? char #\-) (set! sign -1) num)
+                            ((equal? char #\+) num)
+                            ((equal? char #\/) (raise "rational literals unimplemented"))
+                            (else (raise "unhandled character in real number string")))) 0 chars)))
+                    (* sign (if is-exact (exact num) (inexact num))))))
+                0))
+(define (imag-string->number str base is-exact)
+    (cond
+        ((equal? str "-") (if is-exact (exact -1) (inexact -1)))
+        ((equal? str "+") (if is-exact (exact 1) (inexact 1)))
+        ((equal? str "") (if is-exact (exact 1) (inexact 1)))
+        (else (real-string->number str base is-exact))))
+
+(define (lexed-num->num str matches)
+    (let* ((real (regexp-match-submatch matches 'real))
+          (imag (regexp-match-submatch matches 'imag))
+          (x (regexp-match-submatch matches 'x))
+          (y (regexp-match-submatch matches 'y))
+          (radix (regexp-match-submatch matches 'radix))
+          (exactness (regexp-match-submatch matches 'exact))
+          (exact (if (equal? exactness "#i") #f #t))
+          (base (radix->base radix))
+          (realnum (real-string->number real base exact))
+          (imagnum (imag-string->number imag base exact))
+          (xnum (real-string->number x base exact))
+          (ynum (imag-string->number y base exact)))
+        (if (or x y)
+            (make-polar xnum ynum)
+            (make-rectangular realnum imagnum))))
+
 (define (paren? c) (member c *parens*))
 (define (whitespace? c) (member c *whitespace*))
 (define (semicolon? c) (equal? c *semicolon*))
@@ -116,23 +196,26 @@
     (location tchar->location))
 
 (define-record-type <token>
-    (make-token string type location)
+    (make-token string type value location)
     token?
     (string token->string)
     (type token->type)
+    (value token->value)
     (location token->location))
 
-(define (tchar->token tchar type)
+(define (tchar->token tchar type value)
     (make-token 
         (list->string (list (tchar->char tchar)))
         type
+        value
         (tchar->location tchar)))
 (define (tchars->string tchars) (list->string (map tchar->char tchars)))
-(define (tchars->token tchars type)
+(define (tchars->token tchars type value)
     (let ((chars (map tchar->char tchars)))
         (make-token
             (list->string chars)
             type
+            value
             (tchar->location (car tchars)))))
 
 (define-record-type <reader>
@@ -182,13 +265,11 @@
            (tokens '())
            (buffer '())
            (should-roll-back #f))
-        (define (emit-tchar tchar type)
-            (set! tokens (cons (tchar->token tchar type) tokens)))
-        (define (emit-buffer type)
-            (if (not (null? buffer))
-                (begin 
-                    (set! tokens (cons (tchars->token (reverse buffer) type) tokens))
-                    (set! buffer '()))))
+        (define (emit-tchar tchar type value)
+            (set! tokens (cons (tchar->token tchar type value) tokens)))
+        (define (emit-string string type value)
+            (set! tokens (cons (tchars->token (reverse buffer) type value) tokens))
+            (set! buffer '()))
         (define (push-buffer tchar)
             (set! buffer (cons tchar buffer)))
         (define (reader) (read-reader raw-reader))
@@ -212,7 +293,7 @@
                         (push-buffer tchar)
                         (lex-string))
                     ((paren? char)
-                        (emit-tchar tchar 'paren)
+                        (emit-tchar tchar 'paren #f)
                         (lex-ready))
                     (else 
                         (push-buffer tchar)
@@ -221,17 +302,17 @@
         (define (lex-reading)
             (let* ((tchar (reader)) (char (tchar->char tchar)))
                 (if (delimiter? char)
-                    (let ((string (buffer->string)))
+                    (let* ((string (buffer->string)) (num-matches (parse-num string)))
                         (roll-back tchar)
                         (cond
-                            ((parse-num string) (emit-buffer 'number))
-                            ((equal? string "#t") (emit-buffer 'true))
-                            ((equal? string "#true") (emit-buffer 'true))
-                            ((equal? string "#f") (emit-buffer 'false))
-                            ((equal? string "#false") (emit-buffer 'false))
-                            ((char-literal? string) (emit-buffer 'char))
-                            ((char-name? string) (emit-buffer 'char))
-                            ((char-scalar? string) (emit-buffer 'char))
+                            (num-matches (emit-string string 'number (lexed-num->num string num-matches)))
+                            ((equal? string "#t") (emit-string string 'boolean #t))
+                            ((equal? string "#true") (emit-string string 'boolean #t))
+                            ((equal? string "#f") (emit-string string 'boolean #f))
+                            ((equal? string "#false") (emit-string string 'boolean #f))
+                            ((char-literal? string) (emit-string string 'char (char-literal->char string buffer)))
+                            ((char-name? string) (emit-string string 'char (char-name->char string)))
+                            ((char-scalar? string) (emit-string string 'char (char-scalar->char string)))
                             (else (error-with-value "unknown value" string)))
                         (lex-ready))
                     (begin
@@ -246,8 +327,9 @@
                     ((eof-object? char) (error "unterminated string!!!"))
                     ((equal? char *doublequote*) 
                         (push-buffer tchar)
-                        (emit-buffer 'string)
-                        (lex-ready))
+                        (let ((str (buffer->string)))
+                            (emit-string str 'string (string-copy str 1 (- (string-length str) 1)))
+                            (lex-ready)))
                     (else 
                         (push-buffer tchar)
                         (lex-string)))))

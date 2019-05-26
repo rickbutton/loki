@@ -11,112 +11,104 @@
 
 (define-syntax check
     (syntax-rules ()
-        ((check name in out)
-            (test-equal name out (p00_string2scheme (open-input-string in))))))
+        ((check in out)
+            (test-equal in out (p00_string2scheme (open-input-string in))))))
 
 (define-syntax check-error
     (syntax-rules ()
-        ((check-error name in)
-            (test-error name (p00_string2scheme (open-input-string in))))))
+        ((check-error in)
+            (test-error in (p00_string2scheme (open-input-string in))))))
 
-(define (t string type line col)
-    (make-token string type (make-source-location line col)))
+(define (t string type value)
+    (make-token string type value (make-source-location 1 1)))
+(define (tl string type line col value)
+    (make-token string type value (make-source-location line col)))
 
 (define (test_p00_string2scheme)
     (test-group "p00_string2scheme"
         (map 
-            (lambda (in)
+            (lambda (in value)
                 (let ((with-prefix (string-append "#d" in)))
-                    (check (string-append "valid number: " in) in (list (t in 'number 1 1)))
-                    (check (string-append "valid number: " with-prefix) with-prefix 
-                        (list (t with-prefix 'number 1 1)))))
-            '("123" "#i123" "#e123"
-              "123@456" "-123@-456" "123+456i" "-123+456i" "123-456i" "-123-456i" 
-              "123+i" "123-i" "123-inf.0i" "123+inf.0i" "123-nan.0i" "123+nan.0i"
-              "+123i" "-123i" 
-              ))
+                    (check in (list (t in 'number value)))
+                    (check with-prefix 
+                        (list (t with-prefix 'number value)))))
+            '("123" "#i123" "#e123" "123+456i" "-123+456i" 
+              "123-456i" "-123-456i" "123+i" "123-i" "123-inf.0i" "123+inf.0i" "+123i" "-123i")
+            '(123 #i123 #e123 123+456i -123+456i
+              123-456i -123-456i 123+i 123-i 123-inf.0i 123+inf.0i +123i -123i))
         (map 
-            (lambda (in) (check (string-append "valid number: " in) in (list (t in 'number 1 1))))
-            '("#b01" "#o01234567" "#x01234567890abcdefABCDEF" "#xDEADBEEF"))
+            (lambda (in value) (check in (list (t in 'number value))))
+            '("#b01" "#o01234567" "#x01234567890abcdefABCDEF" "#xDEADBEEF")
+            '(#b01 #o01234567 #x01234567890abcdefABCDEF #xDEADBEEF))
         (map 
-            (lambda (in) (check (string-append "valid number: " in) in (list (t in 'number 1 1))))
-            '("+inf.0" "-inf.0" "+nan.0" "-nan.0"
-              "+inf.0i" "-inf.0i" "+nan.0i" "-nan.0i" "+i" "-i"))
+            (lambda (in value) (check in (list (t in 'number value))))
+            '("+inf.0" "-inf.0" "+nan.0" "-nan.0" "+inf.0i" "-inf.0i" "+i" "-i")
+            '(+inf.0 -inf.0 +nan.0 -nan.0 +inf.0i -inf.0i +i -i))
 
         (map 
-            (lambda (in) (check-error (string-append "invalid number: " in) in))
+            (lambda (in) (check-error in))
             '("#b1012" "#b2" "#b456"
               "#o8" "#o9" "#oA"
               "#dDEAD #ddead"
               "#xZZZ"))
 
-        (check "left paren" "(" (list (t "(" 'paren 1 1)))
-        (check "right paren" ")" (list (t ")" 'paren 1 1)))
+        (check "(" (list (t "(" 'paren #f)))
+        (check ")" (list (t ")" 'paren #f)))
 
-        (check "null" 
-            "()" 
-            (list (t "(" 'paren 1 1)
-                  (t ")" 'paren 1 2)))
+        (check "()" 
+            (list (t "(" 'paren #f)
+                  (tl ")" 'paren 1 2 #f)))
 
-        (check "#t" "#t" (list (t "#t" 'true 1 1)))
-        (check "#true" "#true" (list (t "#true" 'true 1 1)))
-        (check "#f" "#f" (list (t "#f" 'false 1 1)))
-        (check "#false" "#false" (list (t "#false" 'false 1 1)))
+        (check "#t" (list (t "#t" 'boolean #t)))
+        (check "#true" (list (t "#true" 'boolean #t)))
+        (check "#f" (list (t "#f" 'boolean #f)))
+        (check "#false" (list (t "#false" 'boolean #f)))
 
-        (check "#t #f #true #false" "#t #f #true #false" 
+        (check "#t #f #true #false" 
             (list 
-                (t "#t" 'true 1 1)
-                (t "#f" 'false 1 4)
-                (t "#true" 'true 1 7)
-                (t "#false" 'false 1 13)))
+                (tl "#t" 'boolean 1 1 #t)
+                (tl "#f" 'boolean 1 4 #f)
+                (tl "#true" 'boolean 1 7 #t)
+                (tl "#false" 'boolean 1 13 #f)))
 
-        (check-error "#a is invalid" "#a")
-        (check-error "#ture is invalid" "#ture")
-        (check-error "#truea is invalid" "#truea")
-        (check-error "#fasle is invalid" "#fasle")
-        (check-error "#falsea is invalid" "#falsea")
+        (check-error "#a")
+        (check-error "#ture")
+        (check-error "#truea")
+        (check-error "#fasle")
+        (check-error "#falsea")
 
-        (check "#\\a" "#\\a" (list (t "#\\a" 'char 1 1)))
+        (check "#\\a" (list (t "#\\a" 'char #\a)))
 
-        (map (lambda (name)
-            (check name name (list (t name 'char 1 1))))
-            '("#\\alarm"
-              "#\\backspace"
-              "#\\delete"
-              "#\\escape"
-              "#\\newline"
-              "#\\null"
-              "#\\return"
-              "#\\space"
-              "#\\tab"))
+        (map (lambda (name value)
+            (check name (list (t name 'char value))))
+            '("#\\alarm" "#\\backspace" "#\\delete" "#\\escape" "#\\newline" "#\\null" "#\\return" "#\\space" "#\\tab")
+            '(#\alarm #\backspace #\delete #\escape #\newline #\null #\return #\space #\tab))
 
-        (check-error "#\\fake is invalid" "#\\fake")
-        (check-error "#\\alarma is invalid" "#\\alarma")
-        (check-error "#\\spacet is invalid" "#\\spacet")
+        (check-error "#\\fake")
+        (check-error "#\\alarma")
+        (check-error "#\\spacet")
 
-        (check "#\\x123" "#\\x123" (list (t "#\\x123" 'char 1 1)))
-        (check "#\\xABC" "#\\xABC" (list (t "#\\xABC" 'char 1 1)))
-        (check "#\\xabc" "#\\xabc" (list (t "#\\xabc" 'char 1 1)))
-        (check-error "#\\xaq is invalid" "#\\xaq")
+        (check "#\\x123" (list (t "#\\x123" 'char #\x123)))
+        (check "#\\xABC" (list (t "#\\xABC" 'char #\xABC)))
+        (check "#\\xabc" (list (t "#\\xabc" 'char #\xabc)))
+        (check-error "#\\xaq")
 
-        (check "simple string" 
-            "\"this is a test\"" 
-            (list (t "\"this is a test\"" 'string 1 1)))
+        (check "\"this is a test\"" 
+            (list (t "\"this is a test\"" 'string "this is a test")))
 
-        (check-error "unterminated string"  
-            "\"this is a test")
+        (check-error "\"this is a test")
 
-        (check "basic list" "(#f)"
+        (check "(#f)" 
             (list 
-                (t "(" 'paren 1 1)
-                (t "#f" 'false 1 2)
-                (t ")" 'paren 1 4)))
+                (tl "(" 'paren 1 1 #f)
+                (tl "#f" 'boolean 1 2 #f)
+                (tl ")" 'paren 1 4 #f)))
 
-        (check "basic list with spaces" "( #f )"
+        (check "( #f )"
             (list 
-                (t "(" 'paren 1 1)
-                (t "#f" 'false 1 3)
-                (t ")" 'paren 1 6)))
+                (tl "(" 'paren 1 1 #f)
+                (tl "#f" 'boolean 1 3 #f)
+                (tl ")" 'paren 1 6 #f)))
 
     ))
 ))
