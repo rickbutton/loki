@@ -1,36 +1,36 @@
 (define-library 
-    (p00_string2scheme.test)
+    (p00_string2tokens.test)
     (import (scheme base))
     (import (scheme write))
     (import (srfi 159))
     (import (unit))
     (import (shared))
-    (import (p00_string2scheme))
-    (export test_p00_string2scheme)
+    (import (p00_string2tokens))
+    (export test_p00_string2tokens)
 (begin
 
 (define-syntax check-with-name
     (syntax-rules ()
         ((check name in out)
-            (test-equal name out (p00_string2scheme (open-input-string in))))))
+            (test-equal name out (p00_string2tokens (open-input-string in))))))
 
 (define-syntax check
     (syntax-rules ()
         ((check in out)
-            (test-equal in out (p00_string2scheme (open-input-string in))))))
+            (test-equal in out (p00_string2tokens (open-input-string in))))))
 
 (define-syntax check-error
     (syntax-rules ()
         ((check-error in)
-            (test-error in (p00_string2scheme (open-input-string in))))))
+            (test-error in (p00_string2tokens (open-input-string in))))))
 
 (define (t string type value)
     (make-token string type value (make-source-location 1 1)))
 (define (tl string type line col value)
     (make-token string type value (make-source-location line col)))
 
-(define (test_p00_string2scheme)
-    (test-group "p00_string2scheme"
+(define (test_p00_string2tokens)
+    (test-group "p00_string2tokens"
         (check-with-name "lf" "123\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
         (check-with-name "cr" "123\r456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
         (check-with-name "crlf" "123\r\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))

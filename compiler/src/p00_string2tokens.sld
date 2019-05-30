@@ -1,5 +1,5 @@
 (define-library 
-    (p00_string2scheme)
+    (p00_string2tokens)
     (import (scheme base))
     (import (scheme char))
     (import (scheme complex))
@@ -9,7 +9,7 @@
     (import (util))
     (import (shared))
     (export 
-        p00_string2scheme 
+        p00_string2tokens 
         make-token
         token? 
         token->string 
@@ -230,14 +230,6 @@
     (char tchar->char)
     (location tchar->location))
 
-(define-record-type <token>
-    (make-token string type value location)
-    token?
-    (string token->string)
-    (type token->type)
-    (value token->value)
-    (location token->location))
-
 (define (tchar->token tchar type value)
     (make-token 
         (list->string (list (tchar->char tchar)))
@@ -308,7 +300,7 @@
                 
 (define (add-token token tokens) (cons token tokens))
 
-(define (p00_string2scheme port)
+(define (p00_string2tokens port)
     (let* ((raw-reader (port->reader port))
            (tokens '())
            (buffer '())
