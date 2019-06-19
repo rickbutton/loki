@@ -15,10 +15,11 @@
 (begin
 
 (define-record-type <source-location>
-    (make-source-location line col)
+    (make-source-location line col offset)
     source-location?
     (line source-location->line)
-    (col  source-location->col))
+    (col  source-location->col)
+    (offset source-location->offset))
 
 (define-record-type <token>
     (make-token string type value location)

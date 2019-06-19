@@ -246,45 +246,51 @@
             (tchar->location (car tchars)))))
 
 (define-record-type <reader>
-    (make-reader port saves line col)
+    (make-reader port saves line col offset)
     reader?
     (port reader->port)
     (saves reader->saves set-reader-saves)
     (line reader->line set-reader-line)
-    (col reader->col set-reader-col))
+    (col reader->col set-reader-col)
+    (offset reader->offset set-reader-offset))
 
 (define (port->reader port)
-    (make-reader port '() 1 1))
+    (make-reader port '() 1 1 0))
 
 (define (read-reader reader)
     (let ((port (reader->port reader))
           (saves (reader->saves reader)) 
           (line (reader->line reader)) 
-          (col (reader->col reader)))
+          (col (reader->col reader))
+          (offset (reader->offset reader)))
         (if (null? saves)
             (let* ((char (read-char port)) 
                    (next (peek-char port))
-                   (tchar (make-tchar char (make-source-location line col))))
+                   (tchar (make-tchar char (make-source-location line col offset))))
                 (if (return? char)
                     (if (newline? next)
                         (begin
                             ; will be crlf, but currently on cr, only increment col
                             (set-reader-col reader (+ col 1))
+                            (set-reader-offset reader (+ offset 1))
                             tchar)
                         (begin
                             ; only cr, increment as cr line ending
                             (set-reader-line reader (+ line 1))
                             (set-reader-col reader 1)
+                            (set-reader-offset reader (+ offset 1))
                             tchar))
                     (if (newline? char)
                         (begin
                             ; only lf, increment as lf line ending
                             (set-reader-line reader (+ line 1))
                             (set-reader-col reader 1)
+                            (set-reader-offset reader (+ offset 1))
                             tchar)
                         (begin
                             ; no line endings
                             (set-reader-col reader (+ col 1))
+                            (set-reader-offset reader (+ offset 1))
                             tchar))))
             (let ((save (car saves)))
                 (set-reader-saves reader (cdr saves))

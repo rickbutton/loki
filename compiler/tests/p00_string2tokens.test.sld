@@ -25,20 +25,20 @@
             (test-error in (p00_string2tokens (open-input-string in))))))
 
 (define (t string type value)
-    (make-token string type value (make-source-location 1 1)))
-(define (tl string type line col value)
-    (make-token string type value (make-source-location line col)))
+    (make-token string type value (make-source-location 1 1 0)))
+(define (tl string type line col offset value)
+    (make-token string type value (make-source-location line col offset)))
 
 (define (test_p00_string2tokens)
     (test-group "p00_string2tokens"
-        (check-with-name "lf" "123\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
-        (check-with-name "cr" "123\r456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
-        (check-with-name "crlf" "123\r\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 456)))
-        (check-with-name "lfcr" "123\n\r456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
-        (check-with-name "crcr" "123\r\r456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
-        (check-with-name "lflf" "123\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
-        (check-with-name "lfcrlf" "123\n\r\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
-        (check-with-name "crlflf" "123\r\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 456)))
+        (check-with-name "lf" "123\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 4 456)))
+        (check-with-name "cr" "123\r456" (list (t "123" 'number 123) (tl "456" 'number 2 1 4 456)))
+        (check-with-name "crlf" "123\r\n456" (list (t "123" 'number 123) (tl "456" 'number 2 1 5 456)))
+        (check-with-name "lfcr" "123\n\r456" (list (t "123" 'number 123) (tl "456" 'number 3 1 5 456)))
+        (check-with-name "crcr" "123\r\r456" (list (t "123" 'number 123) (tl "456" 'number 3 1 5 456)))
+        (check-with-name "lflf" "123\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 5 456)))
+        (check-with-name "lfcrlf" "123\n\r\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 6 456)))
+        (check-with-name "crlflf" "123\r\n\n456" (list (t "123" 'number 123) (tl "456" 'number 3 1 6 456)))
 
         (check "identifier" (list (t "identifier" 'id 'identifier)))
         (check "!id" (list (t "!id" 'id '!id)))
@@ -81,7 +81,7 @@
 
         (check "()" 
             (list (t "(" 'lparen #f)
-                  (tl ")" 'rparen 1 2 #f)))
+                  (tl ")" 'rparen 1 2 1 #f)))
 
         (check "#t" (list (t "#t" 'boolean #t)))
         (check "#true" (list (t "#true" 'boolean #t)))
@@ -90,10 +90,10 @@
 
         (check "#t #f #true #false" 
             (list 
-                (tl "#t" 'boolean 1 1 #t)
-                (tl "#f" 'boolean 1 4 #f)
-                (tl "#true" 'boolean 1 7 #t)
-                (tl "#false" 'boolean 1 13 #f)))
+                (tl "#t" 'boolean 1 1 0 #t)
+                (tl "#f" 'boolean 1 4 3 #f)
+                (tl "#true" 'boolean 1 7 6 #t)
+                (tl "#false" 'boolean 1 13 12 #f)))
 
         (check-error "#a")
         (check-error "#ture")
@@ -123,81 +123,81 @@
 
         (check "(#f)" 
             (list 
-                (tl "(" 'lparen 1 1 #f)
-                (tl "#f" 'boolean 1 2 #f)
-                (tl ")" 'rparen 1 4 #f)))
+                (tl "(" 'lparen 1 1 0 #f)
+                (tl "#f" 'boolean 1 2 1 #f)
+                (tl ")" 'rparen 1 4 3 #f)))
 
         (check "( #f )"
             (list 
-                (tl "(" 'lparen 1 1 #f)
-                (tl "#f" 'boolean 1 3 #f)
-                (tl ")" 'rparen 1 6 #f)))
+                (tl "(" 'lparen 1 1 0 #f)
+                (tl "#f" 'boolean 1 3 2 #f)
+                (tl ")" 'rparen 1 6 5 #f)))
 
         (check "(one . two)" 
             (list 
-                (tl "(" 'lparen 1 1 #f)
-                (tl "one" 'id 1 2 'one)
-                (tl "." 'dot 1 6 #f)
-                (tl "two" 'id 1 8 'two)
-                (tl ")" 'rparen 1 11 #f)))
+                (tl "(" 'lparen 1 1 0 #f)
+                (tl "one" 'id 1 2 1 'one)
+                (tl "." 'dot 1 6 5 #f)
+                (tl "two" 'id 1 8 7 'two)
+                (tl ")" 'rparen 1 11 10 #f)))
 
         (check "#()"
             (list 
-                (tl "#(" 'lvector 1 1 #f)
-                (tl ")" 'rparen 1 3 #f)))
+                (tl "#(" 'lvector 1 1 0 #f)
+                (tl ")" 'rparen 1 3 2 #f)))
 
         (check "#u8()"
             (list 
-                (tl "#u8(" 'lbytevector 1 1 #f)
-                (tl ")" 'rparen 1 5 #f)))
+                (tl "#u8(" 'lbytevector 1 1 0 #f)
+                (tl ")" 'rparen 1 5 4 #f)))
 
         (check "'" (list (t "'" 'quote #f)))
         (check "'123" (list 
-            (tl "'" 'quote 1 1 #f)
-            (tl "123" 'number 1 2 123)))
+            (tl "'" 'quote 1 1 0 #f)
+            (tl "123" 'number 1 2 1 123)))
 
         (check "'(123)" (list 
-            (tl "'" 'quote 1 1 #f)
-            (tl "(" 'lparen 1 2 #f)
-            (tl "123" 'number 1 3 123)
-            (tl ")" 'rparen 1 6 #f)))
+            (tl "'" 'quote 1 1 0 #f)
+            (tl "(" 'lparen 1 2 1 #f)
+            (tl "123" 'number 1 3 2 123)
+            (tl ")" 'rparen 1 6 5 #f)))
 
         (check "'#(123)" (list 
-            (tl "'" 'quote 1 1 #f)
-            (tl "#(" 'lvector 1 2 #f)
-            (tl "123" 'number 1 4 123)
-            (tl ")" 'rparen 1 7 #f)))
+            (tl "'" 'quote 1 1 0 #f)
+            (tl "#(" 'lvector 1 2 1 #f)
+            (tl "123" 'number 1 4 3 123)
+            (tl ")" 'rparen 1 7 6 #f)))
 
         (check "'#u8(123)" (list 
-            (tl "'" 'quote 1 1 #f)
-            (tl "#u8(" 'lbytevector 1 2 #f)
-            (tl "123" 'number 1 6 123)
-            (tl ")" 'rparen 1 9 #f)))
+            (tl "'" 'quote 1 1 0 #f)
+            (tl "#u8(" 'lbytevector 1 2 1 #f)
+            (tl "123" 'number 1 6 5 123)
+            (tl ")" 'rparen 1 9 8 #f)))
 
         (check "`(+ ,one ,two)" (list 
-            (tl "`" 'quasiquote 1 1 #f)
-            (tl "(" 'lparen 1 2 #f)
+            (tl "`" 'quasiquote 1 1 0 #f)
+            (tl "(" 'lparen 1 2 1 #f)
 
-            (tl "+" 'id 1 3 '+)
+            (tl "+" 'id 1 3 2 '+)
 
-            (tl "," 'unquote 1 5 #f)
-            (tl "one" 'id 1 6 'one)
+            (tl "," 'unquote 1 5 4 #f)
+            (tl "one" 'id 1 6 5 'one)
 
-            (tl "," 'unquote 1 10 #f)
-            (tl "two" 'id 1 11 'two)
-            (tl ")" 'rparen 1 14 #f)))
+            (tl "," 'unquote 1 10 9 #f)
+            (tl "two" 'id 1 11 10 'two)
+            (tl ")" 'rparen 1 14 13 #f)))
 
         (check "`(+ ,@one ,two)" (list 
-            (tl "`" 'quasiquote 1 1 #f)
-            (tl "(" 'lparen 1 2 #f)
+            (tl "`" 'quasiquote 1 1 0 #f)
+            (tl "(" 'lparen 1 2 1 #f)
 
-            (tl "+" 'id 1 3 '+)
+            (tl "+" 'id 1 3 2 '+)
 
-            (tl ",@" 'unquote-splice 1 5 #f)
-            (tl "one" 'id 1 7 'one)
+            (tl ",@" 'unquote-splice 1 5 4 #f)
+            (tl "one" 'id 1 7 6 'one)
 
-            (tl "," 'unquote 1 11 #f)
-            (tl "two" 'id 1 12 'two)
-            (tl ")" 'rparen 1 15 #f)))
+            (tl "," 'unquote 1 11 10 #f)
+            (tl "two" 'id 1 12 11 'two)
+            (tl ")" 'rparen 1 15 14 #f)))
     ))
 ))
