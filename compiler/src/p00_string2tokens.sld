@@ -1,3 +1,12 @@
+; string2tokens
+; this pass converts a stream of characters (via an input port) into a list of scheme tokens.
+; if the stream of characters is not a valid list of scheme tokens an error will be raised
+
+; each token stores the original string from the input, the representative scheme value, 
+; and the original location in the source file
+
+; TODO: implement string escapes and multi-line strings
+
 (define-library 
     (p00_string2tokens)
     (import (scheme base))
@@ -8,12 +17,7 @@
     (import (srfi 159))
     (import (util))
     (import (shared))
-    (export 
-        p00_string2tokens 
-        make-token
-        token? 
-        token->string 
-        token->location)
+    (export p00_string2tokens)
 (begin
 
 (define *whitespace* '(#\tab #\return #\newline #\space))

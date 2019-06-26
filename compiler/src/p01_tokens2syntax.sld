@@ -1,3 +1,17 @@
+; tokens2syntax
+; this pass converts a list of tokens into a syntax object.
+; if the list of tokens cannot be represented by valid syntax objects, an error is thrown.
+
+; there exist two types of syntax objects, cons and atom.
+
+; each cons-syntax object contains a car and cdr syntax object, and the source location for the 
+; representative "lparen" token.
+
+; each atom-syntax object contains a type symbol, the original token, and the representative value.
+
+; this pass also converts quote/unquote syntax shortcuts into their long-form counterparts. 
+; e.g. '123 => (quote 123)
+; whether the quote/unquote syntax is valid in-context is not validated, and is checked in a later pass.
 (define-library 
     (p01_tokens2syntax)
     (import (scheme base))
