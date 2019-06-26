@@ -1,5 +1,5 @@
 (define-library 
-    (p01_tokens2scheme.test)
+    (p01_tokens2syntax.test)
     (import (scheme base))
     (import (scheme write))
     (import (unit))
@@ -7,13 +7,13 @@
     (import (util))
     (import (srfi 159))
     (import (p00_string2tokens))
-    (import (p01_tokens2scheme))
-    (export test_p01_tokens2scheme)
+    (import (p01_tokens2syntax))
+    (export test_p01_tokens2syntax)
 (begin
 
 (define (lex-and-parse str)
     (let* ((tokens (p00_string2tokens (open-input-string str)))
-           (syntax (p01_tokens2scheme tokens)))
+           (syntax (p01_tokens2syntax tokens)))
         syntax))
 
 (define (scheme->syntax scheme)
@@ -59,8 +59,8 @@
 (define (test-parse-fail str)
     (test-error str (lex-and-parse str)))
 
-(define (test_p01_tokens2scheme) 
-    (test-group "p01_tokens2scheme"
+(define (test_p01_tokens2syntax) 
+    (test-group "p01_tokens2syntax"
         (test-parse-equal "\"this is a test\"" "this is a test")
         (test-parse-equal "#t" #t)
         (test-parse-equal "#f" #f)

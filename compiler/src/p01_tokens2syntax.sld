@@ -1,21 +1,10 @@
 (define-library 
-    (p01_tokens2scheme)
+    (p01_tokens2syntax)
     (import (scheme base))
     (import (util))
     (import (shared))
     (export 
-        p01_tokens2scheme
-        make-cons-syntax
-        cons-syntax?
-        cons-syntax->start
-        cons-syntax->end
-        cons-syntax->car
-        cons-syntax->cdr
-        make-atom-syntax
-        atom-syntax?
-        atom-syntax->type
-        atom-syntax->token
-        atom-syntax->value)
+        p01_tokens2syntax)
 (begin
 
 ; lvector
@@ -34,21 +23,7 @@
 ; quote
 ; quasiquote
 
-(define-record-type <cons-syntax>
-    (make-cons-syntax start car cdr)
-    cons-syntax?
-    (start cons-syntax->start)
-    (car cons-syntax->car)
-    (cdr cons-syntax->cdr))
-
-(define-record-type <atom-syntax>
-    (make-atom-syntax type token value)
-    atom-syntax?
-    (type atom-syntax->type)
-    (token atom-syntax->token)
-    (value atom-syntax->value))
-
-(define (p01_tokens2scheme tokens)
+(define (p01_tokens2syntax tokens)
     (let ((token-list tokens))
         (define (peek-token)
             (if (null? token-list) #f (car token-list)))
