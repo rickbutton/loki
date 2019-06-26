@@ -37,7 +37,7 @@
 (define (quote? c) (equal? c #\'))
 (define (quasiquote? c) (equal? c #\`))
 (define (unquote? c) (equal? c #\,))
-(define (unquote-splice? s) (equal? s ",@"))
+(define (unquote-splicing? s) (equal? s ",@"))
 (define (dot? c) (equal? c #\.))
 (define (vertical? c) (equal? c #\|))
 (define (delimiter? c)
@@ -345,7 +345,7 @@
                                     (begin
                                         (push-buffer tchar)
                                         (push-buffer (reader))
-                                        (emit-buffer 'unquote-splice #f))
+                                        (emit-buffer 'unquote-splicing #f))
                                     (emit-tchar tchar 'unquote #f))
                                 (lex-ready)))
                     ((doublequote? char) 

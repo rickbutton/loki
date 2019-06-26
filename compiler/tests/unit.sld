@@ -4,7 +4,7 @@
     (import (scheme write))
     (import (srfi 159))
     (import (srfi 159 color))
-    (export test-assert test-equal test-eqv test-error test-group)
+    (export test-assert test-equal test-eqv make-test-with-predicate test-error test-group)
 (begin
 
 (define (display-test-group name)
@@ -27,9 +27,12 @@
 (define (fail-equal! name expected actual)
     (display (show #f (as-red "fail! ")))
     (display (show #f (as-bold name)))
-    (display " expected ")
+    (display " expected \n")
+    (display " ")
     (display (show #f (as-cyan (written expected))))
-    (display " received ")
+    (display "\n")
+    (display " received \n")
+    (display " ")
     (display (show #f (as-cyan (written actual))))
     (display "\n"))
 
@@ -66,6 +69,14 @@
     (syntax-rules () ((test-eqv name expected actual)
         (fail-if-error
             (if (eqv? expected actual) (pass! name) (fail-equal! name expected actual))))))
+
+(define-syntax test-with-predicate
+    (syntax-rules () ((test-with-predicate name expected actual predicate)
+        (fail-if-error
+            (if (predicate expected actual) (pass! name) (fail-equal! name expected actual))))))
+(define-syntax make-test-with-predicate
+    (syntax-rules () ((make-test-with-predicate predicate)
+        (lambda (name expected actual) (test-with-predicate name expected actual predicate)))))
 
 (define-syntax test-error
     (syntax-rules () ((test-error name expr)

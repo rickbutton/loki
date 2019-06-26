@@ -193,7 +193,7 @@
 
             (tl "+" 'id 1 3 2 '+)
 
-            (tl ",@" 'unquote-splice 1 5 4 #f)
+            (tl ",@" 'unquote-splicing 1 5 4 #f)
             (tl "one" 'id 1 7 6 'one)
 
             (tl "," 'unquote 1 11 10 #f)
