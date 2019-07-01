@@ -89,6 +89,44 @@
         (test-fail '(quasiquote (123 (unquote (quasiquote 123 456)))))
         (test-fail '(quasiquote (123 (unquote-splicing (quote 123 456)))))
         (test-fail '(quasiquote (123 (unquote-splicing (quasiquote 123 456)))))
+
+        ; valid set! syntax
+        (test-pass '(lambda (x) (set! x 1)))
+
+        ; invalid set! syntax
+        (test-fail '(set!))
+        (test-fail '(set! x 1))
+        (test-fail '(set! 123 1))
+        (test-fail '(lambda () (set!)))
+        (test-fail '(lambda (x) (set! x)))
+        (test-fail '(lambda (x) (set! x 1 2)))
+
+        ; valid if syntax
+        (test-pass '(if 1 2 3))
+        (test-pass '(if 'anything #t))
+
+        ; invalid if syntax
+        (test-fail '(if))
+        (test-fail '(if 1))
+        (test-fail '(if 1 2 3 4))
+
+        ; valid lambda syntax
+        (test-pass '(lambda () 123))
+        (test-pass '(lambda (x) x))
+
+        ; lambda frees
+        (test-pass '(lambda (x) (lambda (y) x)))
+
+        ; invalid lambda syntax
+        (test-fail '(lambda ()))
+        (test-fail '(lambda (123)))
+        (test-fail '(lambda (#t)))
+        (test-fail '(lambda #f))
+        (test-fail '(lambda (x x) 123))
+
+        ; attempt to reference variable that is not declared
+        (test-fail 'x)
+        (test-fail '(x 123))
     ))
 
 ))

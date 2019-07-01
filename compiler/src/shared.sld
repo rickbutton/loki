@@ -20,12 +20,14 @@
         cons-syntax->start
         cons-syntax->car
         cons-syntax->cdr
+        cons-syntax->attrs
 
         make-atom-syntax
         atom-syntax?
         atom-syntax->type
         atom-syntax->token
-        atom-syntax->value)
+        atom-syntax->value
+        atom-syntax->attrs)
 (begin
 
 (define-record-type <source-location>
