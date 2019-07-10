@@ -30,17 +30,21 @@
 (define (var-name-equal? a b) (equal? (var->name a) (var->name b)))
 
 (define (new-var name) (cons name (varid name)))
-(define (add-var var scopes shadow)
+
+; mode 'strict, shadow, ignore
+(define (add-var var scopes mode)
     (let ((scope (scopes->current scopes))
           (parents (scopes->parents scopes)))
-        (if (and (member var scope var-name-equal?) (not shadow))
+        (if (and (member var scope var-name-equal?) (eq? mode 'strict))
             (raise (string-append 
                 "attemped to define variable " 
                 (symbol->string (var->name var)) 
                 " that is already defined in the current scope")))
-        (cons (cons var scope) parents)))
-(define (add-var-name name scopes shadow) 
-    (add-var (new-var name) scopes shadow))
+        (if (and (member var scope var-name-equal?) (eq? mode 'ignore))
+            scopes
+            (cons (cons var scope) parents))))
+(define (add-var-name name scopes mode) 
+    (add-var (new-var name) scopes mode))
 
 (define (add-new-scope scopes)
     (cons (empty-scope) scopes))
@@ -128,7 +132,8 @@
             (if (var-free? name scopes)
                 (syntax-set-attr syntax 'binding 'free)
                 (raise "attempted to mark unbound variable")))
-        (syntax-set-attr syntax 'unique-id (var->mapped (var-exists? name scopes)))))
+        (syntax-set-attr syntax 'unique-id (var->mapped (var-exists? name scopes)))
+        scopes))
 
 (define (if-syntax? syntax) (cons-symbol-syntax? syntax 'if))
 (define (walk-syntax-validate-if syntax scopes)
@@ -142,21 +147,46 @@
         (if (not (null-syntax? alternate))
             (walk-syntax-validate-expression alternate 'none scopes))
         (if (not (or (equal? #f end) (null-syntax? end)))
-            (raise "invalid if syntax, too many arguments"))))
+            (raise "invalid if syntax, too many arguments"))
+        scopes))
 
-; TODO, handle define vs command/expression order
-; for now, this will only validate that at least one expression exists
+; TODO - support all define forms, instead of just:
+; (define (id formals) body)
+; (define id expr)
+(define (define-syntax? syntax) (cons-symbol-syntax? syntax 'define))
+(define (walk-syntax-validate-define syntax scopes)
+    (let ((formals (safe-cadr-syntax syntax))
+          (body (safe-cddr-syntax syntax)))
+        (cond
+            ((cons-syntax? formals) 
+                (let* ((id (safe-car-syntax formals))
+                       (lambda-formals (safe-cdr-syntax formals))
+                       (lambda-names (lambda-formals-syntax->names lambda-formals)))
+                    (if (not (symbol-syntax? id))
+                        (raise "invalid define syntax, attempted to define non-symbol"))
+                    (walk-syntax-validate-lambda-formals lambda-formals '())
+                    (let* ((cont-scopes (add-var-name (atom-syntax->value id) scopes 'ignore))
+                           (body-scopes (fold-right (lambda (n s) (add-var-name n s 'strict)) (add-new-scope cont-scopes) lambda-names)))
+                        (walk-syntax-validate-body body body-scopes #t)
+                        cont-scopes)))
+            ((symbol-syntax? formals)
+                (if (null-syntax? (safe-cdr-syntax body))
+                    (let ((cont-scopes (add-var-name (atom-syntax->value formals) scopes 'ignore)))
+                        (walk-syntax-validate-expression (safe-car-syntax body) 'none cont-scopes)
+                        cont-scopes)))
+            (else (raise "invalid define syntax, attempted to define non-symbol")))))
+
+; TODO: for now, this will only validate that at least one expression exists
 (define (walk-syntax-validate-body syntax scopes initial)
-    (if (and (null-syntax? syntax) initial)
-        ; body is null
-        (raise "invalid empty body syntax, expected expression inside body"))
-        ; body has at least one expression
-        (if (cons-syntax? syntax)
-            (walk-syntax-validate-expression (safe-car-syntax syntax) 'none scopes)
-            (walk-syntax-validate-body (safe-cdr-syntax syntax) scopes #f)
-            (raise "invalid body syntax")))
+    (if (null-syntax? syntax)
+        (if initial (raise "invalid empty body syntax, expected expression inside body"))
+        (if (cons-syntax? syntax) ; body has at least one expression
+            (let ((new-scopes (walk-syntax-validate-expression (safe-car-syntax syntax) 'none scopes)))
+                (walk-syntax-validate-body (safe-cdr-syntax syntax) new-scopes #f))
+            (raise "invalid body syntax"))))
 
 (define (lambda-syntax? syntax) (cons-symbol-syntax? syntax 'lambda))
+; TODO - handle other types of formals
 (define (walk-syntax-validate-lambda-formals syntax names)
     (if (not (null-syntax? syntax))
         (if (cons-syntax? syntax)
@@ -177,6 +207,12 @@
         ; formals are null, which is valid
         #t))
 
+(define (begin-syntax? syntax) (cons-symbol-syntax? syntax 'begin))
+(define (walk-syntax-validate-begin syntax scopes)
+    (let ((body-syntax (safe-cdr-syntax syntax)))
+        (walk-syntax-validate-body body-syntax scopes #t)
+        scopes))
+
 (define (lambda-formals-syntax->names* syntax names) 
     (if (null-syntax? syntax) 
         names 
@@ -189,10 +225,13 @@
 (define (walk-syntax-validate-lambda syntax scopes) 
     (walk-syntax-validate-lambda-formals (safe-cadr-syntax syntax) '())
     (let* ((new-names (lambda-formals-syntax->names (safe-cadr-syntax syntax)))
-           (new-scopes (fold-right (lambda (n s) (add-var-name n s #f)) (add-new-scope scopes) new-names)))
-        (walk-syntax-validate-body (safe-cddr-syntax syntax) new-scopes #t)))
+           (new-scopes (fold-right (lambda (n s) (add-var-name n s 'strict)) (add-new-scope scopes) new-names)))
+        (walk-syntax-validate-body (safe-cddr-syntax syntax) new-scopes #t)
+        scopes))
 
 ; quote-context => none, quote, quasiquote
+; TODO, handle define vs command/expression order
+; TODO, are all definitions expressions?
 (define (walk-syntax-validate-expression syntax quote-context scopes)
     (cond
         ((equal? quote-context 'none)
@@ -230,10 +269,16 @@
                 ((if-syntax? syntax) (walk-syntax-validate-if syntax scopes))
                 ; (lambda (formals) <body>)
                 ((lambda-syntax? syntax) (walk-syntax-validate-lambda syntax scopes))
+                ; (define (id formals) <body>)
+                ; (define id <body>)
+                ((define-syntax? syntax) (walk-syntax-validate-define syntax scopes))
+                ; (begin 123)
+                ((begin-syntax? syntax) (walk-syntax-validate-begin syntax scopes))
                 ; (op operand...)
                 ((cons-syntax? syntax)
                     (walk-syntax-validate-expression (cons-syntax->car syntax) quote-context scopes)
-                    (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes))))
+                    (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes)
+                    scopes)))
         ((equal? quote-context 'quasiquote)
             ; we are inside a quasiquote syntax
             ; we only need to validate unquote and unquote splice
@@ -248,7 +293,8 @@
                         (raise "invalid unquote-splicing syntax")))
                 ((cons-syntax? syntax)
                     (walk-syntax-validate-expression (cons-syntax->car syntax) quote-context scopes)
-                    (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes))))))
+                    (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes)
+                    scopes)))))
 
 ; TODO - need to mark "maybe" syntax primitives during variable marking step in order to 
 ; determine whether a syntax primitive is used as a primitive or as a variable/application
@@ -280,11 +326,10 @@
 ; (guard ...)
 ; (case-lambda ...)
 
-; the ones I will probably implement for now
+; the ones I will probably implement for now (that aren't already implemented)
 ; (and ...)
 ; (or ...)
 ; (let bindings body)
-; (begin ...)
 
 ; TODO - import declarations?
 ; TODO - libraries?

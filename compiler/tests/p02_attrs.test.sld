@@ -111,8 +111,8 @@
         (test-fail '(if 1 2 3 4))
 
         ; valid lambda syntax
-        (test-pass '(lambda () 123))
-        (test-pass '(lambda (x) x))
+        (test-pass '(lambda () 123 456))
+        (test-pass '(lambda (x) x (x x)))
 
         ; lambda frees
         (test-pass '(lambda (x) (lambda (y) x)))
@@ -127,6 +127,20 @@
         ; attempt to reference variable that is not declared
         (test-fail 'x)
         (test-fail '(x 123))
+
+        ; valid define syntax
+        (test-pass '(define name 123))
+        (test-pass '(define name (lambda (x) (x 123))))
+        (test-pass '(define (name x y z) (x y z)))
+
+        (test-pass '(begin (define name 123) name))
+        (test-pass '(begin
+            (define name 123)
+            (define name2 456)
+            (name name2)))
+        (test-pass '(begin
+            (define name 123)
+            (define name 456)))
     ))
 
 ))
