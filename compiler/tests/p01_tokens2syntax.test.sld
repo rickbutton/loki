@@ -86,7 +86,7 @@
         (test-parse-equal "`(123 456 ,x)" '(quasiquote (123 456 (unquote x))))
         (test-parse-equal "`(123 456 ,@x)" '(quasiquote (123 456 (unquote-splicing x))))
 
-        
+        (test-parse-equal "(x 1 2 3) (y 4 5 6) 7" '(begin (x 1 2 3) (y 4 5 6) 7))
     ))
 
 ))
