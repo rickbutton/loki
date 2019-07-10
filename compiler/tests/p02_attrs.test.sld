@@ -130,8 +130,10 @@
 
         ; valid define syntax
         (test-pass '(define name 123))
+        (test-pass '(define name name))
         (test-pass '(define name (lambda (x) (x 123))))
         (test-pass '(define (name x y z) (x y z)))
+        (test-pass '(define (name x ) name))
 
         (test-pass '(begin (define name 123) name))
         (test-pass '(begin
@@ -141,6 +143,14 @@
         (test-pass '(begin
             (define name 123)
             (define name 456)))
+
+        ; invalid define syntax
+        (test-fail '(define 123 456))
+        (test-fail '(define 123))
+        (test-fail '(define name))
+        (test-fail '(define name 123 456))
+        (test-fail '(define (name x)))
+        (test-fail '(define (name x x) x))
     ))
 
 ))

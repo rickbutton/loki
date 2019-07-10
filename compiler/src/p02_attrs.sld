@@ -170,10 +170,12 @@
                         (walk-syntax-validate-body body body-scopes #t)
                         cont-scopes)))
             ((symbol-syntax? formals)
+                (if (null-syntax? body) (raise "invalid define syntax, expected expression in define"))
                 (if (null-syntax? (safe-cdr-syntax body))
                     (let ((cont-scopes (add-var-name (atom-syntax->value formals) scopes 'ignore)))
                         (walk-syntax-validate-expression (safe-car-syntax body) 'none cont-scopes)
-                        cont-scopes)))
+                        cont-scopes)
+                    (raise "invalid define syntax, expected single expression in define")))
             (else (raise "invalid define syntax, attempted to define non-symbol")))))
 
 ; TODO: for now, this will only validate that at least one expression exists
