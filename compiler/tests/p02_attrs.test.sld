@@ -151,6 +151,50 @@
         (test-fail '(define name 123 456))
         (test-fail '(define (name x)))
         (test-fail '(define (name x x) x))
+
+        ; quote quasiquote unquote unquote-splicing set! lambda if begin define
+        (define (get-second-expr-in-begin syntax)
+            (cons-syntax->car (cons-syntax->car 
+            (cons-syntax->cdr (cons-syntax->cdr syntax)))))
+        (define (get-third-expr-in-begin syntax)
+            (cons-syntax->car (cons-syntax->car 
+            (cons-syntax->cdr (cons-syntax->cdr (cons-syntax->cdr syntax))))))
+        (define (test-was-type getter scheme type)
+            (test-equal (show #f scheme) type (syntax-get-attr (getter (p02_attrs (scheme->syntax scheme))) 'type)))
+        (define (test-was-env getter scheme) (test-was-type getter scheme 'env))
+        (define (test-was-prim getter scheme) (test-was-type getter scheme 'primitive))
+
+        (define primitives-to-test-as-vars 
+            '((quote (quote 123))
+              (quasiquote (quasiquote 123))
+              (lambda (lambda () 123))
+              (if (if 123 456 789))
+              (if (if 123 456))
+              (begin (begin 123))))
+
+        (map (lambda (p)
+            (test-was-env get-second-expr-in-begin `(begin
+                (define ,(car p) 123)
+                ,@(cdr p)))
+            (test-was-prim get-second-expr-in-begin `(begin
+                (define nope 123)
+                ,@(cdr p))))
+            primitives-to-test-as-vars)
+
+        (test-was-env get-second-expr-in-begin '(begin
+            (define define 123)
+            (define 123)))
+        (test-was-prim get-second-expr-in-begin '(begin
+            (define nope 123)
+            (define name 123)))
+
+        (test-was-env get-third-expr-in-begin '(begin
+            (define set! 123)
+            (define test 0)
+            (set! test 1)))
+        (test-was-prim get-second-expr-in-begin '(begin
+            (define test 0)
+            (set! test 1)))
     ))
 
 ))

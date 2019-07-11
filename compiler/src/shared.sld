@@ -27,7 +27,20 @@
         atom-syntax->type
         atom-syntax->token
         atom-syntax->value
-        atom-syntax->attrs)
+        atom-syntax->attrs
+        
+        syntax->attrs
+        syntax-get-attr
+        syntax-set-attr
+        
+        safe-car-syntax
+        safe-cdr-syntax
+        safe-cadr-syntax
+        safe-cddr-syntax
+        safe-caddr-syntax
+        safe-cdddr-syntax
+        safe-cadddr-syntax
+        safe-cddddr-syntax)
 (begin
 
 (define-record-type <source-location>
@@ -67,4 +80,24 @@
 (define (make-atom-syntax type token value)
     (make-atom-syntax-record type token value (make-attrs)))
 
+(define (syntax->attrs syntax)
+    (cond
+        ((cons-syntax? syntax) (cons-syntax->attrs syntax))
+        ((atom-syntax? syntax) (atom-syntax->attrs syntax))
+        (else (raise "unknown syntax type when getting attrs"))))
+(define (syntax-set-attr syntax attr value)
+    (let ((attrs (syntax->attrs syntax)))
+        (hash-table-set! attrs attr value)))
+(define (syntax-get-attr syntax attr)
+    (let ((attrs (syntax->attrs syntax)))
+        (hash-table-ref/default attrs attr #f)))
+
+(define (safe-car-syntax syntax) (if (cons-syntax? syntax) (cons-syntax->car syntax) #f))
+(define (safe-cdr-syntax syntax) (if (cons-syntax? syntax) (cons-syntax->cdr syntax) #f))
+(define (safe-cadr-syntax syntax) (safe-car-syntax (safe-cdr-syntax syntax)))
+(define (safe-cddr-syntax syntax) (safe-cdr-syntax (safe-cdr-syntax syntax)))
+(define (safe-caddr-syntax syntax) (safe-car-syntax (safe-cdr-syntax (safe-cdr-syntax syntax))))
+(define (safe-cdddr-syntax syntax) (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax syntax))))
+(define (safe-cadddr-syntax syntax) (safe-car-syntax (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax syntax)))))
+(define (safe-cddddr-syntax syntax) (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax syntax)))))
 ))
