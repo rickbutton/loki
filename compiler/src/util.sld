@@ -95,7 +95,7 @@
             (begin
                 (display (show #f (quote exp)))
                 (display ": ")
-                (display exp)
+                (display (show #f exp))
                 (display "\n")))))
 
 (define (string-join strings delimiter)

@@ -113,7 +113,6 @@
         (define (parse)
             (push-syntax (parse-next))
             (if (peek-token) (parse)))
-        (parse)
 
         (define (syntax-list->begin* syntax-list)
             (if (null? syntax-list) 
@@ -128,5 +127,6 @@
                         (make-atom-syntax 'symbol #f 'begin)
                         (syntax-list->begin* syntax-list)))))
 
+        (parse)
         (syntax-list->begin (reverse syntax-list))))
 ))

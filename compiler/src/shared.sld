@@ -40,7 +40,9 @@
         safe-caddr-syntax
         safe-cdddr-syntax
         safe-cadddr-syntax
-        safe-cddddr-syntax)
+        safe-cddddr-syntax
+        
+        scheme->mock-syntax)
 (begin
 
 (define-record-type <source-location>
@@ -100,4 +102,20 @@
 (define (safe-cdddr-syntax syntax) (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax syntax))))
 (define (safe-cadddr-syntax syntax) (safe-car-syntax (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax syntax)))))
 (define (safe-cddddr-syntax syntax) (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax (safe-cdr-syntax syntax)))))
+
+(define (scheme->mock-syntax scheme)
+    (cond
+        ((pair? scheme)
+            (make-cons-syntax #f (scheme->mock-syntax (car scheme)) 
+                                    (scheme->mock-syntax (cdr scheme))))
+        ((string? scheme) (make-atom-syntax 'string #f scheme))
+        ((boolean? scheme) (make-atom-syntax 'boolean #f scheme))
+        ((char? scheme) (make-atom-syntax 'char #f scheme))
+        ((number? scheme) (make-atom-syntax 'number #f scheme))
+        ((symbol? scheme) (make-atom-syntax 'symbol #f scheme))
+        ((null? scheme) (make-atom-syntax 'null #f scheme))
+        (else (raise (string-append
+            "unknown scheme, can't convert value "
+            (show #f scheme)
+            "to syntax")))))
 ))

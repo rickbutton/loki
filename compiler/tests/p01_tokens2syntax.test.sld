@@ -16,27 +16,11 @@
            (syntax (p01_tokens2syntax tokens)))
         syntax))
 
-(define (scheme->syntax scheme)
-    (cond
-        ((pair? scheme)
-            (make-cons-syntax #f (scheme->syntax (car scheme)) 
-                                    (scheme->syntax (cdr scheme))))
-        ((string? scheme) (make-atom-syntax 'string #f scheme))
-        ((boolean? scheme) (make-atom-syntax 'boolean #f scheme))
-        ((char? scheme) (make-atom-syntax 'char #f scheme))
-        ((number? scheme) (make-atom-syntax 'number #f scheme))
-        ((symbol? scheme) (make-atom-syntax 'symbol #f scheme))
-        ((null? scheme) (make-atom-syntax 'null #f scheme))
-        (else (raise (string-append
-            "unknown scheme, can't convert value "
-            (show #f scheme)
-            "to syntax")))))
-
-(define (syntax->scheme syntax)
+(define (syntax->value syntax)
     (if (cons-syntax? syntax)
         (cons 
-            (syntax->scheme (cons-syntax->car syntax))
-            (syntax->scheme (cons-syntax->cdr syntax)))
+            (syntax->value (cons-syntax->car syntax))
+            (syntax->value (cons-syntax->cdr syntax)))
         (atom-syntax->value syntax)))
 
 (define (syntax-equal? a b)
@@ -54,7 +38,7 @@
 
 (define test-syntax-equal (make-test-with-predicate syntax-equal?))
 (define (test-parse-equal str expected)
-    (test-equal str expected (syntax->scheme (lex-and-parse str))))
+    (test-equal str expected (syntax->value (lex-and-parse str))))
 
 (define (test-parse-fail str)
     (test-error str (lex-and-parse str)))

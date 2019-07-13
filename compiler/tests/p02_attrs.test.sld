@@ -11,26 +11,29 @@
 (begin
 
 (define (test-pass scheme)
-    (test-assert (show #f scheme) (begin (p02_attrs (scheme->syntax scheme)) #t)))
+    (test-assert (show #f scheme) (begin (p02_attrs (scheme->mock-syntax scheme)) #t)))
 
 (define (test-fail scheme)
-    (test-error (show #f scheme) (p02_attrs (scheme->syntax scheme))))
+    (test-error (show #f scheme) (p02_attrs (scheme->mock-syntax scheme))))
 
-(define (scheme->syntax scheme)
-    (cond
-        ((pair? scheme)
-            (make-cons-syntax #f (scheme->syntax (car scheme)) 
-                                    (scheme->syntax (cdr scheme))))
-        ((string? scheme) (make-atom-syntax 'string #f scheme))
-        ((boolean? scheme) (make-atom-syntax 'boolean #f scheme))
-        ((char? scheme) (make-atom-syntax 'char #f scheme))
-        ((number? scheme) (make-atom-syntax 'number #f scheme))
-        ((symbol? scheme) (make-atom-syntax 'symbol #f scheme))
-        ((null? scheme) (make-atom-syntax 'null #f scheme))
-        (else (raise (string-append
-            "unknown scheme, can't convert value "
-            (show #f scheme)
-            "to syntax")))))
+(define (get-second-expr-in-begin syntax)
+    (cons-syntax->car (cons-syntax->car 
+    (cons-syntax->cdr (cons-syntax->cdr syntax)))))
+(define (get-third-expr-in-begin syntax)
+    (cons-syntax->car (cons-syntax->car 
+    (cons-syntax->cdr (cons-syntax->cdr (cons-syntax->cdr syntax))))))
+(define (test-was-type getter scheme type)
+    (test-equal (show #f scheme) type (syntax-get-attr (getter (p02_attrs (scheme->mock-syntax scheme))) 'type)))
+(define (test-was-ref getter scheme) (test-was-type getter scheme 'reference))
+(define (test-was-prim getter scheme) (test-was-type getter scheme 'primitive))
+
+(define primitives-to-test-as-vars 
+    '((quote (quote 123))
+        (quasiquote (quasiquote 123))
+        (lambda (lambda () 123))
+        (if (if 123 456 789))
+        (if (if 123 456))
+        (begin (begin 123))))
 
 (define (test_p02_attrs) 
     (test-group "p02_attrs"
@@ -152,28 +155,8 @@
         (test-fail '(define (name x)))
         (test-fail '(define (name x x) x))
 
-        ; quote quasiquote unquote unquote-splicing set! lambda if begin define
-        (define (get-second-expr-in-begin syntax)
-            (cons-syntax->car (cons-syntax->car 
-            (cons-syntax->cdr (cons-syntax->cdr syntax)))))
-        (define (get-third-expr-in-begin syntax)
-            (cons-syntax->car (cons-syntax->car 
-            (cons-syntax->cdr (cons-syntax->cdr (cons-syntax->cdr syntax))))))
-        (define (test-was-type getter scheme type)
-            (test-equal (show #f scheme) type (syntax-get-attr (getter (p02_attrs (scheme->syntax scheme))) 'type)))
-        (define (test-was-env getter scheme) (test-was-type getter scheme 'env))
-        (define (test-was-prim getter scheme) (test-was-type getter scheme 'primitive))
-
-        (define primitives-to-test-as-vars 
-            '((quote (quote 123))
-              (quasiquote (quasiquote 123))
-              (lambda (lambda () 123))
-              (if (if 123 456 789))
-              (if (if 123 456))
-              (begin (begin 123))))
-
         (map (lambda (p)
-            (test-was-env get-second-expr-in-begin `(begin
+            (test-was-ref get-second-expr-in-begin `(begin
                 (define ,(car p) 123)
                 ,@(cdr p)))
             (test-was-prim get-second-expr-in-begin `(begin
@@ -181,14 +164,14 @@
                 ,@(cdr p))))
             primitives-to-test-as-vars)
 
-        (test-was-env get-second-expr-in-begin '(begin
+        (test-was-ref get-second-expr-in-begin '(begin
             (define define 123)
             (define 123)))
         (test-was-prim get-second-expr-in-begin '(begin
             (define nope 123)
             (define name 123)))
 
-        (test-was-env get-third-expr-in-begin '(begin
+        (test-was-ref get-third-expr-in-begin '(begin
             (define set! 123)
             (define test 0)
             (set! test 1)))

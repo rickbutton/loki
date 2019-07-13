@@ -118,7 +118,12 @@
 (define (valid-unquote-syntax? syntax scopes) (and (unquote-syntax? syntax scopes) (null-syntax? (safe-cdr-syntax (safe-cdr-syntax syntax)))))
 (define (valid-unquote-splicing-syntax? syntax scopes) (and (unquote-splicing-syntax? syntax scopes) (null-syntax? (safe-cdr-syntax (safe-cdr-syntax syntax)))))
 
-(define (mark-symbol-syntax syntax scopes)
+(define (mark-symbol-declaration syntax scopes)
+    (let ((name (atom-syntax->value syntax)))
+        (syntax-set-attr syntax 'unique-id (var->mapped (var-exists? name scopes)))
+        (syntax-set-attr syntax 'type 'declaration)))
+
+(define (mark-symbol-reference syntax scopes)
     (let ((name (atom-syntax->value syntax)))
         (if (var-bound? name scopes)
             (syntax-set-attr syntax 'binding 'bound)
@@ -126,7 +131,7 @@
                 (syntax-set-attr syntax 'binding 'free)
                 (raise "attempted to mark unbound variable")))
         (syntax-set-attr syntax 'unique-id (var->mapped (var-exists? name scopes)))
-        (syntax-set-attr syntax 'type 'env)
+        (syntax-set-attr syntax 'type 'reference)
         scopes))
 (define (mark-primitive-syntax syntax)
     (let ((car-syntax (safe-car-syntax syntax)))
@@ -167,6 +172,7 @@
                            (body-scopes (fold-right (lambda (n s) (add-var-name n s 'strict)) (add-new-scope cont-scopes) lambda-names)))
                         (walk-syntax-validate-body body body-scopes #t)
                         (mark-primitive-syntax syntax)
+                        (mark-symbol-declaration id cont-scopes)
                         cont-scopes)))
             ((symbol-syntax? formals)
                 (if (null-syntax? body) (raise "invalid define syntax, expected expression in define"))
@@ -174,6 +180,7 @@
                     (let ((cont-scopes (add-var-name (atom-syntax->value formals) scopes 'ignore)))
                         (walk-syntax-validate-expression (safe-car-syntax body) 'none cont-scopes)
                         (mark-primitive-syntax syntax)
+                        (mark-symbol-declaration formals cont-scopes)
                         cont-scopes)
                     (raise "invalid define syntax, expected single expression in define")))
             (else (raise "invalid define syntax, attempted to define non-symbol")))))
@@ -225,12 +232,24 @@
 (define (lambda-formals-syntax->names syntax)
     (lambda-formals-syntax->names* syntax '()))
 
+(define (mark-lambda-formals-declaration formals scopes)
+    (if (not (null-syntax? formals))
+        (let ((car-syntax (cons-syntax->car formals))
+            (cdr-syntax (cons-syntax->cdr formals)))
+            (if (symbol-syntax? car-syntax)
+                (mark-symbol-declaration car-syntax scopes)
+                (raise "invalid syntax, expected symbol in lambda formals"))
+            (if (not (null-syntax? cdr-syntax))
+                (mark-lambda-formals-declaration cdr-syntax)))))
+
+
 (define (walk-syntax-validate-lambda syntax scopes) 
     (walk-syntax-validate-lambda-formals (safe-cadr-syntax syntax) '())
     (let* ((new-names (lambda-formals-syntax->names (safe-cadr-syntax syntax)))
            (new-scopes (fold-right (lambda (n s) (add-var-name n s 'strict)) (add-new-scope scopes) new-names)))
         (walk-syntax-validate-body (safe-cddr-syntax syntax) new-scopes #t)
         (mark-primitive-syntax syntax)
+        (mark-lambda-formals-declaration (safe-cadr-syntax syntax) new-scopes)
         scopes))
 
 ; quote-context => none, quote, quasiquote
@@ -269,7 +288,7 @@
                 ; <variable>
                 ((symbol-syntax? syntax)
                     (if (var-exists? (atom-syntax->value syntax) scopes)
-                        (mark-symbol-syntax syntax scopes)
+                        (mark-symbol-reference syntax scopes)
                         (raise (string-append "attempted to reference undefined variable " (symbol->string (atom-syntax->value syntax))))))
                 ; (set! <variable> <expression>)
                 ((set!-syntax? syntax scopes) (walk-syntax-validate-set! syntax scopes))

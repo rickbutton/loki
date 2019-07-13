@@ -1,6 +1,7 @@
 (import (p00_string2tokens.test))
 (import (p01_tokens2syntax.test))
 (import (p02_attrs.test))
+(import (p03_syntax2scheme.test))
 (import (chibi time))
 
 (time (test_p00_string2tokens))
