@@ -2,7 +2,7 @@
 
 ### A Scheme to WebAssembly Compiler
 
-This supports almost zero percent of any scheme standard or spec. I implemented this as a way to practice compiler writing (specifically closure conversion), and to learn WebAssembly. I'm hoping to eventually make this R7RS small compliant at least. No promises.
+This supports almost zero percent of any scheme standard or spec. I'm hoping to eventually make this R7RS small compliant at least. No promises.
 
 Take caution, because this probably doesn't work on your machine without tweaks.
 
@@ -17,15 +17,12 @@ make example
 ### TODO
 
 - more heap allocated values (runtime symbols, etc)
-- enough standard library to run the compiler 
-- modules (via define-libray)
-- test suite
-- a real parser
-- FFI with JavaScript
-
-## Plans?
-
-- native layer (garbage collector, etc) in Rust
+- self hosting
+- modules (via define-library)
+- test suite for back end
+- garbage collection
+- easy FFI with JavaScript
+- WASI?
 
 ### Example
 
@@ -34,13 +31,14 @@ This example may be out of date. No Promises!
 input:
 
 ```scheme
-(define (+ a b c) (add a b c))
+(define (+ a b c) (%%prim%add (%%prim%add a b) c))
 
 (define (test x)
-    (let ((y (add x 2)) (z (add x 3)))
-        (+ x y z)))
+    (define y (%%prim%add x 2))
+    (define z (%%prim%add x 3))
+    (+ x y z))
 
-(cons (test 10) "😀 schwasm!")
+(%%prim%cons (test 10) "😀 schwasm!")
 ```
 
 output:
@@ -154,15 +152,15 @@ output:
               (call $$alloc_pair)
               (return))
         (func $$f1
-              (param $v4_a i32)
+              (param $v2_a i32)
               (param $v3_b i32)
-              (param $v2_c i32)
+              (param $v4_c i32)
               (param $$close i32)
               (result i32)
-              (get_local $v4_a)
+              (get_local $v2_a)
               (get_local $v3_b)
               (i32.add)
-              (get_local $v2_c)
+              (get_local $v4_c)
               (i32.add)
               (return))
         (func $$f2
@@ -173,15 +171,15 @@ output:
               (local $v7_y i32)
               (local $v8_z i32)
               (get_local $v6_x)
-              (i32.const 12)
-              (i32.add)
-              (call $$alloc_slot)
-              (set_local $v8_z)
-              (get_local $v6_x)
               (i32.const 8)
               (i32.add)
               (call $$alloc_slot)
               (set_local $v7_y)
+              (get_local $v6_x)
+              (i32.const 12)
+              (i32.add)
+              (call $$alloc_slot)
+              (set_local $v8_z)
               (call $$get_free (get_local $$close) (i32.const 0))
               (get_local $v6_x)
               (call $$unslot (get_local $v7_y))
