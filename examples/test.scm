@@ -1,7 +1,8 @@
-(define (+ a b c) (add a b c))
+(define (+ a b c) (%%prim%add (%%prim%add a b) c))
 
 (define (test x)
-    (let ((y (add x 2)) (z (add x 3)))
-        (+ x y z)))
+    (define y (%%prim%add x 2))
+    (define z (%%prim%add x 3))
+    (+ x y z))
 
-(cons (test 10) "😀 schwasm!")
+(%%prim%cons (test 10) "😀 schwasm!")

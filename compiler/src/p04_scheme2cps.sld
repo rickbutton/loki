@@ -1,9 +1,10 @@
 (define-library 
-    (p01_scheme2cps)
+    (p04_scheme2cps)
     (import (scheme base))
     (import (scheme write))
     (import (util))
-    (export p01_scheme2cps)
+    (import (shared))
+    (export p04_scheme2cps)
 (begin
 
 (define (constant? x)
@@ -16,13 +17,21 @@
 
 (define (quote? x) (and (list? x) (eq? (car x) 'quote)))
 
-(define prim-list '(add sub cons car cdr))
-(define (prim? x) (and (list? x) (contains? prim-list (car x))))
+(define (intrinsic-apply? x) 
+    (and 
+        (list? x)
+        (intrinsic? (car x))))
 
-(define (let? x) (and (list? x) (eq? (car x) 'let)))
-(define (define? x) (and (list? x) (eq? (car x) 'define)))
-(define (begin? x) (and (list? x) (eq? (car x) 'begin)))
-(define (lambda? x) (and (list? x) (eq? (car x) 'lambda)))
+(define (compile-intrinsic x next)
+    (let ((intrinsic (car x))
+          (args (cdr x)))
+        (fold-right compile-expr 
+            `(intrinsic ,(intrinsic->name intrinsic) ,next) args)))
+
+(define (let? x) (and (list? x) (equal? (car x) 'let)))
+(define (define? x) (and (list? x) (equal? (car x) 'define)))
+(define (begin? x) (and (list? x) (equal? (car x) 'begin)))
+(define (lambda? x) (and (list? x) (equal? (car x) 'lambda)))
 
 (define (compile-integer x next) `(constant ,x ,next))
 (define (compile-boolean x next) `(constant ,x ,next))
@@ -43,42 +52,6 @@
         ((pair? x) (compile-pair x next))))
 (define (compile-quote x next) (compile-constant (cadr x) next))
 
-(define (prim->op x) (car x))
-(define (prim->args x) (cdr x))
-(define (prim->argc x) (length (prim->args x)))
-
-(define (ensure-prim-argc p name c inst)
-    (if (eq? (prim->argc p) c)
-        inst
-        (error (string-append 
-            "invalid number of args to prim " 
-            (symbol->string name)
-            ", expected "
-            (number->string c)
-            ", received "
-            (number->string (prim->argc p))))))       
-
-(define (compile-mathprim-rest args prim next)
-    (fold-right (lambda (a r) (compile-expr a `(primcall ,prim ,r))) next args))
-
-(define (compile-mathprim p next)
-    (let ((op (prim->op p)) (args (prim->args p)) (argc (prim->argc p)))
-        (cond
-            ((eq? argc 0) (compile-expr 0 next))
-            ((eq? argc 1) (compile-expr (car args) next))
-            ((eq? argc 2) (compile-expr (car args) (compile-expr (cadr args) `(primcall ,op ,next))))
-            (else (compile-expr (car args) (compile-expr (cadr args) `(primcall ,op ,(compile-mathprim-rest (cddr args) op next))))))))
-
-(define (compile-prim p next)
-    (let ((op (prim->op p)))
-        (cond
-            ((eq? op 'add) (compile-mathprim p next))
-            ((eq? op 'sub) (compile-mathprim p next))
-            ((eq? op 'car) (ensure-prim-argc p 'car 1 (compile-expr (cadr p) `(primcall car ,next))))
-            ((eq? op 'cdr) (ensure-prim-argc p 'cdr 1 (compile-expr (cadr p) `(primcall cdr ,next))))
-            ((eq? op 'cons) (ensure-prim-argc p 'cons 2 (compile-expr (cadr p) (compile-expr (caddr p) `(primcall cons ,next)))))
-            (else (error (string-append "invalid primcall: " op))))))
-
 (define (apply-fold x r) (compile-expr x r))
 (define (apply-op x) (car x))
 (define (apply-args x) (cdr x))
@@ -94,12 +67,16 @@
 (define (let->body x ) (cdr (cdr x)))
 (define (binding->var x) (car x))
 (define (binding->val x) (car (cdr x)))
-(define (compile-binding binding)
-    (cons (binding->var binding) (compile-expr (binding->val binding) `(slot (store ,(binding->var binding) (end))))))
+(define (compile-binding binding next)
+    (compile-expr (binding->val binding) `(slot (store ,(binding->var binding) ,next))))
+
+(define (make-begin body) (cons 'begin body))
 
 (define (compile-let x next)
     (let ((bindings (let->bindings x)) (body (let->body x)))
-        `(scope ,(map compile-binding bindings) ,(compile-expr (cons 'begin body) '(end)) ,next)))
+        (fold-right compile-binding 
+            (compile-expr (make-begin body) next)
+            bindings)))
 
 (define (define->var x) (car (cdr x)))
 (define (define->body x) (cdr (cdr x)))
@@ -108,11 +85,12 @@
         (cond
             ((list? var) (compile-define `(define ,(car var) (lambda ,(cdr var) ,@(define->body x))) next))
             ((pair? var) (compile-define `(define ,(car var) (lambda (,(cdr var)) ,@(define->body x))) next))
-            (else `(define ,var ,(compile-expr (cons 'begin (define->body x)) `(slot (store ,(define->var x) ,next))))))))
+            (else (compile-expr (make-begin (define->body x)) `(slot (store ,(define->var x) ,next)))))))
 
 (define (begin->body x) (cdr x))
 (define (begin-fold x r) (compile-expr x r))
-(define (compile-begin x next) (fold-right begin-fold next (begin->body x)))
+(define (compile-begin x next) 
+    (fold-right begin-fold next (begin->body x)))
 
 (define (lambda->bindings x) (car (cdr x)))
 (define (lambda->body x ) (cdr (cdr x)))
@@ -121,7 +99,7 @@
 (define (compile-lambda-bindings bindings next)
     (fold-right compile-lambda-binding next bindings))
 (define (compile-lambda x next)
-    (let ((body (compile-expr (cons 'begin (lambda->body x)) '(return))))
+    (let ((body (compile-expr (make-begin (lambda->body x)) '(return))))
     `(close ,(lambda->bindings x) ,body ,next)))
 
 ; integer 1
@@ -145,36 +123,36 @@
 ; quote '(1 2)
 ; (constant 1 (constant 2 (pair (constant '() (pair next)))
 
-; prim add
-; (primcall add)
+; intrinsic add
+; (intrinsic add)
 
 ; let (let ((x 1)) (add x 1))
-; (scope (x (constant 1 (slot (store x (end))))) (refer x (constant 1 (primcall add (end)))) next)
+; (constant 1 (slot (store x (refer x (constant 1 (intrinsic add next))))))
 
 ; define (define x 10)
-; (define x (constant 10 next))
+; (constant 10 (slot (store x)))
 
 ; begin (begin 1 2)
 ; (constant 1 (constant 2 next))
 
 ; lambda (lambda (x) (add x 1))
-; (close (param x (refer x (constant 1 (primcall add (return))))) next)
+; (close (param x (refer x (constant 1 (intrinsic add (return))))) next)
 
 ; apply (func 1 2)
 ; (constant 1 (constant 2 (apply 2)))
 
 (define (compile-expr x next)
     (cond
-        ((symbol? x) (compile-refer x next))
+        ((variable? x) (compile-refer x next))
         ((constant? x) (compile-constant x next))
         ((quote? x) (compile-quote x next))
-        ((prim? x) (compile-prim x next))
+        ((intrinsic-apply? x) (compile-intrinsic x next))
         ((let? x) (compile-let x next))
         ((define? x) (compile-define x next))
         ((begin? x) (compile-begin x next))
         ((lambda? x) (compile-lambda x next))
-
-        ((pair? x) (compile-apply x next))
+        ((list? x) (compile-apply x next))
+        ((pair? x) (compile-pair x next))
     ))
 
-(define (p01_scheme2cps x) (compile-expr (cons 'begin x) '(return)))))
+(define (p04_scheme2cps x) (compile-expr x '(return)))))

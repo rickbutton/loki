@@ -1,9 +1,11 @@
+; TODO - missing the "free"/"bound" from mark-vars
 (define-library 
-(p06_funcs2wat)
+(p08_funcs2wat)
 (import (scheme base))
 (import (srfi 151))
 (import (util))
-(export p06_funcs2wat)
+(import (shared))
+(export p08_funcs2wat)
 (begin
 
 ; fixnum
@@ -70,18 +72,18 @@
     `(call $$alloc_pair))
 ; end pair
 
-; prim
-(define (prim->op x) (car (cdr x)))
+; intrinsic
+(define (intrinsic->op x) (cadr x))
 
-(define (compile-primcall p)
-    (let ((op (prim->op p)))
+(define (compile-intrinsic i)
+    (let ((op (intrinsic->op i)))
         (cond
-            ((eq? op 'add) '(i32.add))
-            ((eq? op 'sub) '(i32.sub))
-            ((eq? op 'car) '(call $$car))
-            ((eq? op 'cdr) '(call $$cdr))
-            ((eq? op 'cons) '(call $$alloc_pair))
-            (else (error (string-append "invalid primcall: " op))))))
+            ((eq? op '%%prim%add) '(i32.add))
+            ((eq? op '%%prim%sub) '(i32.sub))
+            ((eq? op '%%prim%car) '(call $$car))
+            ((eq? op '%%prim%cdr) '(call $$cdr))
+            ((eq? op '%%prim%cons) '(call $$alloc_pair))
+            (else (error (string-append "invalid intrinsic " op))))))
 ; end prim
 
 ; constant
@@ -110,7 +112,6 @@
     (apply + (map char->utf8-byte-length (string->list s))))
 (define (char->utf8-byte-length c)
     (let ((int (char->integer c)))
-        (debug int)
         (cond
             ((<= int #x7f) 1)
             ((<= int #x7ff) 2)
@@ -145,22 +146,22 @@
 ; end rodata
 
 ; store
-(define (store->type s) (caddr s))
-(define (store->mapping s) (cadddr s))
+(define (store->type s) (variable->binding (cadr s)))
+(define (store->mapping s) (variable->value (cadr s)))
 (define (compile-store s) `(set_local ,(store->mapping s)))
 ; end store
 
 ; scope / vars
 (define (mapping->get-ref mapping func) 
-    (let ((bounds (map cdr (func->bounds func))) (frees (map cdr (func->frees func))))
+    (let ((bounds (map variable->value (func->bounds func))) (frees (map variable->value (func->frees func))))
         (if (member mapping bounds)
             `(get_local ,mapping)
             (if (member mapping frees)
                 `(call $$get_free (get_local $$close) (i32.const ,(index mapping frees)))
                 `(call $$unslot (get_local ,mapping))))))
 
-(define (refer->type s) (caddr s))
-(define (refer->mapping s) (cadddr s))
+(define (refer->type s) (variable->binding (cadr s)))
+(define (refer->mapping s) (variable->value (cadr s)))
 (define (compile-refer s func) 
     (mapping->get-ref (refer->mapping s) func))
 
@@ -171,7 +172,7 @@
         `(inst (call $$alloc_close (i32.const ,idx) (i32.const ,(length vars)))
           ,@(apply append (map (lambda (f i) `(
              (i32.const ,i)
-             ,(mapping->get-ref (cdr f) func)
+             ,(mapping->get-ref (variable->value f) func)
              (call $$store_free)
           )) vars (range 0 (length vars) 1))))))
         
@@ -195,7 +196,7 @@
             ((eq? op 'refer) (compile-refer i func))
             ((eq? op 'referfunc) (compile-referfunc i func mappings))
             ((eq? op 'slot) (compile-slot i))
-            ((eq? op 'primcall) (compile-primcall i))
+            ((eq? op 'intrinsic) (compile-intrinsic i))
             ((eq? op 'apply) (compile-apply i))
             (else i))))
 (define (compile-insts is func mappings rodata-offsets) 
@@ -222,18 +223,18 @@
     (let* ((bounds (func->bounds f))
            (body (func->body f))
            (refers-and-stores (filter (lambda (i) (or (refer? i) (store? i))) body))
-           (all-mappings (map cadddr refers-and-stores))
-           (bounds-mappings (map cdr (func->bounds f)))
-           (non-bounds (filter (lambda (i) (not (member i bounds-mappings))) all-mappings)))
+           (all-mappings (map cadr refers-and-stores))
+           (bounds-mappings (map variable->value (func->bounds f)))
+           (non-bounds (filter (lambda (i) (not (member (variable->value i) bounds-mappings))) all-mappings)))
         (unique non-bounds)))
 
 (define (func->wparams f)
     (let ((bounds (func->bounds f)))
-        (map (lambda (p) `(param ,(cdr p) i32)) bounds)))
+        (map (lambda (p) `(param ,(variable->value p) i32)) bounds)))
 
 (define (func->wlocals f)
     (let ((locals (func->locals f)))
-        (map (lambda (l) `(local ,l i32)) locals)))
+        (map (lambda (l) `(local ,(variable->value l) i32)) locals)))
 
 (define (compile-func func mappings rodata-offsets) 
     (let* ((body   (func->body func)) 
@@ -342,4 +343,4 @@
             (export "main" (func $$main))
         )))
 
-(define (p06_funcs2wat funcs) (compile-program funcs))))
+(define (p08_funcs2wat funcs) (compile-program funcs))))

@@ -8,3 +8,5 @@ wasm-pack.log
 Cargo.lock
 **/*.rs.bk
 runtime/target
+*.swo
+*.swp

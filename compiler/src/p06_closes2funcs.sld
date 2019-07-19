@@ -1,8 +1,9 @@
 (define-library 
-(p04_closes2funcs)
+(p06_closes2funcs)
 (import (scheme base))
 (import (util))
-(export p04_closes2funcs)
+(import (shared))
+(export p06_closes2funcs)
 (begin
 
 (define funcid (make-anon-id "$$f"))
@@ -11,19 +12,22 @@
 (define (close->bindings x) (cadr x))
 (define (close->body x) (caddr x))
 
-(define (refer-free? x) (and (list? x) (eq? (car x) 'refer) (eq? (cadr x) 'free)))
-(define (refer->var x) (caddr x))
-(define (refer->mapping x) (cadddr x))
+(define (refer-free? x) 
+    (and 
+        (list? x) 
+        (eq? (car x) 'refer) 
+        (eq? (variable->binding (cadr x)) 'free)))
+(define (refer->var x) (cadr x))
 
 (define (close->frees x) 
     (let* ((body (close->body x))
            (refers (filter refer-free? body))
            (bounds (close->bindings x))
-           (mappings (map (lambda (p) (cdr p)) bounds))
            (closes (filter close? body))
-           (refer-frees (map (lambda (r) (cons (refer->var r) (refer->mapping r))) refers))
+           (refer-frees (map refer->var refers))
            (close-frees (apply append (map (lambda (c) (close->frees c)) closes)))
-           (without-bounds (filter (lambda (f) (not (member (cdr f) mappings))) close-frees)))
+           (without-bounds (filter 
+                (lambda (f) (not (member f bounds))) close-frees)))
         (append refer-frees without-bounds)))
 
 (define (mark-close x) 
@@ -60,5 +64,5 @@
            (outer    `(,entry ,@(if (null? funcs) '() funcs))))
         (if emit-outer-func outer (cons mapped funcs))))
 
-(define (p04_closes2funcs x)
+(define (p06_closes2funcs x)
         (lift-closures x #t))))

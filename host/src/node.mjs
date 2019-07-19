@@ -1,4 +1,4 @@
-import { Schwasm } from "./schwasm";
+import { Schwasm } from "./schwasm.mjs";
 import * as fs from "fs";
 
 function getModuleBuffer(path) {

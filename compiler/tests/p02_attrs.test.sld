@@ -26,6 +26,7 @@
     (test-equal (show #f scheme) type (syntax-get-attr (getter (p02_attrs (scheme->mock-syntax scheme))) 'type)))
 (define (test-was-ref getter scheme) (test-was-type getter scheme 'reference))
 (define (test-was-prim getter scheme) (test-was-type getter scheme 'primitive))
+(define (test-was-int getter scheme) (test-was-type getter scheme 'intrinsic))
 
 (define primitives-to-test-as-vars 
     '((quote (quote 123))
@@ -154,6 +155,9 @@
         (test-fail '(define name 123 456))
         (test-fail '(define (name x)))
         (test-fail '(define (name x x) x))
+
+        ;intrinsics
+        (test-pass '%%prim%add)
 
         (map (lambda (p)
             (test-was-ref get-second-expr-in-begin `(begin

@@ -1,10 +1,10 @@
 (define-library 
-(p05_lift_rodatas)
+(p07_lift_rodatas)
 (import (scheme base))
 (import (scheme write))
 (import (srfi 151))
 (import (util))
-(export p05_lift_rodatas)
+(export p07_lift_rodatas)
 (begin
 
 (define (empty-rodatas) '())
@@ -62,6 +62,6 @@
                     new-func)) funcs)))
         (cons new-funcs rodatas)))
     
-(define (p05_lift_rodatas funcs)
+(define (p07_lift_rodatas funcs)
     (let ((funcs-and-rodatas (funcs->lift-rodatas funcs (empty-rodatas))))
         funcs-and-rodatas))))

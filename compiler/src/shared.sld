@@ -3,6 +3,8 @@
     (import (scheme base))
     (import (scheme write))
     (import (srfi 69))
+    (import (srfi 159))
+    (import (util))
     (export 
         make-source-location
         source-location->line
@@ -28,6 +30,17 @@
         atom-syntax->token
         atom-syntax->value
         atom-syntax->attrs
+
+        make-variable
+        variable?
+        variable->value
+        variable->binding
+
+        make-intrinsic
+        intrinsic?
+        intrinsic->name
+        intrinsic-names
+        intrinsic-name?
         
         syntax->attrs
         syntax-get-attr
@@ -81,6 +94,24 @@
     (attrs atom-syntax->attrs))
 (define (make-atom-syntax type token value)
     (make-atom-syntax-record type token value (make-attrs)))
+
+(define-record-type <variable>
+    (make-variable value binding)
+    variable?
+    (value variable->value)
+    (binding variable->binding))
+
+(define-record-type <intrinsic>
+    (make-intrinsic name)
+    intrinsic?
+    (name intrinsic->name))
+(define intrinsic-names '(%%prim%add
+                          %%prim%sub
+                          %%prim%car
+                          %%prim%cdr
+                          %%prim%cons))
+(define (intrinsic-name? name)
+    (contains? intrinsic-names name))
 
 (define (syntax->attrs syntax)
     (cond

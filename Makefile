@@ -15,7 +15,7 @@ test:
 	chibi-scheme -I compiler/src compiler/src/schwasm.scm $< $@
 
 %.wasm: %.wat
-	wat2wasm.exe --debug-names $< -o $@
+	wat2wasm --debug-names $< -o $@
 
 $(RUST_RUNTIME_WASM): runtime/src/**
 	cargo +nightly build $(RUST_ARGS) --manifest-path $(RUST_TOML)
@@ -24,7 +24,7 @@ examples/runtime.wasm:$(RUST_RUNTIME_WASM)
 	cp $< $@
 
 examples/runtime.wat: examples/runtime.wasm
-	wasm2wat.exe $< -o $@
+	wasm2wat $< -o $@
 
 http:
 	http-server
