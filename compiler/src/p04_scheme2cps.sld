@@ -38,7 +38,7 @@
 (define (compile-char x next) `(constant ,x ,next))
 (define (compile-null x next) `(constant ,x ,next))
 (define (compile-symbol x next) `(constant ,x ,next))
-(define (compile-string x next) `(string ,x ,next))
+(define (compile-string x next) `(constant ,x ,next))
 (define (compile-refer x next) `(refer ,x ,next))
 
 (define (compile-constant x next)

@@ -87,26 +87,26 @@
 ; end prim
 
 ; constant
-(define (compile-constant c)
+(define (compile-constant c rodata-offsets)
     (let ((x (car (cdr c))))
         (cond
             ((sfixnum?  x) (compile-sfixnum x))
             ((sboolean? x) (compile-sboolean x))
             ((schar? x) (compile-schar x))
+            ((sstring? x) (compile-sstring c rodata-offsets))
             ((snull? x) (compile-snull x)))))
 ; end constant
 
 ; rodata
 
-(define (compile-string s rodata-offsets)
+(define (sstring? x) (string? x))
+
+(define (compile-sstring s rodata-offsets)
     (let ((str (cadr s)) (idx (caddr s)))
     `(call $$alloc_string 
         (get_global $$rodata-id)
         (i32.const ,(list-ref rodata-offsets idx))
         (i32.const ,(string->utf8-byte-length str)))))
-
-(define (rodata-string? d)
-    (and (list? d) (eq? (car d) 'string)))
 
 (define (string->utf8-byte-length s)
     (apply + (map char->utf8-byte-length (string->list s))))
@@ -119,15 +119,16 @@
             ((<= int #x10ffff) 4)
             (else "unknown utf8 character"))))
 
-(define (rodata-string->length d) (string->utf8-byte-length (cadr d)))
-(define (rodata-string->wasm-data d) (cadr d))
+(define (rodata-string->length d) (string->utf8-byte-length d))
+(define (rodata-string->wasm-data d) d)
 (define (rodata->length d)
     (cond 
-        ((rodata-string? d) (rodata-string->length d))
+        ((string? d) (rodata-string->length d))
         (else (error "unknown rodata"))))
+
 (define (rodata->wasm-data d)
     (cond 
-        ((rodata-string? d) (rodata-string->wasm-data d))
+        ((string? d) (rodata-string->wasm-data d))
         (else (error "unknown rodata"))))
 
 (define (rodatas->lengths rodatas) (map rodata->length rodatas))
@@ -189,8 +190,7 @@
 (define (compile-inst i func mappings rodata-offsets) 
     (let ((op (car i)))
         (cond
-            ((eq? op 'constant) (compile-constant i))
-            ((eq? op 'string) (compile-string i rodata-offsets))
+            ((eq? op 'constant) (compile-constant i rodata-offsets))
             ((eq? op 'pair) (compile-pair i))
             ((eq? op 'store) (compile-store i))
             ((eq? op 'refer) (compile-refer i func))
