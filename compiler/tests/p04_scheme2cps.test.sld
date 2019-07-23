@@ -37,13 +37,13 @@
             `(constant 1 (constant 2 (intrinsic %%prim%add (return)))))
 
             (test-compile `(let ((,x 1) (,y 2)) (,add ,x ,y))
-                `(constant 1 (slot (store ,x 
-                 (constant 2 (slot (store ,y
-                 (refer ,x (refer ,y (intrinsic %%prim%add (return)))))))))))
+                `(constant 1 (store ,x 
+                 (constant 2 (store ,y
+                 (refer ,x (refer ,y (intrinsic %%prim%add (return)))))))))
 
             (test-compile `(begin (define ,x 1) (,mul ,x 2))
-                `(constant 1 (slot (store ,x
-                    (refer ,mul (refer ,x (constant 2 (apply 2 (return)))))))))
+                `(constant 1 (store ,x
+                    (refer ,mul (refer ,x (constant 2 (apply 2 (return))))))))
 
             (test-compile `(begin 1 2)
                           '(constant 1 (constant 2 (return))))
