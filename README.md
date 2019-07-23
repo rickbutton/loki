@@ -43,7 +43,7 @@ input:
 
 output:
 
-```scheme
+```wat
 (module (type $$fun$0 (func (param i32) (result i32)))
         (type $$fun$1 (func (param i32) (param i32) (result i32)))
         (type $$fun$2 (func (param i32) (param i32) (param i32) (result i32)))
