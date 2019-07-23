@@ -55,7 +55,7 @@
 (define (mclose->frees x) (cadddr x))
 (define (mclose->body x) (cadddr (cdr x)))
 
-(define (map-close x) `(referfunc ,(mclose->mapped x) ,(mclose->frees x)))
+(define (map-close x) `(makeclosure ,(mclose->mapped x) ,(mclose->frees x)))
 (define (map-inst x) (if (close? x) (map-close x) x))
 (define (map-insts x) (map map-inst x))
 

@@ -192,7 +192,7 @@
             `(call $$get_slot ,(mapping->slot-ref (refer->mapping s) func))
             (mapping->slot-ref (refer->mapping s) func))))
 
-(define (compile-referfunc r func mappings)
+(define (compile-makeclosure r func mappings)
     (let* ((idx (index (cadr r) mappings))
            (body (func->body func))
            (vars (caddr r)))
@@ -221,7 +221,7 @@
             ((eq? op 'pair) (compile-pair i))
             ((eq? op 'store) (compile-store i))
             ((eq? op 'refer) (compile-refer i func))
-            ((eq? op 'referfunc) (compile-referfunc i func mappings))
+            ((eq? op 'makeclosure) (compile-makeclosure i func mappings))
             ((eq? op 'test) (compile-test i func mappings rodata-offsets))
             ((eq? op 'intrinsic) (compile-intrinsic i))
             ((eq? op 'apply) (compile-apply i))
