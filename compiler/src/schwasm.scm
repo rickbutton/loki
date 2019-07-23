@@ -29,10 +29,13 @@
 (define input-file (list-ref (command-line) 1))
 (define output-file (list-ref (command-line) 2))
 
-(define (write-file output file)
+(define (program->wat program)
+    (show #f (pretty program)))
+
+(define (write-program program file)
     (if (file-exists? file) (delete-file file))
     (let ((p (open-output-file file)))
-        (show p (pretty output))
+        (show p (program->wat program))
         (close-output-port p)))
 
 (define (handle-error e)
@@ -59,7 +62,7 @@
                     p08))))))))))))))
 
 (define (main)
-    (let* ((wat (compile (open-input-file input-file))))
-            (write-file wat output-file)))
+    (let* ((program (compile (open-input-file input-file))))
+            (write-program program output-file)))
 
 (main)

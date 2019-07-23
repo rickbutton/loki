@@ -5,6 +5,7 @@
     (import (srfi 69))
     (import (srfi 159))
     (import (util))
+    (import (chibi ast)) ; TODO, remove this!
     (export 
         make-source-location
         source-location->line
@@ -41,6 +42,10 @@
         intrinsic->name
         intrinsic-names
         intrinsic-name?
+
+        make-comment
+        comment?
+        comment->text
         
         syntax->attrs
         syntax-get-attr
@@ -114,6 +119,15 @@
                           %%prim%le_s))
 (define (intrinsic-name? name)
     (contains? intrinsic-names name))
+
+(define-record-type <comment>
+    (make-comment text)
+    comment?
+    (text comment->text))
+(type-printer-set! <comment> 
+    (lambda (x writer out) 
+        (display (string-append "(;" (comment->text x) ";)") out)))
+
 
 (define (syntax->attrs syntax)
     (cond

@@ -8,6 +8,19 @@
 (export p08_funcs2wat)
 (begin
 
+(define (inline-comment comment) (make-comment comment))
+(define (inline-val v)
+    (make-comment (string-append
+        "val="
+        ((cond
+            ((number? v) number->string)
+            ((boolean? v) (lambda (_) (if v "#t" "#f")))
+            ((char? v) string)
+            ((string? v) (lambda (s) s))
+            ((null? v) (lambda (_) "()"))
+            (else (raise "invalid value for inline comment")))
+            v))))
+
 ; fixnum
 (define wfixnum-shift 2)
 (define wfixnum-mask  #b11)
@@ -20,7 +33,9 @@
 (define (wfixnum->sfixnum i) (arithmetic-shift i (- 0 wfixnum-shift)))
 
 (define (compile-sfixnum x)
-    `(i32.const ,(sfixnum->wfixnum x)))
+    `(i32.const 
+        ,(inline-val x)
+        ,(sfixnum->wfixnum x)))
 ; end fixnum
 
 ; boolean
@@ -36,7 +51,9 @@
 (define (wboolean->sboolean b) (if (eq? b true-tag) #t #f))
 
 (define (compile-sboolean x)
-    `(i32.const ,(sboolean->wboolean x)))
+    `(i32.const 
+        ,(inline-val x)
+        ,(sboolean->wboolean x)))
 ; end boolean
 
 ; char
@@ -51,7 +68,9 @@
 (define (wchar->schar c) (arithmetic-shift (char->integer c) (- 0 wchar-shift)))
 
 (define (compile-schar x)
-    `(i32.const ,(schar->wchar x)))
+    `(i32.const 
+        ,(inline-val x)
+        ,(schar->wchar x)))
 ; end char
 
 ; null
@@ -64,7 +83,9 @@
 (define (wnull->snull n) '())
 
 (define (compile-snull x)
-    `(i32.const ,(snull->wnull x)))
+    `(i32.const 
+        ,(inline-val x)
+        ,(snull->wnull x)))
 ; end null
 
 ; pair
@@ -126,6 +147,7 @@
 (define (compile-sstring s rodata-offsets)
     (let ((str (cadr s)) (idx (caddr s)))
     `(call $$alloc_string 
+        ,(inline-val str)
         (get_global $$rodata-id)
         (i32.const ,(list-ref rodata-offsets idx))
         (i32.const ,(string->utf8-byte-length str)))))
@@ -196,12 +218,16 @@
     (let* ((idx (index (cadr r) mappings))
            (body (func->body func))
            (vars (caddr r)))
-        `(inst (call $$alloc_close (i32.const ,idx) (i32.const ,(length vars)))
-          ,@(apply append (map (lambda (f i) `(
-             (i32.const ,i)
-             ,(mapping->slot-ref (variable->value f) func)
-             (call $$store_free)
-          )) vars (range 0 (length vars) 1))))))
+        `(inst 
+            (call $$alloc_close 
+                  ,(inline-comment 
+                        (string-append "func=" (symbol->string (cadr r))))
+                  (i32.const ,idx) (i32.const ,(length vars)))
+            ,@(apply append (map (lambda (f i) `(
+               (i32.const ,i)
+               ,(mapping->slot-ref (variable->value f) func)
+               (call $$store_free)
+            )) vars (range 0 (length vars) 1))))))
         
 (define (number->funcsig-name n) 
         (string->symbol (string-append "$$fun$" (number->string n))))
