@@ -43,7 +43,7 @@
 
             (test-compile `(begin (define ,x 1) (,mul ,x 2))
                 `(constant 1 (store ,x
-                    (refer ,mul (refer ,x (constant 2 (apply 2 (return))))))))
+                    (refer ,x (constant 2 (refer ,mul (apply 2 (return))))))))
 
             (test-compile `(begin 1 2)
                           '(constant 1 (constant 2 (return))))

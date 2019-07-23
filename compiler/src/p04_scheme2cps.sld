@@ -58,7 +58,8 @@
 (define (apply-args x) (cdr x))
 (define (compile-apply x next)
     (let ((op (apply-op x)) (args (apply-args x)))
-        (compile-expr op (fold-right apply-fold `(apply ,(length args) ,next) args))))
+        (fold-right apply-fold (compile-expr op `(apply ,(length args) ,next)) args)))
+;(compile-expr op (fold-right apply-fold `(apply ,(length args) ,next) args))))
 
 (define (compile-pair x next)
     (let ((left (car x)) (right (cdr x)))

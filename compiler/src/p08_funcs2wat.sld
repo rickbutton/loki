@@ -203,10 +203,14 @@
              (call $$store_free)
           )) vars (range 0 (length vars) 1))))))
         
-(define (number->funcsig-name n) (string->symbol (string-append "$$close" (number->string n))))
-(define (number->call-close-name n) (string->symbol (string-append "$$call-close-" (number->string n))))
+(define (number->funcsig-name n) 
+        (string->symbol (string-append "$$fun$" (number->string n))))
 (define (compile-apply a) 
-    `(call ,(number->call-close-name (cadr a))))
+    `(inst
+        (tee_local $$tmp)
+        (get_local $$tmp)
+        (call $$get_close_func_index)
+        (call_indirect (type ,(number->funcsig-name (cadr a))))))
 ; end scope / vars
 
 ; inst
@@ -280,12 +284,14 @@
                 (param $$close i32) 
                 (result i32) 
                 ,@(func->wlocals func) 
+                (local $$tmp i32)
                 ,@prelude
                 ,@insts)
             `(func ,(func->name func) 
                 ,@(func->wparams func) 
                 (result i32) 
                 ,@(func->wlocals func) 
+                (local $$tmp i32)
                 ,@prelude
                 ,@insts))))
 
@@ -304,10 +310,10 @@
            (rodata-offsets (rodatas->offsets rodatas))
            (cfuncs (compile-funcs funcs rodata-offsets)))
         `(module
-            (type $$close0 (func (param i32) (result i32)))
-            (type $$close1 (func (param i32) (param i32) (result i32)))
-            (type $$close2 (func (param i32) (param i32) (param i32) (result i32)))
-            (type $$close3 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
+            (type $$fun$0 (func (param i32) (result i32)))
+            (type $$fun$1 (func (param i32) (param i32) (result i32)))
+            (type $$fun$2 (func (param i32) (param i32) (param i32) (result i32)))
+            (type $$fun$3 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
             (global $$rodata-id (import "env" "$$rodata-id") i32)
             (global $$rodata-offset (import "env" "$$rodata-offset") i32)
 
@@ -330,60 +336,6 @@
             ,(funcs->elems funcs)
 
             (func $$main (result i32) (call $$fentry))
-
-            (func $$call-close-0 (param $$close i32)
-                (result i32)
-                (local $$idx i32)
-
-                (get_local $$close)
-
-                (get_local $$close)
-                (call $$get_close_func_index)
-
-                (call_indirect (type $$close0))
-            )
-
-            (func $$call-close-1 (param $$close i32) (param $$0 i32)
-                (result i32)
-                (local $$idx i32)
-
-                (get_local $$0)
-                (get_local $$close)
-
-                (get_local $$close)
-                (call $$get_close_func_index)
-
-                (call_indirect (type $$close1))
-            )
-
-            (func $$call-close-2 (param $$close i32) (param $$0 i32) (param $$1 i32)
-                (result i32)
-                (local $$idx i32)
-
-                (get_local $$0)
-                (get_local $$1)
-                (get_local $$close)
-
-                (get_local $$close)
-                (call $$get_close_func_index)
-
-                (call_indirect (type $$close2))
-            )
-
-            (func $$call-close-3 (param $$close i32) (param $$0 i32) (param $$1 i32) (param $$2 i32)
-                (result i32)
-                (local $$idx i32)
-
-                (get_local $$0)
-                (get_local $$1)
-                (get_local $$2)
-                (get_local $$close)
-
-                (get_local $$close)
-                (call $$get_close_func_index)
-
-                (call_indirect (type $$close3))
-            )
 
             ,@cfuncs
             (export "main" (func $$main))
