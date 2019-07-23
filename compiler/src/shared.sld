@@ -109,7 +109,9 @@
                           %%prim%sub
                           %%prim%car
                           %%prim%cdr
-                          %%prim%cons))
+                          %%prim%cons
+
+                          %%prim%le_s))
 (define (intrinsic-name? name)
     (contains? intrinsic-names name))
 

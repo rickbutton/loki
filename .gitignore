@@ -10,3 +10,5 @@ Cargo.lock
 runtime/target
 *.swo
 *.swp
+
+node_modules

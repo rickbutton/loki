@@ -1,8 +1,8 @@
-(define (+ a b c) (%%prim%add (%%prim%add a b) c))
+(define (fib n)
+    (if (%%prim%le_s n 2)
+        1
+        (%%prim%add 
+            (fib (%%prim%sub n 1)) 
+            (fib (%%prim%sub n 2)))))
 
-(define (test x)
-    (define y (%%prim%add x 2))
-    (define z (%%prim%add x 3))
-    (+ x y z))
-
-(%%prim%cons (test 10) "😀 schwasm!")
+(fib 25)

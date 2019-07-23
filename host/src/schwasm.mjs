@@ -109,7 +109,8 @@ export class Schwasm {
             env: {
                 memory: this.runtime.exports.memory,
                 "$$alloc_slot": this.runtime.exports.alloc_slot,
-                "$$unslot": this.runtime.exports.unslot,
+                "$$set_slot": this.runtime.exports.set_slot,
+                "$$get_slot": this.runtime.exports.get_slot,
                 "$$alloc_pair": this.runtime.exports.alloc_pair,
                 "$$car": this.runtime.exports.car,
                 "$$cdr": this.runtime.exports.cdr,

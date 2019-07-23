@@ -83,8 +83,30 @@
             ((eq? op '%%prim%car) '(call $$car))
             ((eq? op '%%prim%cdr) '(call $$cdr))
             ((eq? op '%%prim%cons) '(call $$alloc_pair))
+
+            ((eq? op '%%prim%le_s)
+                `(inst
+                    (i32.le_s)
+                    (if (result i32)
+                        (then ,(compile-sboolean #t))
+                        (else ,(compile-sboolean #f)))))
             (else (error (string-append "invalid intrinsic " op))))))
 ; end prim
+
+; test
+(define (compile-test i func mappings rodata-offsets)
+    (let ((consequent (cadr i))
+          (alternate (caddr i)))
+        `(inst
+            ,(compile-sboolean #f)
+            (i32.ne)
+            (if (result i32)
+                (then ,@(compile-insts consequent func 
+                    mappings rodata-offsets))
+                (else ,@(compile-insts alternate func 
+                    mappings rodata-offsets))))))
+        
+; end test
 
 ; constant
 (define (compile-constant c rodata-offsets)
@@ -149,22 +171,26 @@
 ; store
 (define (store->type s) (variable->binding (cadr s)))
 (define (store->mapping s) (variable->value (cadr s)))
-(define (compile-store s) `(set_local ,(store->mapping s)))
+(define (compile-store s) `(call $$set_slot (get_local ,(store->mapping s))))
 ; end store
 
 ; scope / vars
-(define (mapping->get-ref mapping func) 
-    (let ((bounds (map variable->value (func->bounds func))) (frees (map variable->value (func->frees func))))
-        (if (member mapping bounds)
-            `(get_local ,mapping)
-            (if (member mapping frees)
-                `(call $$get_free (get_local $$close) (i32.const ,(index mapping frees)))
-                `(call $$unslot (get_local ,mapping))))))
+(define (mapping->slot-ref mapping func) 
+    (let ((frees (func->free-mappings func)))
+        (if (member mapping frees)
+            `(call $$get_free (get_local $$close) 
+                              (i32.const ,(index mapping frees)))
+            `(get_local ,mapping))))
 
 (define (refer->type s) (variable->binding (cadr s)))
 (define (refer->mapping s) (variable->value (cadr s)))
 (define (compile-refer s func) 
-    (mapping->get-ref (refer->mapping s) func))
+    (let ((mapping (refer->mapping s))
+          (frees (map variable->value (func->frees func)))
+          (bounds (func->bound-mappings func)))
+        (if (or (not (member mapping bounds)) (member mapping frees))
+            `(call $$get_slot ,(mapping->slot-ref (refer->mapping s) func))
+            (mapping->slot-ref (refer->mapping s) func))))
 
 (define (compile-referfunc r func mappings)
     (let* ((idx (index (cadr r) mappings))
@@ -173,13 +199,10 @@
         `(inst (call $$alloc_close (i32.const ,idx) (i32.const ,(length vars)))
           ,@(apply append (map (lambda (f i) `(
              (i32.const ,i)
-             ,(mapping->get-ref (variable->value f) func)
+             ,(mapping->slot-ref (variable->value f) func)
              (call $$store_free)
           )) vars (range 0 (length vars) 1))))))
         
-(define (compile-slot s)
-    `(call $$alloc_slot))
-
 (define (number->funcsig-name n) (string->symbol (string-append "$$close" (number->string n))))
 (define (number->call-close-name n) (string->symbol (string-append "$$call-close-" (number->string n))))
 (define (compile-apply a) 
@@ -195,14 +218,16 @@
             ((eq? op 'store) (compile-store i))
             ((eq? op 'refer) (compile-refer i func))
             ((eq? op 'referfunc) (compile-referfunc i func mappings))
-            ((eq? op 'slot) (compile-slot i))
+            ((eq? op 'test) (compile-test i func mappings rodata-offsets))
             ((eq? op 'intrinsic) (compile-intrinsic i))
             ((eq? op 'apply) (compile-apply i))
             (else i))))
 (define (compile-insts is func mappings rodata-offsets) 
-    (fold-right (lambda (i rest) (if (eq? (car i) 'inst) 
-        (append (cdr i) rest)
-        (cons i rest)))
+    (fold-right (lambda (i rest) 
+        (cond
+            ((eq? (car i) 'inst) (append (cdr i) rest))
+            ((eq? (car i) 'end) rest)
+            (else (cons i rest))))
         '() 
         (map (lambda (i) (compile-inst i func mappings rodata-offsets)) is)))
 ; end inst
@@ -216,7 +241,9 @@
 (define (func->type f) (cadr f))
 (define (func->mapping f) (caddr f))
 (define (func->bounds f) (cadddr f))
+(define (func->bound-mappings f) (map variable->value (func->bounds f)))
 (define (func->frees f) (cadddr (cdr f)))
+(define (func->free-mappings f) (map variable->value (func->frees f)))
 (define (func->body f) (cdddr (cdr (cdr f))))
 (define (func->name f) (string->symbol (symbol->string (func->mapping f))))
 (define (func->locals f)
@@ -236,13 +263,31 @@
     (let ((locals (func->locals f)))
         (map (lambda (l) `(local ,(variable->value l) i32)) locals)))
 
+(define (func->prelude f)
+    (let ((locals (func->locals f)))
+        (define (local->init l)
+            `(set_local ,(variable->value l) (call $$alloc_slot)))
+        (map local->init locals)))
+
 (define (compile-func func mappings rodata-offsets) 
     (let* ((body   (func->body func)) 
            (insts  (compile-insts body func mappings rodata-offsets))
-           (locals (func->locals func)))
+           (locals (func->locals func))
+           (prelude (func->prelude func)))
         (if (eq? (func->type func) 'close)
-            `(func ,(func->name func) ,@(func->wparams func) (param $$close i32) (result i32) ,@(func->wlocals func) ,@insts)
-            `(func ,(func->name func) ,@(func->wparams func) (result i32) ,@(func->wlocals func) ,@insts))))
+            `(func ,(func->name func) 
+                ,@(func->wparams func) 
+                (param $$close i32) 
+                (result i32) 
+                ,@(func->wlocals func) 
+                ,@prelude
+                ,@insts)
+            `(func ,(func->name func) 
+                ,@(func->wparams func) 
+                (result i32) 
+                ,@(func->wlocals func) 
+                ,@prelude
+                ,@insts))))
 
 (define (compile-funcs funcs rodata-offsets) 
     (let ((mappings (funcs->mappings funcs)))
@@ -267,8 +312,9 @@
             (global $$rodata-offset (import "env" "$$rodata-offset") i32)
 
             (import "env" "memory" (memory 0))
-            (import "env" "$$alloc_slot"  (func $$alloc_slot (param i32) (result i32)))
-            (import "env" "$$unslot"      (func $$unslot (param i32) (result i32)))
+            (import "env" "$$alloc_slot"  (func $$alloc_slot (result i32)))
+            (import "env" "$$set_slot"  (func $$set_slot (param i32 i32)))
+            (import "env" "$$get_slot"      (func $$get_slot (param i32) (result i32)))
             (import "env" "$$alloc_pair"  (func $$alloc_pair (param i32 i32) (result i32)))
             (import "env" "$$car"         (func $$car (param i32) (result i32)))
             (import "env" "$$cdr"         (func $$cdr (param i32) (result i32)))

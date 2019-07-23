@@ -29,6 +29,10 @@ examples/runtime.wat: examples/runtime.wasm
 http:
 	http-server
 
-clean:
+clean-scm:
 	rm -f examples/*.wasm examples/*.wat
+
+clean-rt:
 	rm -rf runtime/target
+
+clean: clean-scm clean-rt

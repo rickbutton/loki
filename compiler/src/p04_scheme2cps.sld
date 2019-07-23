@@ -32,6 +32,7 @@
 (define (define? x) (and (list? x) (equal? (car x) 'define)))
 (define (begin? x) (and (list? x) (equal? (car x) 'begin)))
 (define (lambda? x) (and (list? x) (equal? (car x) 'lambda)))
+(define (if? x) (and (list? x) (equal? (car x) 'if)))
 
 (define (compile-integer x next) `(constant ,x ,next))
 (define (compile-boolean x next) `(constant ,x ,next))
@@ -68,7 +69,7 @@
 (define (binding->var x) (car x))
 (define (binding->val x) (car (cdr x)))
 (define (compile-binding binding next)
-    (compile-expr (binding->val binding) `(slot (store ,(binding->var binding) ,next))))
+    (compile-expr (binding->val binding) `(store ,(binding->var binding) ,next)))
 
 (define (make-begin body) (cons 'begin body))
 
@@ -85,7 +86,7 @@
         (cond
             ((list? var) (compile-define `(define ,(car var) (lambda ,(cdr var) ,@(define->body x))) next))
             ((pair? var) (compile-define `(define ,(car var) (lambda (,(cdr var)) ,@(define->body x))) next))
-            (else (compile-expr (make-begin (define->body x)) `(slot (store ,(define->var x) ,next)))))))
+            (else (compile-expr (make-begin (define->body x)) `(store ,(define->var x) ,next))))))
 
 (define (begin->body x) (cdr x))
 (define (begin-fold x r) (compile-expr x r))
@@ -101,6 +102,15 @@
 (define (compile-lambda x next)
     (let ((body (compile-expr (make-begin (lambda->body x)) '(return))))
     `(close ,(lambda->bindings x) ,body ,next)))
+
+(define (compile-if x next)
+    (let ((condition (cadr x))
+          (consequent (caddr x))
+          (alternate  (cadddr x)))
+        (compile-expr condition 
+            `(test ,(compile-expr consequent '(end))
+                   ,(compile-expr alternate '(end))
+                ,next))))
 
 ; integer 1
 ; (constant 1 next)
@@ -127,10 +137,10 @@
 ; (intrinsic add)
 
 ; let (let ((x 1)) (add x 1))
-; (constant 1 (slot (store x (refer x (constant 1 (intrinsic add next))))))
+; (constant 1 (store x (refer x (constant 1 (intrinsic add next)))))
 
 ; define (define x 10)
-; (constant 10 (slot (store x)))
+; (constant 10 (store x))
 
 ; begin (begin 1 2)
 ; (constant 1 (constant 2 next))
@@ -151,6 +161,7 @@
         ((define? x) (compile-define x next))
         ((begin? x) (compile-begin x next))
         ((lambda? x) (compile-lambda x next))
+        ((if? x) (compile-if x next))
         ((list? x) (compile-apply x next))
         ((pair? x) (compile-pair x next))
     ))

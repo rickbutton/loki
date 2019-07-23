@@ -153,6 +153,7 @@
               (consequent (safe-caddr-syntax syntax))
               (alternate (safe-cadddr-syntax syntax))
               (end (safe-cddddr-syntax syntax)))
+            (walk-syntax-validate-expression test 'none scopes)
             (if (and (not (null-syntax? consequent)) (not (equal? #f consequent)))
                 (walk-syntax-validate-expression consequent 'none scopes)
                 (raise "invalid if syntax, not enough arguments"))

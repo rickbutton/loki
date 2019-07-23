@@ -90,7 +90,7 @@ impl Val {
 
         let obj: &Object = untag(*self);
         match obj {
-            Object::Pair(car, cdr) => true,
+            Object::Pair(_car, _cdr) => true,
             _ => false,
         }
     }
@@ -101,7 +101,7 @@ impl Val {
 
         let obj: &Object = untag(*self);
         match obj {
-            Object::Close(index, size, frees) => true,
+            Object::Close(_index, _size, _frees) => true,
             _ => false,
         }
     }
@@ -112,7 +112,7 @@ impl Val {
 
         let obj: &Object = untag(*self);
         match obj {
-            Object::Slot(val) => true,
+            Object::Slot(_val) => true,
             _ => false,
         }
     }
@@ -123,7 +123,7 @@ impl Val {
 
         let obj: &Object = untag(*self);
         match obj {
-            Object::String(str) => true,
+            Object::String(_str) => true,
             _ => false,
         }
     }
@@ -178,12 +178,23 @@ pub fn get_rodata_offset(id: usize) -> usize {
 }
 
 #[no_mangle]
-pub fn alloc_slot(val: Val) -> Val {
-    Val::slot(val)
+pub fn alloc_slot() -> Val {
+    Val::slot(Val::int(0))
 }
 
 #[no_mangle]
-pub fn unslot(val: Val) -> Val {
+pub fn set_slot(val: Val, slot: Val) {
+    let obj = slot.unwrap();
+    match obj {
+        Object::Slot(ref mut v) => {
+            *v = val
+        },
+        _ => panic!()
+    }
+}
+
+#[no_mangle]
+pub fn get_slot(val: Val) -> Val {
     let obj = val.unwrap();
     match obj {
         Object::Slot(val) => *val,
@@ -200,7 +211,7 @@ pub fn alloc_pair(car: Val, cdr: Val) -> Val {
 pub fn car(val: Val) -> Val {
     let obj = val.unwrap();
     match obj {
-        Object::Pair(car, cdr) => *car,
+        Object::Pair(car, _) => *car,
         _ => panic!()
     }
 }
@@ -209,7 +220,7 @@ pub fn car(val: Val) -> Val {
 pub fn cdr(val: Val) -> Val {
     let obj = val.unwrap();
     match obj {
-        Object::Pair(car, cdr) => *cdr,
+        Object::Pair(_, cdr) => *cdr,
         _ => panic!()
     }
 }
@@ -223,8 +234,9 @@ pub fn alloc_close(index: usize, size: usize) -> Val {
 pub fn store_free(close_val: Val, index: usize, val: Val) -> Val {
     let obj = close_val.unwrap();
     match obj {
-        Object::Close(findex, size, frees) => {
+        Object::Close(_, size, frees) => {
             assert!(index == frees.len());
+            assert!(frees.len() < *size);
             frees.push(val);
             close_val
         },
@@ -236,7 +248,7 @@ pub fn store_free(close_val: Val, index: usize, val: Val) -> Val {
 pub fn get_free(close_val: Val, index: usize) -> Val {
     let obj = close_val.unwrap();
     match obj {
-        Object::Close(findex, size, frees) => frees[index],
+        Object::Close(_findex, _size, frees) => frees[index],
         _ => panic!(),
     }
 }
@@ -245,7 +257,7 @@ pub fn get_free(close_val: Val, index: usize) -> Val {
 pub fn get_close_func_index(close_val: Val) -> usize {
     let obj = close_val.unwrap();
     match obj {
-        Object::Close(findex, size, frees) => *findex,
+        Object::Close(findex, _size, _frees) => *findex,
         _ => panic!(),
     }
 }

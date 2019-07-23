@@ -11,24 +11,36 @@
 (define (close? x) (and (list? x) (eq? (car x) 'close)))
 (define (close->bindings x) (cadr x))
 (define (close->body x) (caddr x))
-
-(define (refer-free? x) 
-    (and 
-        (list? x) 
-        (eq? (car x) 'refer) 
-        (eq? (variable->binding (cadr x)) 'free)))
-(define (refer->var x) (cadr x))
-
 (define (close->frees x) 
     (let* ((body (close->body x))
-           (refers (filter refer-free? body))
            (bounds (close->bindings x))
-           (closes (filter close? body))
-           (refer-frees (map refer->var refers))
-           (close-frees (apply append (map (lambda (c) (close->frees c)) closes)))
+           (frees (insts->frees body))
            (without-bounds (filter 
-                (lambda (f) (not (member f bounds))) close-frees)))
-        (append refer-frees without-bounds)))
+                (lambda (f) (not (member f bounds))) frees)))
+        (append without-bounds)))
+
+(define (refer->var x) (cadr x))
+(define (refer->frees x)
+    (let ((var (cadr x)))
+        (if (eq? (variable->binding var) 'free)
+            (list (refer->var x))
+            #f)))
+
+(define (test->frees x)
+    (let ((consequent (cadr x))
+          (alternate (caddr x)))
+        (append (insts->frees consequent)
+                (insts->frees alternate))))
+
+(define (inst->frees x)
+    (let ((op (car x)))
+        (cond
+            ((eq? op 'close) (close->frees x))
+            ((eq? op 'refer) (refer->frees x))
+            ((eq? op 'test) (test->frees x))
+            (else '()))))
+(define (insts->frees is)
+    (unique (apply append (map inst->frees is))))
 
 (define (mark-close x) 
     (let* ((body (close->body x)) (frees (close->frees x)))
