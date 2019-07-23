@@ -31,14 +31,14 @@ This example may be out of date. No Promises!
 input:
 
 ```scheme
-(define (+ a b c) (%%prim%add (%%prim%add a b) c))
+(define (fib n)
+    (if (%%prim%le_s n 2)
+        1
+        (%%prim%add 
+            (fib (%%prim%sub n 1)) 
+            (fib (%%prim%sub n 2)))))
 
-(define (test x)
-    (define y (%%prim%add x 2))
-    (define z (%%prim%add x 3))
-    (+ x y z))
-
-(%%prim%cons (test 10) "😀 schwasm!")
+(fib 25)
 ```
 
 output:
@@ -57,10 +57,9 @@ output:
         (global $$rodata-id (import "env" "$$rodata-id") i32)
         (global $$rodata-offset (import "env" "$$rodata-offset") i32)
         (import "env" "memory" (memory 0))
-        (import "env"
-                "$$alloc_slot"
-                (func $$alloc_slot (param i32) (result i32)))
-        (import "env" "$$unslot" (func $$unslot (param i32) (result i32)))
+        (import "env" "$$alloc_slot" (func $$alloc_slot (result i32)))
+        (import "env" "$$set_slot" (func $$set_slot (param i32 i32)))
+        (import "env" "$$get_slot" (func $$get_slot (param i32) (result i32)))
         (import "env"
                 "$$alloc_pair"
                 (func $$alloc_pair (param i32 i32) (result i32)))
@@ -81,9 +80,9 @@ output:
         (import "env"
                 "$$alloc_string"
                 (func $$alloc_string (param i32 i32 i32) (result i32)))
-        (data (get_global $$rodata-offset) "😀 schwasm!")
-        (table 3 anyfunc)
-        (elem (i32.const 0) $$fentry $$f1 $$f2)
+        (data (get_global $$rodata-offset) "")
+        (table 2 anyfunc)
+        (elem (i32.const 0) $$fentry $$f1)
         (func $$main (result i32) (call $$fentry))
         (func $$call-close-0
               (param $$close i32)
@@ -131,60 +130,43 @@ output:
               (call_indirect (type $$close3)))
         (func $$fentry
               (result i32)
-              (local $v1_+ i32)
-              (local $v5_test i32)
-              (call $$alloc_close (i32.const 1) (i32.const 0))
-              (call $$alloc_slot)
-              (set_local $v1_+)
-              (call $$alloc_close (i32.const 2) (i32.const 1))
+              (local $v1_fib i32)
+              (set_local $v1_fib (call $$alloc_slot))
+              (call $$alloc_close (i32.const 1) (i32.const 1))
               (i32.const 0)
-              (call $$unslot (get_local $v1_+))
+              (get_local $v1_fib)
               (call $$store_free)
-              (call $$alloc_slot)
-              (set_local $v5_test)
-              (call $$unslot (get_local $v5_test))
-              (i32.const 40)
+              (call $$set_slot (get_local $v1_fib))
+              (call $$get_slot (get_local $v1_fib))
+              (i32.const 100)
               (call $$call-close-1)
-              (call $$alloc_string
-                    (get_global $$rodata-id)
-                    (i32.const 0)
-                    (i32.const 13))
-              (call $$alloc_pair)
               (return))
         (func $$f1
-              (param $v2_a i32)
-              (param $v3_b i32)
-              (param $v4_c i32)
+              (param $v2_n i32)
               (param $$close i32)
               (result i32)
-              (get_local $v2_a)
-              (get_local $v3_b)
-              (i32.add)
-              (get_local $v4_c)
-              (i32.add)
-              (return))
-        (func $$f2
-              (param $v6_x i32)
-              (param $$close i32)
-              (result i32)
-              (local $v1_+ i32)
-              (local $v7_y i32)
-              (local $v8_z i32)
-              (get_local $v6_x)
+              (get_local $v2_n)
               (i32.const 8)
-              (i32.add)
-              (call $$alloc_slot)
-              (set_local $v7_y)
-              (get_local $v6_x)
-              (i32.const 12)
-              (i32.add)
-              (call $$alloc_slot)
-              (set_local $v8_z)
-              (call $$get_free (get_local $$close) (i32.const 0))
-              (get_local $v6_x)
-              (call $$unslot (get_local $v7_y))
-              (call $$unslot (get_local $v8_z))
-              (call $$call-close-3)
+              (i32.le_s)
+              (if (result i32) (then (i32.const 159)) (else (i32.const 31)))
+              (i32.const 31)
+              (i32.ne)
+              (if (result i32)
+                  (then (i32.const 4))
+                  (else
+                   (call $$get_slot
+                         (call $$get_free (get_local $$close) (i32.const 0)))
+                   (get_local $v2_n)
+                   (i32.const 4)
+                   (i32.sub)
+                   (call $$call-close-1)
+                   (call $$get_slot
+                         (call $$get_free (get_local $$close) (i32.const 0)))
+                   (get_local $v2_n)
+                   (i32.const 8)
+                   (i32.sub)
+                   (call $$call-close-1)
+                   (i32.add)))
               (return))
         (export "main" (func $$main)))
 ```
