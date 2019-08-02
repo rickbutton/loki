@@ -6,7 +6,9 @@ RUST_OUT_DIR = runtime/target/wasm32-unknown-unknown/release
 RUST_RUNTIME_WASM = runtime/target/wasm32-unknown-unknown/release/runtime.wasm
 
 example: examples/runtime.wat examples/test.wasm examples/test.wat
-	node --expose-wasm --experimental-modules host/src/node.mjs examples/runtime.wasm examples/test.wasm
+	node --expose-wasm --experimental-modules \
+		--experimental-wasm-return_call \
+		host/src/node.mjs examples/runtime.wasm examples/test.wasm
 
 test:
 	chibi-scheme -I compiler/src -I compiler/tests compiler/tests/tests.scm
@@ -15,7 +17,7 @@ test:
 	chibi-scheme -I compiler/src compiler/src/schwasm.scm $< $@
 
 %.wasm: %.wat
-	wat2wasm --debug-names $< -o $@
+	wat2wasm --enable-tail-call --debug-names $< -o $@
 
 $(RUST_RUNTIME_WASM): runtime/src/**
 	cargo +nightly build $(RUST_ARGS) --manifest-path $(RUST_TOML)
@@ -24,7 +26,7 @@ examples/runtime.wasm:$(RUST_RUNTIME_WASM)
 	cp $< $@
 
 examples/runtime.wat: examples/runtime.wasm
-	wasm2wat $< -o $@
+	wasm2wat --enable-tail-call $< -o $@
 
 http:
 	http-server

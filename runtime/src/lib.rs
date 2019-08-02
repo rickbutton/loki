@@ -198,7 +198,7 @@ pub fn get_slot(val: Val) -> Val {
     let obj = val.unwrap();
     match obj {
         Object::Slot(val) => *val,
-        _ => panic!()
+        _ => val,
     }
 }
 

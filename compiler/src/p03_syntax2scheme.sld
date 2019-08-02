@@ -13,11 +13,10 @@
 
     (define (symbol-syntax->scheme syntax)
         (let ((type (syntax-get-attr syntax 'type)) 
-              (unique-id (syntax-get-attr syntax 'unique-id))
-              (binding (syntax-get-attr syntax 'binding)))
+              (unique-id (syntax-get-attr syntax 'unique-id)))
             (cond
-                ((equal? type 'reference) (make-variable unique-id binding))
-                ((equal? type 'declaration) (make-variable unique-id binding))
+                ((equal? type 'reference) (make-variable unique-id))
+                ((equal? type 'declaration) (make-variable unique-id))
                 ((equal? type 'primitive) (atom-syntax->value syntax))
                 ((equal? type 'intrinsic) 
                     (make-intrinsic (atom-syntax->value syntax)))

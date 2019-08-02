@@ -11,7 +11,8 @@
 (define (func->mapping f) (caddr f))
 (define (func->bounds f) (cadddr f))
 (define (func->frees f) (cadddr (cdr f)))
-(define (func->body f) (cdddr (cdr (cdr f))))
+(define (func->locals f) (cadddr (cddr f)))
+(define (func->body f) (cdddr (cdddr f)))
 
 (define (string-value? v) 
     (and (list? v) 
@@ -33,8 +34,13 @@
         (define (map-func f)
             (let* ((body (func->body f))
                    (new-body (map-body body)))
-            `(func ,(func->type f) ,(func->mapping f) 
-                ,(func->bounds f) ,(func->frees f) ,@new-body)))
+            `(func 
+                ,(func->type f) 
+                ,(func->mapping f) 
+                ,(func->bounds f) 
+                ,(func->frees f) 
+                ,(func->locals f)
+                ,@new-body)))
 
         (define (funcs->lift-rodatas funcs)
             (let ((new-funcs (map map-func funcs)))

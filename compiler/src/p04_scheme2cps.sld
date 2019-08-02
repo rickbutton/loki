@@ -2,10 +2,19 @@
     (p04_scheme2cps)
     (import (scheme base))
     (import (scheme write))
+    (import (chibi match))
+    (import (srfi 159))
+    (import (chibi show pretty))
     (import (util))
     (import (shared))
     (export p04_scheme2cps)
 (begin
+
+(define rvid (make-anon-id "$rv_"))
+(define kid (make-anon-id "$k_"))
+
+(define (rvid-var) (let ((id (rvid))) (make-variable id)))
+(define (kid-var) (let ((id (kid))) (make-variable id)))
 
 (define (constant? x)
     (or
@@ -17,154 +26,93 @@
 
 (define (quote? x) (and (list? x) (eq? (car x) 'quote)))
 
-(define (intrinsic-apply? x) 
-    (and 
-        (list? x)
-        (intrinsic? (car x))))
+; cps conversion gleefully lifted from:
+; http://matt.might.net/articles/cps-conversion/
+(define (aexpr? expr)
+    (match expr
+        ((or ('lambda (_ ...) _)
+             (? variable?)
+             (? intrinsic?)
+             (? constant?)
+             (? quote?)) #t) ; TODO - support quote?
+        (else #f)))
 
-(define (compile-intrinsic x next)
-    (let ((intrinsic (car x))
-          (args (cdr x)))
-        (fold-right compile-expr 
-            `(intrinsic ,(intrinsic->name intrinsic) ,next) args)))
+(define (T-k expr k)
+    (match expr
+        ((? aexpr?) (k (M expr)))
+        (('begin expr) 
+            (T-k expr k))
+        (('begin expr exprs ...) 
+            (T-k expr (lambda (_) (T-k `(begin ,@exprs) k))))
+        (('if expr-cond expr-cons expr-alt)
+            (let* (($rv (rvid-var)) (cont `(lambda (,$rv) ,(k $rv))))
+                (T-k expr-cond (lambda (aexp)
+                    `(if ,aexp
+                         ,(T-c expr-cons cont)
+                         ,(T-c expr-alt cont))))))
+        (('set! var expr) (T-k expr (lambda (aexp) 
+            `(begin
+                (set! ,var ,aexp)
+                ,(k '(exit))))))
+        ; TODO - support (define (id formals) ...)
+        (('define var expr) (T-k expr (lambda (aexp) 
+            `(begin
+                (set! ,var ,aexp)
+                ,(k '(exit))))))
+        ((_ _ ...)
+            (let* (($rv (rvid-var)) (cont `(lambda (,$rv) ,(k $rv))))
+                (T-c expr cont)))))
 
-(define (let? x) (and (list? x) (equal? (car x) 'let)))
-(define (define? x) (and (list? x) (equal? (car x) 'define)))
-(define (begin? x) (and (list? x) (equal? (car x) 'begin)))
-(define (lambda? x) (and (list? x) (equal? (car x) 'lambda)))
-(define (if? x) (and (list? x) (equal? (car x) 'if)))
+(define (T-c expr c)
+    (match expr
+        ((? aexpr?) `(,c ,(M expr)))
+        (('begin expr) (T-c expr c))
+        (('begin expr exprs ...)
+            (T-k expr (lambda (_) (T-c `(begin ,@exprs) c))))
+        (('if expr-cond expr-cons expr-alt)
+            (let (($k (kid-var)))
+                `((lambda (,$k)
+                    ,(T-k expr-cond (lambda (aexp) 
+                        `(if ,aexp
+                             ,(T-c expr-cons $k)
+                             ,(T-c expr-alt $k)))))
+                ,c)))
+        (('set! var expr) (T-k expr (lambda (aexp) 
+            `(begin
+                (set! ,var ,aexp)
+                (,c (exit))))))
+        ; TODO - support (define (id formals) ...)
+        (('define var expr) (T-k expr (lambda (aexp) 
+            `(begin
+                (set! ,var ,aexp)
+                (,c (exit))))))
+        (((and i (? intrinsic?)) es ...)
+            (T*-k es (lambda ($es)
+                `(intrinsic ,i ,@$es ,c))))
+        ((f es ...)
+            (T-k f (lambda ($f)
+                (T*-k es (lambda ($es)
+                    `(,f ,@$es ,c))))))))
 
-(define (compile-integer x next) `(constant ,x ,next))
-(define (compile-boolean x next) `(constant ,x ,next))
-(define (compile-char x next) `(constant ,x ,next))
-(define (compile-null x next) `(constant ,x ,next))
-(define (compile-symbol x next) `(constant ,x ,next))
-(define (compile-string x next) `(constant ,x ,next))
-(define (compile-refer x next) `(refer ,x ,next))
-
-(define (compile-constant x next)
+(define (T*-k exprs k)
     (cond
-        ((integer?  x) (compile-integer x next))
-        ((boolean? x) (compile-boolean x next))
-        ((char? x) (compile-char x next))
-        ((string? x) (compile-string x next))
-        ((null? x) (compile-null x next))
-        ((symbol? x) (compile-symbol x next))
-        ((pair? x) (compile-pair x next))))
-(define (compile-quote x next) (compile-constant (cadr x) next))
+        ((null? exprs) (k '()))
+        ((pair? exprs) (T-k (car exprs) 
+            (lambda (hd) (T*-k (cdr exprs) 
+                (lambda (tl) (k (cons hd tl)))))))))
 
-(define (apply-fold x r) (compile-expr x r))
-(define (apply-op x) (car x))
-(define (apply-args x) (cdr x))
-(define (compile-apply x next)
-    (let ((op (apply-op x)) (args (apply-args x)))
-        (fold-right apply-fold (compile-expr op `(apply ,(length args) ,next)) args)))
-;(compile-expr op (fold-right apply-fold `(apply ,(length args) ,next) args))))
+(define (intrisnic-call? x)
+    (and (list? x) (intrinsic? (car x) )))
 
-(define (compile-pair x next)
-    (let ((left (car x)) (right (cdr x)))
-        (compile-expr left (compile-expr right `(pair ,next)))))
+(define (M aexpr)
+    (match aexpr
+        (('lambda (vars ...) body)
+            (let (($k (kid-var)))
+                `(lambda (,@vars ,$k) ,(T-c body $k))))
+        ((? constant?) aexpr)
+        ((? variable?) aexpr)
+        ((exit) aexpr)
+        (else (raise 
+            (string-append "invalid aexpr: " (show #f aexpr))))))
 
-(define (let->bindings x) (car (cdr x)))
-(define (let->body x ) (cdr (cdr x)))
-(define (binding->var x) (car x))
-(define (binding->val x) (car (cdr x)))
-(define (compile-binding binding next)
-    (compile-expr (binding->val binding) `(store ,(binding->var binding) ,next)))
-
-(define (make-begin body) (cons 'begin body))
-
-(define (compile-let x next)
-    (let ((bindings (let->bindings x)) (body (let->body x)))
-        (fold-right compile-binding 
-            (compile-expr (make-begin body) next)
-            bindings)))
-
-(define (define->var x) (car (cdr x)))
-(define (define->body x) (cdr (cdr x)))
-(define (compile-define x next)
-    (let ((var (define->var x)))
-        (cond
-            ((list? var) (compile-define `(define ,(car var) (lambda ,(cdr var) ,@(define->body x))) next))
-            ((pair? var) (compile-define `(define ,(car var) (lambda (,(cdr var)) ,@(define->body x))) next))
-            (else (compile-expr (make-begin (define->body x)) `(store ,(define->var x) ,next))))))
-
-(define (begin->body x) (cdr x))
-(define (begin-fold x r) (compile-expr x r))
-(define (compile-begin x next) 
-    (fold-right begin-fold next (begin->body x)))
-
-(define (lambda->bindings x) (car (cdr x)))
-(define (lambda->body x ) (cdr (cdr x)))
-(define (compile-lambda-binding binding next)
-    `(param ,binding ,next))
-(define (compile-lambda-bindings bindings next)
-    (fold-right compile-lambda-binding next bindings))
-(define (compile-lambda x next)
-    (let ((body (compile-expr (make-begin (lambda->body x)) '(return))))
-    `(close ,(lambda->bindings x) ,body ,next)))
-
-(define (compile-if x next)
-    (let ((condition (cadr x))
-          (consequent (caddr x))
-          (alternate  (cadddr x)))
-        (compile-expr condition 
-            `(test ,(compile-expr consequent '(end))
-                   ,(compile-expr alternate '(end))
-                ,next))))
-
-; integer 1
-; (constant 1 next)
-
-; boolean #t
-; (constant #t next)
-
-; char a
-; (constant #\a next)
-
-; null/()
-; (constant '() next)
-
-; symbol sym
-; (refer sym next)
-
-; pair (1 . 2)
-; (constant 1 (constant 2 (pair)))
-
-; quote '(1 2)
-; (constant 1 (constant 2 (pair (constant '() (pair next)))
-
-; intrinsic add
-; (intrinsic add)
-
-; let (let ((x 1)) (add x 1))
-; (constant 1 (store x (refer x (constant 1 (intrinsic add next)))))
-
-; define (define x 10)
-; (constant 10 (store x))
-
-; begin (begin 1 2)
-; (constant 1 (constant 2 next))
-
-; lambda (lambda (x) (add x 1))
-; (close (param x (refer x (constant 1 (intrinsic add (return))))) next)
-
-; apply (func 1 2)
-; (constant 1 (constant 2 (apply 2)))
-
-(define (compile-expr x next)
-    (cond
-        ((variable? x) (compile-refer x next))
-        ((constant? x) (compile-constant x next))
-        ((quote? x) (compile-quote x next))
-        ((intrinsic-apply? x) (compile-intrinsic x next))
-        ((let? x) (compile-let x next))
-        ((define? x) (compile-define x next))
-        ((begin? x) (compile-begin x next))
-        ((lambda? x) (compile-lambda x next))
-        ((if? x) (compile-if x next))
-        ((list? x) (compile-apply x next))
-        ((pair? x) (compile-pair x next))
-    ))
-
-(define (p04_scheme2cps x) (compile-expr x '(return)))))
+(define (p04_scheme2cps x) (T-c x '(exit)))))

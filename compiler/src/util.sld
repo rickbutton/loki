@@ -1,6 +1,8 @@
 (define-library 
     (util)
     (import (scheme base))
+    (import (scheme read))
+    (import (scheme eval))
     (import (scheme write))
     (import (srfi 159))
     (import (chibi show pretty))

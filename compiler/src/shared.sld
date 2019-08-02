@@ -35,7 +35,6 @@
         make-variable
         variable?
         variable->value
-        variable->binding
 
         make-intrinsic
         intrinsic?
@@ -101,10 +100,12 @@
     (make-atom-syntax-record type token value (make-attrs)))
 
 (define-record-type <variable>
-    (make-variable value binding)
+    (make-variable value)
     variable?
-    (value variable->value)
-    (binding variable->binding))
+    (value variable->value))
+(type-printer-set! <variable> 
+    (lambda (x writer out) 
+        (display (symbol->string (variable->value x)) out)))
 
 (define-record-type <intrinsic>
     (make-intrinsic name)
@@ -119,6 +120,11 @@
                           %%prim%le_s))
 (define (intrinsic-name? name)
     (contains? intrinsic-names name))
+(type-printer-set! <intrinsic> 
+    (lambda (x writer out) 
+        (display (string-append 
+            "i:" (symbol->string (intrinsic->name x))) out)))
+
 
 (define-record-type <comment>
     (make-comment text)
