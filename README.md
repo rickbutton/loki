@@ -39,6 +39,7 @@ A CPS transformation is done to the source, which enables full tail call optimiz
 
 ### TODO
 
+- any level of optimization (CPS-induced code explosion is real!)
 - more heap allocated values (runtime symbols, etc)
 - self hosting
 - modules (via define-library)
