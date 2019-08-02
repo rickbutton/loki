@@ -1,4 +1,4 @@
-import { Schwasm } from "./schwasm.mjs";
+import { Loki } from "./loki.mjs";
 import * as fs from "fs";
 
 function getModuleBuffer(path) {
@@ -11,10 +11,10 @@ async function run() {
 
     const runtimeBuffer = getModuleBuffer(runtimePath);
 
-    const schwasm = new Schwasm(runtimeBuffer);
-    await schwasm.init(runtimeBuffer);
+    const loki = new Loki(runtimeBuffer);
+    await loki.init(runtimeBuffer);
 
-    const value = await schwasm.load(getModuleBuffer(modulePath));
+    const value = await loki.load(getModuleBuffer(modulePath));
     console.log(value);
 }
 

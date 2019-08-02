@@ -20,7 +20,7 @@
 (import (chibi show pretty))
 
 (define (print-help-and-exit) 
-        (display "arguments: schwasm.scm [input.scm] [out.wat]")
+        (display "arguments: loki.scm [input.scm] [out.wat]")
         (exit))
 
 (if (not (eq? (length (command-line)) 3))

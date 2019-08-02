@@ -93,7 +93,7 @@ class Runtime {
     }
 }
 
-export class Schwasm {
+export class Loki {
     async init(runtimeBuffer) {
         const mod = await WebAssembly.compile(runtimeBuffer);
         this.runtime = new Runtime(await WebAssembly.instantiate(mod));

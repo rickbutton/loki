@@ -1,4 +1,4 @@
-# schwasm
+# loki
 
 ### A Scheme to WebAssembly Compiler
 

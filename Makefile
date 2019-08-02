@@ -14,7 +14,7 @@ test:
 	chibi-scheme -I compiler/src -I compiler/tests compiler/tests/tests.scm
 
 %.wat: %.scm compiler/src/**
-	chibi-scheme -I compiler/src compiler/src/schwasm.scm $< $@
+	chibi-scheme -I compiler/src compiler/src/loki.scm $< $@
 
 %.wasm: %.wat
 	wat2wasm --enable-tail-call --debug-names $< -o $@
