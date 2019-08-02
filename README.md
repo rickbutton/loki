@@ -12,7 +12,30 @@ You will need [chibi scheme](https://github.com/ashinn/chibi-scheme/), [node](ht
 
 ```
 make example
+
 ```
+
+### Things that work?
+
+- values
+    - fixnums (unsigned, 0 -> 2^30, no overflow protection)
+    - chars
+    - booleans
+    - null
+    - pairs
+    - utf8 strings
+- operations
+    - simple math operations
+    - pair operations (cons/car/cdr)
+    - few conditional operators
+        - le_s
+- syntax
+    - (begin exprs ...)
+    - (define var expr) **(no (define (var formals) body))**
+    - (set! var expr)
+    - (lambda (formals) body)
+
+A CPS transformation is done to the source, which enables full tail call optimization, and first-order eventually continuations, although `call/cc` is not yet implemented (it will be trivial to add, though).
 
 ### TODO
 
