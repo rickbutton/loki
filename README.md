@@ -35,7 +35,7 @@ make example
     - (set! var expr)
     - (lambda (formals) body)
 
-A CPS transformation is done to the source, which enables full tail call optimization, and first-order eventually continuations, although `call/cc` is not yet implemented (it will be trivial to add, though).
+A CPS transformation is done to the source, which enables full tail call optimization, and eventually first-order continuations, although `call/cc` is not yet implemented (it will be trivial to add, though).
 
 ### TODO
 
