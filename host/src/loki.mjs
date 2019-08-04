@@ -32,6 +32,7 @@ function isSlot(v) { return v instanceof Slot; }
 function isPair(v) { return v instanceof Pair; }
 function isClosure(v) { return v instanceof Closure; }
 function isString(v) { return typeof v === "string"; }
+function isSymbol(v) { return typeof v === "symbol"; }
 
 function assertPrimArgIsType(prim, value, typePred) {
     const values = Array.isArray(value) ? value : [value];
@@ -51,6 +52,9 @@ function schemeValueToString(value) {
         return value ? "#t" : "#f";
     } else if (isString(value)) {
         return `"${value}"`;
+    } else if (isSymbol(value)) {
+        const str = value.toString();
+        return str.substring(7, str.length - 1);
     } else if (isPair(value)) {
         const car = schemeValueToString(value.car);
         const cdr = schemeValueToString(value.cdr);
@@ -134,6 +138,11 @@ function getPrimitives(memory) {
         "$$prim$concat-string": (a, b) => {
             assertPrimArgIsType("$$prim$concat-string", [a, b], isString);
             return a + b;
+        },
+        "$$prim$make-symbol": (offset, length) => {
+            const view = new Uint8Array(memory.buffer, offset, length);
+            const str = new TextDecoder().decode(view);
+            return Symbol.for(str);
         },
         "$$iv$true": true,
         "$$iv$false": false,

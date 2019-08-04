@@ -22,17 +22,22 @@
 (define (rodata? v) (string-value? v))
 
 (define (p07_lift_rodatas funcs)
-    (let ((strings '()))
+    (let ((rodatas '()))
 
         (define (lift-string x)
-            (set! strings (append strings (list x)))
-            `(rodata ,(index x strings) ,x))
+            (set! rodatas (unique (append rodatas (list x))))
+            `(rodata ,(index x rodatas) ,x))
+
+        (define (lift-symbol x)
+            (set! rodatas (unique (append rodatas (list x))))
+            `(rodata ,(index x rodatas) ,x))
 
         (define (map-expr expr)
             (match expr
                 (('begin exprs ...)
                     `(begin ,@(map-body exprs)))
                 (('makeclosure args ...) expr)
+                (('quote expr) (map-expr expr))
                 ('(set! var expr)
                     `(set! ,var ,(map-expr expr)))
                 (('if condition conseq alt)
@@ -45,6 +50,7 @@
                     (cons (map-expr (car expr))
                           (map-expr (cdr expr))))
                 ((? string?) (lift-string expr))
+                ((? symbol?) (lift-symbol expr))
                 (else expr)))
 
         (define (map-body body) (map map-expr body))
@@ -71,7 +77,7 @@
 
         (define (funcs->lift-rodatas funcs)
             (let ((new-funcs (map map-func funcs)))
-                (cons strings (cons (make-init-rodata-func strings) new-funcs))))
+                (cons rodatas (cons (make-init-rodata-func rodatas) new-funcs))))
             
         (funcs->lift-rodatas funcs)
 ))))

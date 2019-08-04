@@ -29,14 +29,21 @@
 
 (define (rodata-string->length d) (string->utf8-byte-length d))
 (define (rodata-string->wasm-data d) d)
+
+(define (rodata-symbol->length d) 
+    (string->utf8-byte-length (symbol->string d)))
+(define (rodata-symbol->wasm-data d) (symbol->string d))
+
 (define (rodata->length d)
     (cond 
         ((string? d) (rodata-string->length d))
+        ((symbol? d) (rodata-symbol->length d))
         (else (error "unknown rodata"))))
 
 (define (rodata->wasm-data d)
     (cond 
         ((string? d) (rodata-string->wasm-data d))
+        ((symbol? d) (rodata-symbol->wasm-data d))
         (else (error "unknown rodata"))))
 
 (define (rodatas->lengths rodatas) (map rodata->length rodatas))
@@ -67,6 +74,7 @@
                 ((boolean? v) (lambda (_) (if v "#t" "#f")))
                 ((char? v) string)
                 ((string? v) (lambda (s) s))
+                ((symbol? v) symbol->string)
                 ((null? v) (lambda (_) "()"))
                 (else (raise "invalid value for inline comment")))
                 v))))
@@ -110,7 +118,12 @@
                 `(call $$prim$make-string
                     ,(inline-val rodata)
                     (i32.const ,(list-ref rodata-offsets index))
-                    (i32.const ,(string->utf8-byte-length rodata))))
+                    (i32.const ,(rodata-string->length rodata))))
+            ((symbol? rodata)
+                `(call $$prim$make-symbol
+                    ,(inline-val rodata)
+                    (i32.const ,(list-ref rodata-offsets index))
+                    (i32.const ,(rodata-symbol->length rodata))))
             (else (raise "unknown rodata type"))))
     (define (compile-set-rodata index rodata)
         `((table.set $$rodatatable 
@@ -281,6 +294,7 @@
             (import "env" "$$prim$get-free"           (func $$prim$get-free (param anyref i32) (result anyref)))
             (import "env" "$$prim$get-closure-findex" (func $$prim$get-closure-findex (param anyref i32) (result i32)))
             (import "env" "$$prim$make-string"        (func $$prim$make-string (param i32 i32) (result anyref)))
+            (import "env" "$$prim$make-symbol"        (func $$prim$make-symbol (param i32 i32) (result anyref)))
             (data (i32.const 0)
                 ,(rodatas->wasm-data-section rodatas))
 

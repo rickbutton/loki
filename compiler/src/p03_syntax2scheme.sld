@@ -20,7 +20,7 @@
                 ((equal? type 'primitive) (atom-syntax->value syntax))
                 ((equal? type 'intrinsic) 
                     (make-intrinsic (atom-syntax->value syntax)))
-                (else (raise "unknown symbol type")))))
+                (else (atom-syntax->value syntax)))))
 
     (define (syntax->scheme syntax)
         (if (cons-syntax? syntax)
