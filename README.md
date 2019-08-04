@@ -58,58 +58,106 @@ This example may be out of date. No Promises!
 input:
 
 ```scheme
-(define (fib n)
-    (if (%%prim%le_s n 2)
-        1
-        (%%prim%add 
-            (fib (%%prim%sub n 1)) 
-            (fib (%%prim%sub n 2)))))
+(define str ($$prim$concat-string "this is a test " "of string concat! 😀"))
 
-(fib 25)
+(define fib (lambda (n)
+      (if ($$prim$le_s n 2)
+        1
+        ($$prim$add 
+            (fib ($$prim$sub n 1)) 
+            (fib ($$prim$sub n 2))))))
+
+($$prim$cons (fib 25) str)
 ```
 
 output:
 
 ```wat
-(module (type $$fun$0 (func (param i32) (result i32)))
-        (type $$fun$1 (func (param i32) (param i32) (result i32)))
-        (type $$fun$2 (func (param i32) (param i32) (param i32) (result i32)))
+(module (type $$fun$0 (func (param anyref) (result anyref)))
+        (type $$fun$1 (func (param anyref) (param anyref) (result anyref)))
+        (type $$fun$2
+              (func (param anyref)
+                    (param anyref)
+                    (param anyref)
+                    (result anyref)))
         (type $$fun$3
-              (func (param i32)
-                    (param i32)
-                    (param i32)
-                    (param i32)
-                    (result i32)))
-        (global $$rodata-id (import "env" "$$rodata-id") i32)
-        (global $$rodata-offset (import "env" "$$rodata-offset") i32)
+              (func (param anyref)
+                    (param anyref)
+                    (param anyref)
+                    (param anyref)
+                    (result anyref)))
+        (global $$iv$true (import "env" "$$iv$true") anyref)
+        (global $$iv$false (import "env" "$$iv$false") anyref)
+        (global $$iv$null (import "env" "$$iv$null") anyref)
+        (global $$iv$void (import "env" "$$iv$void") anyref)
         (import "env" "memory" (memory 0))
-        (import "env" "$$alloc_slot" (func $$alloc_slot (result i32)))
-        (import "env" "$$set_slot" (func $$set_slot (param i32 i32)))
-        (import "env" "$$get_slot" (func $$get_slot (param i32) (result i32)))
         (import "env"
-                "$$alloc_pair"
-                (func $$alloc_pair (param i32 i32) (result i32)))
-        (import "env" "$$car" (func $$car (param i32) (result i32)))
-        (import "env" "$$cdr" (func $$cdr (param i32) (result i32)))
+                "$$prim$make-number"
+                (func $$prim$make-number (param i32) (result anyref)))
         (import "env"
-                "$$alloc_close"
-                (func $$alloc_close (param i32 i32) (result i32)))
+                "$$prim$add"
+                (func $$prim$add (param anyref anyref) (result anyref)))
         (import "env"
-                "$$store_free"
-                (func $$store_free (param i32 i32 i32) (result i32)))
+                "$$prim$sub"
+                (func $$prim$sub (param anyref anyref) (result anyref)))
         (import "env"
-                "$$get_free"
-                (func $$get_free (param i32 i32) (result i32)))
+                "$$prim$le_s"
+                (func $$prim$le_s (param anyref anyref) (result anyref)))
         (import "env"
-                "$$get_close_func_index"
-                (func $$get_close_func_index (param i32) (result i32)))
+                "$$prim$test"
+                (func $$prim$test (param anyref) (result i32)))
         (import "env"
-                "$$alloc_string"
-                (func $$alloc_string (param i32 i32 i32) (result i32)))
-        (data (get_global $$rodata-offset) "")
-        (table 9 anyfunc)
+                "$$prim$make-char"
+                (func $$prim$make-char (param i32) (result anyref)))
+        (import "env"
+                "$$prim$make-slot"
+                (func $$prim$make-slot (result anyref)))
+        (import "env"
+                "$$prim$set-slot"
+                (func $$prim$set-slot (param anyref anyref)))
+        (import "env"
+                "$$prim$get-slot"
+                (func $$prim$get-slot (param anyref) (result anyref)))
+        (import "env"
+                "$$prim$cons"
+                (func $$prim$cons (param anyref anyref) (result anyref)))
+        (import "env"
+                "$$prim$car"
+                (func $$prim$car (param anyref) (result anyref)))
+        (import "env"
+                "$$prim$cdr"
+                (func $$prim$cdr (param anyref) (result anyref)))
+        (import "env"
+                "$$prim$concat-string"
+                (func $$prim$concat-string
+                      (param anyref anyref)
+                      (result anyref)))
+        (import "env"
+                "$$prim$make-closure"
+                (func $$prim$make-closure (param i32 i32 i32) (result anyref)))
+        (import "env"
+                "$$prim$set-free"
+                (func $$prim$set-free
+                      (param anyref i32 anyref)
+                      (result anyref)))
+        (import "env"
+                "$$prim$get-free"
+                (func $$prim$get-free (param anyref i32) (result anyref)))
+        (import "env"
+                "$$prim$get-closure-findex"
+                (func $$prim$get-closure-findex
+                      (param anyref i32)
+                      (result i32)))
+        (import "env"
+                "$$prim$make-string"
+                (func $$prim$make-string (param i32 i32) (result anyref)))
+        (data (i32.const 0) "of string concat! 😀this is a test ")
+        (table $$functable 12 anyfunc)
         (elem (i32.const 0)
+              $$finit
               $$fentry
+              $$f9
+              $$f8
               $$f7
               $$f6
               $$f5
@@ -118,195 +166,288 @@ output:
               $$f2
               $$f1
               $$fexit)
-        (func $$main (result i32) (call $$fentry))
+        (table $$rodatatable 2 anyref)
+        (func $$main (result anyref) (call $$fentry))
+        (func $$finit
+              (result anyref)
+              (local $$tmp anyref)
+              (table.set $$rodatatable
+                         (i32.const 0)
+                         (call $$prim$make-string
+                               (;val=of string concat! 😀;)
+                               (i32.const 0)
+                               (i32.const 22)))
+              (table.set $$rodatatable
+                         (i32.const 1)
+                         (call $$prim$make-string
+                               (;val=this is a test ;)
+                               (i32.const 22)
+                               (i32.const 15)))
+              (call $$prim$make-number (i32.const 0)))
         (func $$fentry
-              (result i32)
-              (local $v1_fib i32)
-              (local $$tmp i32)
-              (set_local $v1_fib (call $$alloc_slot))
-              (call $$alloc_close (;func=$$f7;) (i32.const 1) (i32.const 1))
+              (result anyref)
+              (local $v2_fib anyref)
+              (local $v1_str anyref)
+              (local $$tmp anyref)
+              (set_local $v2_fib (call $$prim$make-slot))
+              (set_local $v1_str (call $$prim$make-slot))
+              (table.get $$rodatatable (i32.const 1))
+              (table.get $$rodatatable (i32.const 0))
+              (call $$prim$concat-string)
+              (call $$prim$make-closure
+                    (;func=$$f9;)
+                    (i32.const 2)
+                    (i32.const 1)
+                    (i32.const 2))
               (i32.const 0)
-              (get_local $v1_fib)
-              (call $$store_free)
-              (call $$set_slot (get_local $v1_fib))
-              (i32.const (;val=25;) 100)
-              (call $$alloc_close
-                    (;func=$$fexit;)
-                    (i32.const 8)
-                    (i32.const 0))
-              (call $$get_slot (get_local $v1_fib))
+              (get_local $v2_fib)
+              (call $$prim$set-free)
+              (i32.const 1)
+              (get_local $v1_str)
+              (call $$prim$set-free)
               (tee_local $$tmp)
               (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$2)))
-        (func $$f7
-              (param $v2_n i32)
-              (param $k_1 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
+              (call $$prim$get-closure-findex (i32.const 1))
+              (return_call_indirect (type $$fun$1) $$functable))
+        (func $$f9
+              (param $rv_1 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (get_local $rv_1)
+              (call $$prim$set-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 1)))
+              (call $$prim$make-closure
+                    (;func=$$f8;)
+                    (i32.const 3)
+                    (i32.const 2)
+                    (i32.const 1))
+              (i32.const 0)
+              (call $$prim$get-free (get_local $$close) (i32.const 0))
+              (call $$prim$set-free)
+              (call $$prim$set-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (call $$prim$make-number (i32.const 25))
+              (call $$prim$make-closure
+                    (;func=$$f1;)
+                    (i32.const 10)
+                    (i32.const 1)
+                    (i32.const 1))
+              (i32.const 0)
+              (call $$prim$get-free (get_local $$close) (i32.const 1))
+              (call $$prim$set-free)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (tee_local $$tmp)
+              (get_local $$tmp)
+              (call $$prim$get-closure-findex (i32.const 2))
+              (return_call_indirect (type $$fun$2) $$functable))
+        (func $$f8
+              (param $v3_n anyref)
+              (param $k_1 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
               (get_local $k_1)
-              (call $$alloc_close (;func=$$f6;) (i32.const 2) (i32.const 2))
+              (call $$prim$make-closure
+                    (;func=$$f7;)
+                    (i32.const 4)
+                    (i32.const 1)
+                    (i32.const 2))
               (i32.const 0)
-              (get_local $v2_n)
-              (call $$store_free)
+              (get_local $v3_n)
+              (call $$prim$set-free)
               (i32.const 1)
-              (call $$get_free (get_local $$close) (i32.const 0))
-              (call $$store_free)
+              (call $$prim$get-free (get_local $$close) (i32.const 0))
+              (call $$prim$set-free)
               (tee_local $$tmp)
               (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$1)))
-        (func $$f6
-              (param $k_2 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
-              (call $$get_slot
-                    (call $$get_free (get_local $$close) (i32.const 0)))
-              (i32.const (;val=2;) 8)
-              (i32.le_s)
-              (if (result i32)
-                  (then (i32.const (;val=#t;) 159))
-                  (else (i32.const (;val=#f;) 31)))
-              (call $$alloc_close (;func=$$f5;) (i32.const 3) (i32.const 3))
+              (call $$prim$get-closure-findex (i32.const 1))
+              (return_call_indirect (type $$fun$1) $$functable))
+        (func $$f7
+              (param $k_2 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (call $$prim$make-number (i32.const 2))
+              (call $$prim$le_s)
+              (call $$prim$make-closure
+                    (;func=$$f6;)
+                    (i32.const 5)
+                    (i32.const 1)
+                    (i32.const 3))
               (i32.const 0)
-              (call $$get_free (get_local $$close) (i32.const 0))
-              (call $$store_free)
+              (call $$prim$get-free (get_local $$close) (i32.const 0))
+              (call $$prim$set-free)
               (i32.const 1)
-              (call $$get_free (get_local $$close) (i32.const 1))
-              (call $$store_free)
+              (call $$prim$get-free (get_local $$close) (i32.const 1))
+              (call $$prim$set-free)
               (i32.const 2)
               (get_local $k_2)
-              (call $$store_free)
+              (call $$prim$set-free)
               (tee_local $$tmp)
               (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$1)))
-        (func $$f5
-              (param $rv_1 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
-              (get_local $rv_1)
-              (i32.const (;val=#f;) 31)
-              (i32.ne)
-              (if (result i32)
-                  (then (i32.const (;val=1;) 4)
-                        (call $$get_slot
-                              (call $$get_free
+              (call $$prim$get-closure-findex (i32.const 1))
+              (return_call_indirect (type $$fun$1) $$functable))
+        (func $$f6
+              (param $rv_2 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (get_local $rv_2)
+              (call $$prim$test)
+              (if (result anyref)
+                  (then (call $$prim$make-number (i32.const 1))
+                        (call $$prim$get-slot
+                              (call $$prim$get-free
                                     (get_local $$close)
                                     (i32.const 2)))
                         (tee_local $$tmp)
                         (get_local $$tmp)
-                        (call $$get_close_func_index)
-                        (return_call_indirect (type $$fun$1)))
+                        (call $$prim$get-closure-findex (i32.const 1))
+                        (return_call_indirect (type $$fun$1) $$functable))
                   (else
-                   (call $$get_slot
-                         (call $$get_free (get_local $$close) (i32.const 0)))
-                   (i32.const (;val=1;) 4)
-                   (i32.sub)
-                   (call $$alloc_close
-                         (;func=$$f4;)
-                         (i32.const 4)
+                   (call $$prim$get-slot
+                         (call $$prim$get-free
+                               (get_local $$close)
+                               (i32.const 0)))
+                   (call $$prim$make-number (i32.const 1))
+                   (call $$prim$sub)
+                   (call $$prim$make-closure
+                         (;func=$$f5;)
+                         (i32.const 6)
+                         (i32.const 1)
                          (i32.const 3))
                    (i32.const 0)
-                   (call $$get_free (get_local $$close) (i32.const 0))
-                   (call $$store_free)
+                   (call $$prim$get-free (get_local $$close) (i32.const 0))
+                   (call $$prim$set-free)
                    (i32.const 1)
-                   (call $$get_free (get_local $$close) (i32.const 1))
-                   (call $$store_free)
+                   (call $$prim$get-free (get_local $$close) (i32.const 1))
+                   (call $$prim$set-free)
                    (i32.const 2)
-                   (call $$get_free (get_local $$close) (i32.const 2))
-                   (call $$store_free)
+                   (call $$prim$get-free (get_local $$close) (i32.const 2))
+                   (call $$prim$set-free)
                    (tee_local $$tmp)
                    (get_local $$tmp)
-                   (call $$get_close_func_index)
-                   (return_call_indirect (type $$fun$1)))))
+                   (call $$prim$get-closure-findex (i32.const 1))
+                   (return_call_indirect (type $$fun$1) $$functable))))
+        (func $$f5
+              (param $rv_6 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (get_local $rv_6)
+              (call $$prim$make-closure
+                    (;func=$$f4;)
+                    (i32.const 7)
+                    (i32.const 1)
+                    (i32.const 3))
+              (i32.const 0)
+              (call $$prim$get-free (get_local $$close) (i32.const 0))
+              (call $$prim$set-free)
+              (i32.const 1)
+              (call $$prim$get-free (get_local $$close) (i32.const 1))
+              (call $$prim$set-free)
+              (i32.const 2)
+              (call $$prim$get-free (get_local $$close) (i32.const 2))
+              (call $$prim$set-free)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 1)))
+              (tee_local $$tmp)
+              (get_local $$tmp)
+              (call $$prim$get-closure-findex (i32.const 2))
+              (return_call_indirect (type $$fun$2) $$functable))
         (func $$f4
-              (param $rv_5 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
-              (get_local $rv_5)
-              (call $$alloc_close (;func=$$f3;) (i32.const 5) (i32.const 3))
+              (param $rv_3 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (call $$prim$make-number (i32.const 2))
+              (call $$prim$sub)
+              (call $$prim$make-closure
+                    (;func=$$f3;)
+                    (i32.const 8)
+                    (i32.const 1)
+                    (i32.const 3))
               (i32.const 0)
-              (call $$get_free (get_local $$close) (i32.const 0))
-              (call $$store_free)
+              (call $$prim$get-free (get_local $$close) (i32.const 1))
+              (call $$prim$set-free)
               (i32.const 1)
-              (call $$get_free (get_local $$close) (i32.const 1))
-              (call $$store_free)
-              (i32.const 2)
-              (call $$get_free (get_local $$close) (i32.const 2))
-              (call $$store_free)
-              (call $$get_slot
-                    (call $$get_free (get_local $$close) (i32.const 1)))
-              (tee_local $$tmp)
-              (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$2)))
-        (func $$f3
-              (param $rv_2 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
-              (call $$get_slot
-                    (call $$get_free (get_local $$close) (i32.const 0)))
-              (i32.const (;val=2;) 8)
-              (i32.sub)
-              (call $$alloc_close (;func=$$f2;) (i32.const 6) (i32.const 3))
-              (i32.const 0)
-              (call $$get_free (get_local $$close) (i32.const 1))
-              (call $$store_free)
-              (i32.const 1)
-              (get_local $rv_2)
-              (call $$store_free)
-              (i32.const 2)
-              (call $$get_free (get_local $$close) (i32.const 2))
-              (call $$store_free)
-              (tee_local $$tmp)
-              (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$1)))
-        (func $$f2
-              (param $rv_4 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
-              (get_local $rv_4)
-              (call $$alloc_close (;func=$$f1;) (i32.const 7) (i32.const 2))
-              (i32.const 0)
-              (call $$get_free (get_local $$close) (i32.const 1))
-              (call $$store_free)
-              (i32.const 1)
-              (call $$get_free (get_local $$close) (i32.const 2))
-              (call $$store_free)
-              (call $$get_slot
-                    (call $$get_free (get_local $$close) (i32.const 0)))
-              (tee_local $$tmp)
-              (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$2)))
-        (func $$f1
-              (param $rv_3 i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
-              (call $$get_slot
-                    (call $$get_free (get_local $$close) (i32.const 0)))
               (get_local $rv_3)
-              (i32.add)
-              (call $$get_slot
-                    (call $$get_free (get_local $$close) (i32.const 1)))
+              (call $$prim$set-free)
+              (i32.const 2)
+              (call $$prim$get-free (get_local $$close) (i32.const 2))
+              (call $$prim$set-free)
               (tee_local $$tmp)
               (get_local $$tmp)
-              (call $$get_close_func_index)
-              (return_call_indirect (type $$fun$1)))
+              (call $$prim$get-closure-findex (i32.const 1))
+              (return_call_indirect (type $$fun$1) $$functable))
+        (func $$f3
+              (param $rv_5 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (get_local $rv_5)
+              (call $$prim$make-closure
+                    (;func=$$f2;)
+                    (i32.const 9)
+                    (i32.const 1)
+                    (i32.const 2))
+              (i32.const 0)
+              (call $$prim$get-free (get_local $$close) (i32.const 1))
+              (call $$prim$set-free)
+              (i32.const 1)
+              (call $$prim$get-free (get_local $$close) (i32.const 2))
+              (call $$prim$set-free)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (tee_local $$tmp)
+              (get_local $$tmp)
+              (call $$prim$get-closure-findex (i32.const 2))
+              (return_call_indirect (type $$fun$2) $$functable))
+        (func $$f2
+              (param $rv_4 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (get_local $rv_4)
+              (call $$prim$add)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 1)))
+              (tee_local $$tmp)
+              (get_local $$tmp)
+              (call $$prim$get-closure-findex (i32.const 1))
+              (return_call_indirect (type $$fun$1) $$functable))
+        (func $$f1
+              (param $rv_7 anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
+              (get_local $rv_7)
+              (call $$prim$get-slot
+                    (call $$prim$get-free (get_local $$close) (i32.const 0)))
+              (call $$prim$cons)
+              (call $$prim$make-closure
+                    (;func=$$fexit;)
+                    (i32.const 11)
+                    (i32.const 1)
+                    (i32.const 0))
+              (tee_local $$tmp)
+              (get_local $$tmp)
+              (call $$prim$get-closure-findex (i32.const 1))
+              (return_call_indirect (type $$fun$1) $$functable))
         (func $$fexit
-              (param $v i32)
-              (param $$close i32)
-              (result i32)
-              (local $$tmp i32)
+              (param $v anyref)
+              (param $$close anyref)
+              (result anyref)
+              (local $$tmp anyref)
               (get_local $v))
-        (export "main" (func $$main)))
+        (export "main" (func $$main))
+        (export "init" (func $$finit)))
 ```
