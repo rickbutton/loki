@@ -22,12 +22,12 @@ make example
 ### Things that work?
 
 - values
-    - fixnums (unsigned, 0 -> 2^30, no overflow protection)
+    - numbers
     - chars
     - booleans
     - null
     - pairs
-    - utf8 strings
+    - strings
 - operations
     - simple math operations
     - pair operations (cons/car/cdr)
@@ -48,7 +48,6 @@ A CPS transformation is done to the source, which enables full tail call optimiz
 - self hosting
 - modules (via define-library)
 - test suite for back end
-- garbage collection
 - easy FFI with JavaScript
 - WASI?
 
