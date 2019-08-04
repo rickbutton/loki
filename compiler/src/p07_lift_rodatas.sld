@@ -48,9 +48,6 @@
                 (else expr)))
 
         (define (map-body body) (map map-expr body))
-        ; TODO - generate init-rodata func
-        ; use func to setup rodatas in a table
-        ; translate inline rodatas into gets into that table
 
         (define (make-init-rodata-call rodata index)
             `(set-rodata ,index ,rodata))
@@ -58,7 +55,8 @@
             `(func open $$finit () () ()
                 ,@(map make-init-rodata-call 
                     rodatas (range 0 (length rodatas) 1))
-                0))
+                0)) ; TODO - remove 0, only needed because all funcs 
+                    ; must currently return a value
 
         (define (map-func f)
             (let* ((body (func->body f))

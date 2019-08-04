@@ -1,4 +1,3 @@
-; TODO - missing the "free"/"bound" from mark-vars
 (define-library 
 (p08_funcs2wat)
 (import (scheme base))
