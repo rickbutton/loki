@@ -57,7 +57,6 @@
                 (let ((p05 (p05_liftlambda p04)))
                 (let ((p06 (p06_reduce p05)))
                 (let ((p07 (p07_lift_rodatas p06)))
-                (display (show #f (pretty p07)))
                 (let ((p08 (p08_funcs2wat p07)))
                 (display (show #f (pretty p08)))
                     p08))))))))))))))

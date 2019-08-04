@@ -31,9 +31,10 @@
 
     (define (body-expr->frees vars body-expr)
         (match body-expr
-            (('makeclosure name vars frees) frees)
-            (('begin expr exprs ...) 
-                (append (body-expr->frees vars expr) 
+            (('makeclosure name vars frees) 
+                frees)
+            (('begin expr exprs ...)
+                (append (body-expr->frees vars expr)
                         (body->frees vars exprs)))
             ((e es ...) 
                 (append (body-expr->frees vars e) 
@@ -48,15 +49,15 @@
 
     (define (body-expr->locals vars frees body-expr)
         (match body-expr
-            (('makeclosure args ...) '())
+            (('makeclosure name bounds frees) frees)
+            (('begin expr exprs ...)
+                (append (body-expr->locals vars frees expr)
+                        (body->locals vars frees exprs)))
             (('set! var expr)
                 (if (or
                         (member var vars))
                         (member var frees))
                     '() (list var))
-            (('begin expr exprs ...) 
-                (append (body-expr->locals vars frees expr) 
-                        (body->locals vars frees exprs)))
             ((e es ...) 
                 (append (body-expr->locals vars frees e) 
                         (body->locals vars frees es)))
@@ -68,8 +69,6 @@
             (else '())))
 
     (define (body->locals vars frees body) 
-        (debug vars)
-        (debug frees)
         (filter 
             (lambda (l) (not (or (member l vars) (member l frees))))
             (unique (apply append (map 
@@ -126,8 +125,7 @@
                 `(set! ,variable ,(lift expr)))
             (('define variable expr)
                 `(define ,variable ,(lift expr)))
-            (('exit)
-                (makeclosure exit-func))
+            (('exit) (makeclosure exit-func))
             ((? pair?)
                 (cons (lift (car x)) (lift (cdr x))))
             (else x)))

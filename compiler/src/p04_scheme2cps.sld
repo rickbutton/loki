@@ -23,7 +23,6 @@
         (char? x)
         (string? x)
         (null? x)))
-
 (define (quote? x) (and (list? x) (eq? (car x) 'quote)))
 
 ; cps conversion gleefully lifted from:
@@ -53,12 +52,12 @@
         (('set! var expr) (T-k expr (lambda (aexp) 
             `(begin
                 (set! ,var ,aexp)
-                ,(k '(exit))))))
+                ,(k '(void))))))
         ; TODO - support (define (id formals) ...)
         (('define var expr) (T-k expr (lambda (aexp) 
             `(begin
                 (set! ,var ,aexp)
-                ,(k '(exit))))))
+                ,(k '(void))))))
         ((_ _ ...)
             (let* (($rv (rvid-var)) (cont `(lambda (,$rv) ,(k $rv))))
                 (T-c expr cont)))))
@@ -80,12 +79,12 @@
         (('set! var expr) (T-k expr (lambda (aexp) 
             `(begin
                 (set! ,var ,aexp)
-                (,c (exit))))))
+                (,c (void))))))
         ; TODO - support (define (id formals) ...)
         (('define var expr) (T-k expr (lambda (aexp) 
             `(begin
                 (set! ,var ,aexp)
-                (,c (exit))))))
+                (,c (void))))))
         (((and i (? intrinsic?)) es ...)
             (T*-k es (lambda ($es)
                 `(intrinsic ,i ,@$es ,c))))
@@ -111,7 +110,9 @@
                 `(lambda (,@vars ,$k) ,(T-c body $k))))
         ((? constant?) aexpr)
         ((? variable?) aexpr)
+        ((? quote?) aexpr)
         ((exit) aexpr)
+        ((void) aexpr)
         (else (raise 
             (string-append "invalid aexpr: " (show #f aexpr))))))
 

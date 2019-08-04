@@ -2,7 +2,6 @@ function error(msg) {
     throw new Error(msg);
 }
 
-const Null = {};
 const Void = {};
 
 class Slot {
@@ -31,7 +30,8 @@ function isBoolean(v) { return typeof v === "boolean"; }
 
 function isSlot(v) { return v instanceof Slot; }
 function isPair(v) { return v instanceof Pair; }
-function isClosure(v) { return v instanceof Closure }
+function isClosure(v) { return v instanceof Closure; }
+function isString(v) { return typeof v === "string"; }
 
 function assertPrimArgIsType(prim, value, typePred) {
     const values = Array.isArray(value) ? value : [value];
@@ -46,25 +46,27 @@ function schemeValueToString(value) {
     if (isNumber(value)) {
         return String(value >> 1);
     } else if (isChar(value)) {
-        return String.fromCharCode(value >> 1);
+        return `#\\${String.fromCharCode(value >> 1)}`;
     } else if (isBoolean(value)) {
         return value ? "#t" : "#f";
+    } else if (isString(value)) {
+        return `"${value}"`;
     } else if (isPair(value)) {
         const car = schemeValueToString(value.car);
         const cdr = schemeValueToString(value.cdr);
         return `(${car} . ${cdr})`;
-    } else if (value === NULL) {
+    } else if (value === null) {
         return "()";
-    } else if (value === VOID) {
+    } else if (value === Void) {
         return "<#void>";
     } else if (isClosure(value)) {
-        return `<#closure(${value.nbounds})`;
+        return `<#closure(${value.index})>`;
     } else {
         throw new Error(`unknown value ${value}`);
     }
 }
 
-function getPrimitives() {
+function getPrimitives(memory) {
     return {
         "$$prim$make-number": (n) => n << 1,
         "$$prim$add": (a, b) => {
@@ -125,9 +127,17 @@ function getPrimitives() {
             }
             return c.index;
         },
+        "$$prim$make-string": (offset, length) => {
+            const view = new Uint8Array(memory.buffer, offset, length);
+            return new TextDecoder().decode(view);
+        },
+        "$$prim$concat-string": (a, b) => {
+            assertPrimArgIsType("$$prim$concat-string", [a, b], isString);
+            return a + b;
+        },
         "$$iv$true": true,
         "$$iv$false": false,
-        "$$iv$null": Null,
+        "$$iv$null": null,
         "$$iv$void": Void,
     };
 }
@@ -137,12 +147,15 @@ export class Loki {
         const mod = await WebAssembly.compile(buffer);
 
         const memory = new WebAssembly.Memory({ initial: 1 });
-        const primitives = getPrimitives();
+        const primitives = getPrimitives(memory);
         const instance = await WebAssembly.instantiate(mod, {
             env: Object.assign({ memory }, primitives),
         });
 
+        const init = instance.exports.init;
         const main = instance.exports.main;
+
+        init();
         const ret = main();
         return schemeValueToString(ret, this.runtime);
     }

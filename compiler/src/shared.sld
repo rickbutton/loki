@@ -116,6 +116,7 @@
                           $$prim$car
                           $$prim$cdr
                           $$prim$cons
+                          $$prim$concat-string
 
                           $$prim$le_s))
 (define (intrinsic-name? name)
