@@ -111,13 +111,13 @@
     (make-intrinsic name)
     intrinsic?
     (name intrinsic->name))
-(define intrinsic-names '(%%prim%add
-                          %%prim%sub
-                          %%prim%car
-                          %%prim%cdr
-                          %%prim%cons
+(define intrinsic-names '($$prim$add
+                          $$prim$sub
+                          $$prim$car
+                          $$prim$cdr
+                          $$prim$cons
 
-                          %%prim%le_s))
+                          $$prim$le_s))
 (define (intrinsic-name? name)
     (contains? intrinsic-names name))
 (type-printer-set! <intrinsic> 

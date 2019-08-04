@@ -26,18 +26,18 @@
                 (define test (lambda () 123))
                 (test))
             `(begin
-                (define ,(make-variable '$v1_test 'bound) 
+                (define ,(make-variable '$v1_test) 
                     (lambda () 123))
-                (,(make-variable '$v1_test 'bound))))
+                (,(make-variable '$v1_test))))
 
         (test-compile 
             '(begin
                 (define define (lambda () 123))
                 (define))
             `(begin
-                (define ,(make-variable '$v1_define 'bound) 
+                (define ,(make-variable '$v1_define) 
                     (lambda () 123))
-                (,(make-variable '$v1_define 'bound))))
+                (,(make-variable '$v1_define))))
 
         (test-compile 
             '(begin
@@ -47,27 +47,27 @@
                 (set! b 456)
                 (a b))
             `(begin
-                (define ,(make-variable '$v1_a 'bound) (lambda () 123))
-                (define ,(make-variable '$v2_b 'bound) (lambda () 123))
-                (set! ,(make-variable '$v1_a 'bound) 456)
-                (set! ,(make-variable '$v2_b 'bound) 456)
-                (,(make-variable '$v1_a 'bound) 
-                 ,(make-variable '$v2_b 'bound))))
+                (define ,(make-variable '$v1_a) (lambda () 123))
+                (define ,(make-variable '$v2_b) (lambda () 123))
+                (set! ,(make-variable '$v1_a) 456)
+                (set! ,(make-variable '$v2_b) 456)
+                (,(make-variable '$v1_a) 
+                 ,(make-variable '$v2_b))))
 
         (test-compile 
             '(begin
                 (define test (lambda (xyz) 
                     (set! test 456)
-                    (%%prim%add xyz test)))
+                    ($$prim$add xyz test)))
                 (test 123))
             `(begin
-                (define ,(make-variable '$v1_test 'bound) 
-                    (lambda (,(make-variable '$v2_xyz 'bound))
-                        (set! ,(make-variable '$v1_test 'free) 456)
-                        (,(make-intrinsic '%%prim%add)
-                         ,(make-variable '$v2_xyz 'bound) 
-                         ,(make-variable '$v1_test 'free))))
-                (,(make-variable '$v1_test 'bound) 123)))
+                (define ,(make-variable '$v1_test) 
+                    (lambda (,(make-variable '$v2_xyz))
+                        (set! ,(make-variable '$v1_test) 456)
+                        (,(make-intrinsic '$$prim$add)
+                         ,(make-variable '$v2_xyz) 
+                         ,(make-variable '$v1_test))))
+                (,(make-variable '$v1_test) 123)))
     ))
         
 ))

@@ -22,119 +22,35 @@
             (else (raise "invalid value for inline comment")))
             v))))
 
-; fixnum
-(define wfixnum-shift 2)
-(define wfixnum-mask  #b11)
-(define wfixnum-tag  #b00)
+(define sfixnum? integer?)
+(define (compile-sfixnum x) `(call $$prim$make-number (i32.const ,x)))
+(define sboolean? boolean?)
+(define (compile-sboolean x) `(get_global ,(if x '$$iv$true '$iv$false)))
+(define schar? char?)
+(define (compile-schar x) `(call $$prim$make-char (i32.const ,(char->integer x))))
+(define snull? null?)
+(define (compile-snull x) `(get_global $$iv$null))
+(define (compile-pair x) `(call $$prim$cons))
 
-(define (sfixnum? i) (integer? i))
-(define (wfixnum? i) (eq? (bitwise-and i wfixnum-mask) wfixnum-tag))
-
-(define (sfixnum->wfixnum i) (arithmetic-shift i wfixnum-shift))
-(define (wfixnum->sfixnum i) (arithmetic-shift i (- 0 wfixnum-shift)))
-
-(define (compile-sfixnum x)
-    `(i32.const 
-        ,(inline-val x)
-        ,(sfixnum->wfixnum x)))
-; end fixnum
-
-; boolean
-(define wboolean-mask #b0011111)
-(define wboolean-tag #b0011111)
-(define false-tag #b00011111)
-(define true-tag #b10011111)
-
-(define (sboolean? b) (boolean? b))
-(define (wboolean? b) (eq? (bitwise-and b wboolean-mask) wboolean-tag))
-
-(define (sboolean->wboolean b) (if b true-tag false-tag))
-(define (wboolean->sboolean b) (if (eq? b true-tag) #t #f))
-
-(define (compile-sboolean x)
-    `(i32.const 
-        ,(inline-val x)
-        ,(sboolean->wboolean x)))
-; end boolean
-
-; char
-(define wchar-mask #b01111111)
-(define wchar-tag  #b00001111)
-(define wchar-shift 8)
-
-(define (schar? c) (char? c))
-(define (wchar? b) (eq? (bitwise-and b wchar-mask) wchar-tag))
-
-(define (schar->wchar c) (bitwise-ior (arithmetic-shift (char->integer c) wchar-shift) wchar-tag))
-(define (wchar->schar c) (arithmetic-shift (char->integer c) (- 0 wchar-shift)))
-
-(define (compile-schar x)
-    `(i32.const 
-        ,(inline-val x)
-        ,(schar->wchar x)))
-; end char
-
-; null
-(define null-tag   #b00101111)
-
-(define (snull? n) (null? n))
-(define (wnull? n) (eq? n null-tag))
-
-(define (snull->wnull n) null-tag)
-(define (wnull->snull n) '())
-
-(define (compile-snull x)
-    `(i32.const 
-        ,(inline-val x)
-        ,(snull->wnull x)))
-; end null
-
-; pair
-(define (compile-pair x)
-    `(call $$alloc_pair))
-; end pair
-
-; intrinsic
-
-(define (intrinsic->wasm-op i)
-    (let ((op (intrinsic->name i)))
-        (cond
-            ((eq? op '%%prim%add) '((i32.add)))
-            ((eq? op '%%prim%sub) '((i32.sub)))
-            ((eq? op '%%prim%car) '((call $$car)))
-            ((eq? op '%%prim%cdr) '((call $$cdr)))
-            ((eq? op '%%prim%cons) '((call $$alloc_pair)))
-            ((eq? op '%%prim%le_s)
-                `((i32.le_s)
-                  (if (result i32)
-                    (then ,(compile-sboolean #t))
-                    (else ,(compile-sboolean #f)))))
-            (else (error (string-append "invalid intrinsic " op))))))
-
+(define (intrinsic->wasm-op i) `((call ,(intrinsic->name i))))
 (define (compile-intrinsic intrinsic args k func mappings rodata-offsets)
     `(,@(compile-func-body args func mappings rodata-offsets)
       ,@(intrinsic->wasm-op intrinsic)
       ,@(compile-func-body-expr k func mappings rodata-offsets)
       ,@(compile-apply 1)))
-; end prim
 
-; test
 (define (compile-if expr func mappings rodata-offsets)
     (let ((condition (cadr expr))
           (consequent (caddr expr))
           (alternate (cadddr expr)))
         `(,@(compile-func-body-expr condition func mappings rodata-offsets)
-          ,(compile-sboolean #f)
-          (i32.ne)
-          (if (result i32)
-            (then ,@(compile-func-body-expr 
-                consequent func mappings rodata-offsets))
-            (else ,@(compile-func-body-expr 
-                alternate func mappings rodata-offsets))))))
+            (call $$prim$test)
+            (if (result anyref)
+                (then ,@(compile-func-body-expr 
+                    consequent func mappings rodata-offsets))
+                (else ,@(compile-func-body-expr 
+                    alternate func mappings rodata-offsets))))))
         
-; end test
-
-; constant
 (define (compile-constant c rodata-offsets)
     (let ((x (car (cdr c))))
         (cond
@@ -143,15 +59,12 @@
             ((schar? x) (compile-schar x))
             ((sstring? x) (compile-sstring c rodata-offsets))
             ((snull? x) (compile-snull x)))))
-; end constant
-
-; rodata
 
 (define (sstring? x) (string? x))
-
+; TODO
 (define (compile-sstring s rodata-offsets)
     (let ((str (cadr s)) (idx (caddr s)))
-    `(call $$alloc_string 
+    `(call $$prim$make-string
         ,(inline-val str)
         (get_global $$rodata-id)
         (i32.const ,(list-ref rodata-offsets idx))
@@ -193,21 +106,19 @@
             (let ((t total))
                 (set! total (+ total l))
                 t)) lengths)))
-; end rodata
 
-; store
 (define (set!->variable s) (cadr s))
 (define (set!->expr s) (caddr s))
 (define (compile-set! expr func mappings rodata-offsets)
     `(,@(compile-func-body-expr (set!->expr expr) func mappings rodata-offsets)
-      (call $$set_slot ,(mapping->slot-ref (set!->variable expr) func))))
+      (call $$prim$set-slot ,(mapping->slot-ref (set!->variable expr) func))))
 ; end store
 
 ; scope / vars
 (define (mapping->slot-ref var func) 
     (let ((frees (func->frees func)))
         (if (member var frees)
-            `(call $$get_free (get_local $$close) 
+            `(call $$prim$get-free (get_local $$close) 
                               (i32.const ,(index var frees)))
             `(get_local ,(variable->value var)))))
 
@@ -215,22 +126,24 @@
     (let ((frees (func->frees func))
           (bounds (func->bounds func)))
         (if (or (not (member var bounds)) (member var frees))
-            `((call $$get_slot ,(mapping->slot-ref var func)))
+            `((call $$prim$get-slot ,(mapping->slot-ref var func)))
             `(,(mapping->slot-ref var func)))))
 
 (define (compile-makeclosure r func mappings)
     (let* ((idx (index (cadr r) mappings))
            (body (func->body func))
+           (bounds (caddr r))
            (frees (cadddr r)))
-        `((call $$alloc_close 
+        `((call $$prim$make-closure 
                 ,(inline-comment (string-append "func=" (symbol->string (cadr r))))
                 (i32.const ,idx) 
+                (i32.const ,(length bounds))
                 (i32.const ,(length frees)))
            ,@(apply append (map 
                 (lambda (f i) `(
                     (i32.const ,i)
                     ,(mapping->slot-ref f func)
-                    (call $$store_free)))
+                    (call $$prim$set-free)))
                 frees (range 0 (length frees) 1))))))
         
 (define (number->funcsig-name n) 
@@ -238,7 +151,7 @@
 (define (compile-apply argc) 
     `((tee_local $$tmp)
       (get_local $$tmp)
-      (call $$get_close_func_index)
+      (call $$prim$get-closure-findex (i32.const ,argc))
       (return_call_indirect (type ,(number->funcsig-name argc)))))
 ; end scope / vars
 
@@ -278,24 +191,19 @@
 (define (func->frees f) (cadddr (cdr f)))
 (define (func->locals f) (cadddr (cddr f)))
 (define (func->body f) (cdddr (cdddr f)))
-; TODO - need to compute locals so that we can include them in the prelude of each func
-;        this is slightly harder because the instructions are not flattened yet anymore
-;        so either I need to traverse the tree to make the list of non bound/free set!/refers
-;        or i need to compute locals while building the func, possibly in liftlambda, because
-;        I am already walking the tree anyway, might as well add another list in the func for locals
 
 (define (func->wparams f)
     (let ((bounds (func->bounds f)))
-        (map (lambda (p) `(param ,(variable->value p) i32)) bounds)))
+        (map (lambda (p) `(param ,(variable->value p) anyref)) bounds)))
 
 (define (func->wlocals f)
     (let ((locals (func->locals f)))
-        (map (lambda (l) `(local ,(variable->value l) i32)) locals)))
+        (map (lambda (l) `(local ,(variable->value l) anyref)) locals)))
 
 (define (func->prelude f)
     (let ((locals (func->locals f)))
         (define (local->init l)
-            `(set_local ,(variable->value l) (call $$alloc_slot)))
+            `(set_local ,(variable->value l) (call $$prim$make-slot)))
         (map local->init locals)))
 
 (define (compile-func func mappings rodata-offsets) 
@@ -306,17 +214,17 @@
         (if (eq? (func->type func) 'close)
             `(func ,(func->name func) 
                 ,@(func->wparams func) 
-                (param $$close i32) 
-                (result i32) 
+                (param $$close anyref) 
+                (result anyref) 
                 ,@(func->wlocals func) 
-                (local $$tmp i32)
+                (local $$tmp anyref)
                 ,@prelude
                 ,@compiled-body)
             `(func ,(func->name func) 
                 ,@(func->wparams func) 
-                (result i32) 
+                (result anyref) 
                 ,@(func->wlocals func) 
-                (local $$tmp i32)
+                (local $$tmp anyref)
                 ,@prelude
                 ,@compiled-body))))
 
@@ -335,32 +243,44 @@
            (rodata-offsets (rodatas->offsets rodatas))
            (cfuncs (compile-funcs funcs rodata-offsets)))
         `(module
-            (type $$fun$0 (func (param i32) (result i32)))
-            (type $$fun$1 (func (param i32) (param i32) (result i32)))
-            (type $$fun$2 (func (param i32) (param i32) (param i32) (result i32)))
-            (type $$fun$3 (func (param i32) (param i32) (param i32) (param i32) (result i32)))
-            (global $$rodata-id (import "env" "$$rodata-id") i32)
-            (global $$rodata-offset (import "env" "$$rodata-offset") i32)
+            (type $$fun$0 (func (param anyref) (result anyref)))
+            (type $$fun$1 (func (param anyref) (param anyref) (result anyref)))
+            (type $$fun$2 (func (param anyref) (param anyref) (param anyref) (result anyref)))
+            (type $$fun$3 (func (param anyref) (param anyref) (param anyref) (param anyref) (result anyref)))
+
+            (global $$iv$true (import "env" "$$iv$true") anyref)
+            (global $$iv$false (import "env" "$$iv$false") anyref)
+            (global $$iv$null (import "env" "$$iv$null") anyref)
+            (global $$iv$void (import "env" "$$iv$void") anyref)
 
             (import "env" "memory" (memory 0))
-            (import "env" "$$alloc_slot"  (func $$alloc_slot (result i32)))
-            (import "env" "$$set_slot"  (func $$set_slot (param i32 i32)))
-            (import "env" "$$get_slot"      (func $$get_slot (param i32) (result i32)))
-            (import "env" "$$alloc_pair"  (func $$alloc_pair (param i32 i32) (result i32)))
-            (import "env" "$$car"         (func $$car (param i32) (result i32)))
-            (import "env" "$$cdr"         (func $$cdr (param i32) (result i32)))
-            (import "env" "$$alloc_close" (func $$alloc_close (param i32 i32) (result i32)))
-            (import "env" "$$store_free"  (func $$store_free (param i32 i32 i32) (result i32)))
-            (import "env" "$$get_free"    (func $$get_free (param i32 i32) (result i32)))
-            (import "env" "$$get_close_func_index"    (func $$get_close_func_index (param i32) (result i32)))
-            (import "env" "$$alloc_string"    (func $$alloc_string (param i32 i32 i32) (result i32)))
+            (import "env" "$$prim$make-number"        (func $$prim$make-number (param i32) (result anyref)))
+            (import "env" "$$prim$add"                (func $$prim$add (param anyref anyref) (result anyref)))
+            (import "env" "$$prim$sub"                (func $$prim$sub (param anyref anyref) (result anyref)))
+            (import "env" "$$prim$le_s"               (func $$prim$le_s (param anyref anyref) (result anyref)))
 
-            (data (get_global $$rodata-offset) ,(rodatas->wasm-data-section rodatas))
+            (import "env" "$$prim$test"               (func $$prim$test (param anyref) (result i32)))
+
+            (import "env" "$$prim$make-char"          (func $$prim$make-char (param i32) (result anyref)))
+
+            (import "env" "$$prim$make-slot"          (func $$prim$make-slot (result anyref)))
+            (import "env" "$$prim$set-slot"           (func $$prim$set-slot (param anyref anyref)))
+            (import "env" "$$prim$get-slot"           (func $$prim$get-slot (param anyref) (result anyref)))
+            (import "env" "$$prim$cons"               (func $$prim$cons (param anyref anyref) (result anyref)))
+            (import "env" "$$prim$car"                (func $$prim$car (param anyref) (result anyref)))
+            (import "env" "$$prim$cdr"                (func $$prim$cdr (param anyref) (result anyref)))
+
+            (import "env" "$$prim$make-closure"       (func $$prim$make-closure (param i32 i32 i32) (result anyref)))
+            (import "env" "$$prim$set-free"           (func $$prim$set-free (param anyref i32 anyref) (result anyref)))
+            (import "env" "$$prim$get-free"           (func $$prim$get-free (param anyref i32) (result anyref)))
+            (import "env" "$$prim$get-closure-findex" (func $$prim$get-closure-findex (param anyref i32) (result i32)))
+            ;(import "env" "$$prim$make-string"        (func $$prim$make-string (param i32 i32 i32) (result i32)))
+            ;(data (get_global $$rodata-offset) ,(rodatas->wasm-data-section rodatas))
 
             ,(funcs->table funcs)
             ,(funcs->elems funcs)
 
-            (func $$main (result i32) (call $$fentry))
+            (func $$main (result anyref) (call $$fentry))
 
             ,@cfuncs
             (export "main" (func $$main))

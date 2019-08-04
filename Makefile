@@ -1,14 +1,12 @@
-RUST_TARGET = wasm32-unknown-unknown
-RUST_ARGS = --release --target $(RUST_TARGET)
-RUST_TOML = runtime/Cargo.toml
+NODE_FLAGS= --expose-wasm --experimental-modules \
+		    --experimental-wasm-return_call \
+		    --experimental-wasm-anyref
 
-RUST_OUT_DIR = runtime/target/wasm32-unknown-unknown/release
-RUST_RUNTIME_WASM = runtime/target/wasm32-unknown-unknown/release/runtime.wasm
+example: examples/test.wasm examples/test.wat
+	node $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
 
-example: examples/runtime.wat examples/test.wasm examples/test.wat
-	node --expose-wasm --experimental-modules \
-		--experimental-wasm-return_call \
-		host/src/node.mjs examples/runtime.wasm examples/test.wasm
+example-debug: examples/test.wasm examples/test.wat
+	node --inspect-brk $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
 
 test:
 	chibi-scheme -I compiler/src -I compiler/tests compiler/tests/tests.scm
@@ -17,24 +15,10 @@ test:
 	chibi-scheme -I compiler/src compiler/src/loki.scm $< $@
 
 %.wasm: %.wat
-	wat2wasm --enable-tail-call --debug-names $< -o $@
-
-$(RUST_RUNTIME_WASM): runtime/src/**
-	cargo +nightly build $(RUST_ARGS) --manifest-path $(RUST_TOML)
-
-examples/runtime.wasm:$(RUST_RUNTIME_WASM)
-	cp $< $@
-
-examples/runtime.wat: examples/runtime.wasm
-	wasm2wat --enable-tail-call $< -o $@
+	wat2wasm --enable-reference-types --enable-tail-call --debug-names $< -o $@
 
 http:
 	http-server
 
-clean-scm:
+clean: 
 	rm -f examples/*.wasm examples/*.wat
-
-clean-rt:
-	rm -rf runtime/target
-
-clean: clean-scm clean-rt

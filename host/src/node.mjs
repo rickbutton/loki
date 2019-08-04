@@ -6,14 +6,9 @@ function getModuleBuffer(path) {
 }
 
 async function run() {
-    const runtimePath = process.argv[2];
-    const modulePath = process.argv[3];
+    const modulePath = process.argv[2];
 
-    const runtimeBuffer = getModuleBuffer(runtimePath);
-
-    const loki = new Loki(runtimeBuffer);
-    await loki.init(runtimeBuffer);
-
+    const loki = new Loki();
     const value = await loki.load(getModuleBuffer(modulePath));
     console.log(value);
 }

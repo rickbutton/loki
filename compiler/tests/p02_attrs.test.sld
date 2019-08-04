@@ -157,7 +157,7 @@
         (test-fail '(define (name x x) x))
 
         ;intrinsics
-        (test-pass '%%prim%add)
+        (test-pass '$$prim$add)
 
         (map (lambda (p)
             (test-was-ref get-second-expr-in-begin `(begin

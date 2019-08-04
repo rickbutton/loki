@@ -1,132 +1,149 @@
-const fixnumShift = 2;
-const fixnumMask = 0b11;
-const fixnumTag = 0b00;
-
-const booleanTrue = 0b10011111;
-const booleanFalse = 0b00011111;
-
-const charShift = 8;
-const charMask = 0b01111111;
-const charTag =  0b00001111;
-
-const nullTag = 0b00101111;
-
-const objMask = 0b111;
-const objTag = 0b001;
-
-function stringToString(val, runtime) {
-    return `\"${runtime.getString(val)}\"`;
+function error(msg) {
+    throw new Error(msg);
 }
 
-function pairToString(val, runtime) {
-    const car = runtime.car(val);
-    const cdr = runtime.cdr(val);
+const Null = {};
+const Void = {};
 
-    return `(${valueToString(car, runtime)} . ${valueToString(cdr, runtime)})`;
+class Slot {
+    constructor() {
+        this.value = Void;
+    }
 }
-
-function objToString(val, runtime) {
-    if (runtime.isPair(val)) {
-        return pairToString(val, runtime);
-    } else if (runtime.isClose(val)) {
-        return "#<procedure>";
-    } else if (runtime.isSlot(val)) {
-        return `slot(${valueToString(runtime.unslot(val))})`;
-    } else if (runtime.isString(val)) {
-        return stringToString(val, runtime);
+class Pair {
+    constructor(car, cdr) {
+        this.car = car;
+        this.cdr = cdr;
+    }
+}
+class Closure {
+    constructor(index, nbounds, nfrees) {
+        this.index = index;
+        this.nbounds = nbounds;
+        this.nfrees = nfrees;
+        this.frees = [];
     }
 }
 
-function valueToString(expr, runtime) {
-    if ((expr & fixnumMask) === fixnumTag) {
-        return String(expr >> fixnumShift);
-    } else if ((expr & charMask) === charTag) {
-        return String.fromCharCode(expr >> charShift);
-    } else if (expr === booleanTrue) {
-        return "true";
-    } else if (expr === booleanFalse) {
-        return "false";
-    } else if (expr === nullTag) {
+function isNumber(v) { return typeof v === "number" && ((v & 1) === 0); }
+function isChar(v) { return typeof v === "number" && ((v & 1) === 1); }
+function isBoolean(v) { return typeof v === "boolean"; }
+
+function isSlot(v) { return v instanceof Slot; }
+function isPair(v) { return v instanceof Pair; }
+function isClosure(v) { return v instanceof Closure }
+
+function assertPrimArgIsType(prim, value, typePred) {
+    const values = Array.isArray(value) ? value : [value];
+    for (const v of values) {
+        if (!typePred(v)) {
+            throw new Error(`invalid argument type to primitive ${prim}`);
+        }
+    }
+}
+
+function schemeValueToString(value) {
+    if (isNumber(value)) {
+        return String(value >> 1);
+    } else if (isChar(value)) {
+        return String.fromCharCode(value >> 1);
+    } else if (isBoolean(value)) {
+        return value ? "#t" : "#f";
+    } else if (isPair(value)) {
+        const car = schemeValueToString(value.car);
+        const cdr = schemeValueToString(value.cdr);
+        return `(${car} . ${cdr})`;
+    } else if (value === NULL) {
         return "()";
-    } else if ((expr & objMask) == objTag) {
-        return objToString(expr, runtime);
+    } else if (value === VOID) {
+        return "<#void>";
+    } else if (isClosure(value)) {
+        return `<#closure(${value.nbounds})`;
     } else {
-        console.log("unknown expr");
-        console.log(expr);
-        console.log(expr.toString(2));
-        throw expr;
+        throw new Error(`unknown value ${value}`);
     }
 }
 
-class Runtime {
-    constructor(mod) {
-        this.module = mod;
-    }
+function getPrimitives() {
+    return {
+        "$$prim$make-number": (n) => n << 1,
+        "$$prim$add": (a, b) => {
+            assertPrimArgIsType("$$prim$add", [a, b], isNumber);
+            return a + b;
+        },
+        "$$prim$sub": (a, b) => {
+            assertPrimArgIsType("$$prim$sub", [a, b], isNumber);
+            return a - b;
+        },
+        "$$prim$le_s": (a, b) => {
+            assertPrimArgIsType("$$prim$le_s", [a, b], isNumber);
+            return a <= b;
+        },
+        "$$prim$test": (v) => {
+            return v === false ? 0 : 1;
+        },
 
-    get exports() {
-        return this.module.exports;
-    }
+        "$$prim$make-char": (n) => (n << 1) | 1,
 
-    isSlot(val) { return this.exports.is_slot(val); }
-    unslot(val) { return this.exports.unslot(val); }
-
-    isPair(val) { return this.exports.is_pair(val); }
-    car(pair) { return this.exports.car(pair); }
-    cdr(pair) { return this.exports.cdr(pair); }
-
-    isClose(val) { return this.exports.is_close(val); }
-    isString(val) { return this.exports.is_string(val); }
-
-    allocRodata() { return this.exports.alloc_rodata(); }
-    getRodataOffset(id) { return this.exports.get_rodata_offset(id); }
-
-    getStringLength(val) { return this.exports.get_string_length(val); }
-    getStringOffset(val) { return this.exports.get_string_offset(val); }
-
-    getString(val) {
-        const length = this.getStringLength(val);
-        const offset = this.getStringOffset(val);
-
-        const buffer = this.module.exports.memory.buffer;
-        const array = new Uint8Array(buffer, offset, length);
-        return new TextDecoder("utf-8").decode(array);
-    }
+        "$$prim$make-slot": () => new Slot(),
+        "$$prim$set-slot": (v, s) => {
+            assertPrimArgIsType("$$prim$set-slot", s, isSlot);
+            s.value = v;
+        },
+        "$$prim$get-slot": (s) => {
+            if (isSlot(s)) {
+                return s.value;
+            } else {
+                return s;
+            }
+        },
+        "$$prim$cons": (car, cdr) => new Pair(car, cdr),
+        "$$prim$car": (pair) => {
+            assertPrimArgIsType("$$prim$car", pair, isPair);
+            return pair.car;
+        },
+        "$$prim$cdr": (pair) => {
+            assertPrimArgIsType("$$prim$car", pair, isPair);
+            return pair.cdr;
+        },
+        "$$prim$make-closure": (findex, nbounds, nfrees) => {
+            return new Closure(findex, nbounds, nfrees);
+        },
+        "$$prim$set-free": (c, i, v) => {
+            assertPrimArgIsType("$$prim$set-free", c, isClosure);
+            c.frees[i] = v;
+            return c;
+        },
+        "$$prim$get-free": (c, i) => {
+            assertPrimArgIsType("$$prim$get-free", c, isClosure);
+            return c.frees[i];
+        },
+        "$$prim$get-closure-findex": (c, nbounds) => {
+            assertPrimArgIsType("$$prim$get-closure-findex", c, isClosure);
+            if (c.nbounds !== nbounds) {
+                error(`invalid application, expected ${c.nbounds} arguments, but received ${nbounds}`);
+            }
+            return c.index;
+        },
+        "$$iv$true": true,
+        "$$iv$false": false,
+        "$$iv$null": Null,
+        "$$iv$void": Void,
+    };
 }
 
 export class Loki {
-    async init(runtimeBuffer) {
-        const mod = await WebAssembly.compile(runtimeBuffer);
-        this.runtime = new Runtime(await WebAssembly.instantiate(mod));
-    }
-
     async load(buffer) {
         const mod = await WebAssembly.compile(buffer);
 
-        const rodataId = this.runtime.allocRodata();
-        const rodataOffset = this.runtime.getRodataOffset(rodataId);
-
+        const memory = new WebAssembly.Memory({ initial: 1 });
+        const primitives = getPrimitives();
         const instance = await WebAssembly.instantiate(mod, {
-            env: {
-                memory: this.runtime.exports.memory,
-                "$$alloc_slot": this.runtime.exports.alloc_slot,
-                "$$set_slot": this.runtime.exports.set_slot,
-                "$$get_slot": this.runtime.exports.get_slot,
-                "$$alloc_pair": this.runtime.exports.alloc_pair,
-                "$$car": this.runtime.exports.car,
-                "$$cdr": this.runtime.exports.cdr,
-                "$$alloc_close": this.runtime.exports.alloc_close,
-                "$$store_free": this.runtime.exports.store_free,
-                "$$get_free": this.runtime.exports.get_free,
-                "$$get_close_func_index": this.runtime.exports.get_close_func_index,
-                "$$alloc_string": this.runtime.exports.alloc_string,
-
-                "$$rodata-id": rodataId,
-                "$$rodata-offset": rodataOffset,
-            }
+            env: Object.assign({ memory }, primitives),
         });
 
         const main = instance.exports.main;
         const ret = main();
-        return valueToString(ret, this.runtime);
+        return schemeValueToString(ret, this.runtime);
     }
 }
