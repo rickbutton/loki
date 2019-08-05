@@ -49,7 +49,8 @@
 (define (rodatas->lengths rodatas) (map rodata->length rodatas))
 (define (rodatas->wasm-datas rodatas) (map rodata->wasm-data rodatas))
 (define (rodatas->wasm-data-section rodatas)
-    (let ((section (string-join (rodatas->wasm-datas rodatas) "")))
+    (let ((section (apply string-append 
+            (rodatas->wasm-datas rodatas))))
         (if (= (string-length section) 0) "" section)))
 (define (rodatas->offsets rodatas)
     (let ((lengths (rodatas->lengths rodatas))

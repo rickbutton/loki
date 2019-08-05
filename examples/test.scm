@@ -7,4 +7,4 @@
             (fib ($$prim$sub n 1)) 
             (fib ($$prim$sub n 2))))))
 
-($$prim$cons (fib 25) str)
+($$prim$cons 'symbol ($$prim$cons (fib 25) str))

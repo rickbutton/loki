@@ -38,7 +38,11 @@
                     `(begin ,@(map-body exprs)))
                 (('makeclosure args ...) expr)
                 (('quote expr) (map-expr expr))
-                ('(set! var expr)
+                (('intrinsic op args ... k) 
+                    `(intrinsic ,op 
+                        ,@(map-body args)
+                        ,(map-expr k)))
+                (('set! var expr)
                     `(set! ,var ,(map-expr expr)))
                 (('if condition conseq alt)
                     `(if

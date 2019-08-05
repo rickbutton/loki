@@ -41,6 +41,7 @@
 (define (handle-error e)
     (display "compile error: ")
     (display (show #f (pretty e)))
+    (raise e)
     (exit 1))
 
 (define (compile prog)
