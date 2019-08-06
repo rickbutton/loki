@@ -28,6 +28,7 @@ make example
     - null
     - pairs
     - strings
+    - symbols
 - operations
     - simple math operations
     - pair operations (cons/car/cdr)
@@ -35,6 +36,8 @@ make example
         - le_s
 - syntax
     - (begin exprs ...)
+    - (quote expr) **no quasi/unquote**
+    - (if test t f) **(no single arm if)**
     - (define var expr) **(no (define (var formals) body))**
     - (set! var expr)
     - (lambda (formals) body)
