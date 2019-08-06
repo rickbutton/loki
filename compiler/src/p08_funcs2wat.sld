@@ -91,6 +91,13 @@
     (define (compile-snull) `(get_global $$iv$null))
     (define (compile-void) `(get_global $$iv$void))
 
+    (define (compile-quote expr func)
+        (if (and (pair? expr) (not (equal? (car expr) 'rodata)))
+            `((call $$prim$cons
+                ,@(compile-quote (car expr) func)
+                ,@(compile-quote (cdr expr) func)))
+            (compile-expr expr func)))
+
     (define (intrinsic->wasm-op i) `((call ,(intrinsic->name i))))
     (define (compile-intrinsic intrinsic args k func)
         `(,@(compile-func-body args func)
@@ -184,6 +191,7 @@
         (match expr
             (('begin exprs ...)
                 (compile-func-body exprs func))
+            (('quote expr) (compile-quote expr func))
             (('makeclosure args ...) (compile-makeclosure expr func))
             (('set! args ...) (compile-set! expr func))
             (('set-rodata index rodata) (compile-set-rodata index rodata))

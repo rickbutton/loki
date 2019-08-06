@@ -37,7 +37,7 @@
                 (('begin exprs ...)
                     `(begin ,@(map-body exprs)))
                 (('makeclosure args ...) expr)
-                (('quote expr) (map-expr expr))
+                (('quote expr) `(quote ,(map-expr expr)))
                 (('intrinsic op args ... k) 
                     `(intrinsic ,op 
                         ,@(map-body args)

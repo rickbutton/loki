@@ -32,8 +32,8 @@
         ((or ('lambda (_ ...) _)
              (? variable?)
              (? intrinsic?)
-             (? constant?)
-             (? quote?)) #t) ; TODO - support quote?
+             (? quote?)
+             (? constant?)) #t)
         (else #f)))
 
 (define (T-k expr k)

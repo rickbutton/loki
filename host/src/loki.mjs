@@ -56,9 +56,17 @@ function schemeValueToString(value) {
         const str = value.toString();
         return str.substring(7, str.length - 1);
     } else if (isPair(value)) {
-        const car = schemeValueToString(value.car);
-        const cdr = schemeValueToString(value.cdr);
-        return `(${car} . ${cdr})`;
+        const { car, cdr } = value;
+        const carString = schemeValueToString(value.car);
+        const cdrString = schemeValueToString(value.cdr);
+
+        if (value.cdr === null) {
+            return `(${carString})`;
+        } else if (isPair(value.cdr)) {
+            return `(${carString} ${cdrString.substring(1)}`;
+        } else {
+            return `(${carString} . ${cdrString.substring(1)})`;
+        }
     } else if (value === null) {
         return "()";
     } else if (value === Void) {
