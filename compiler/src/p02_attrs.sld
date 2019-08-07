@@ -236,6 +236,13 @@
             (mark-primitive-syntax syntax)
             scopes))
 
+    (define (call/cc-syntax? syntax scopes) (prim-symbol-syntax? syntax 'call/cc scopes))
+    (define (walk-syntax-validate-call/cc syntax scopes)
+        (let ((expr-syntax (safe-cdr-syntax syntax)))
+            (walk-syntax-validate-expression expr-syntax 'none scopes)
+            (mark-primitive-syntax syntax)
+            scopes))
+
     (define (lambda-formals-syntax->names* syntax names) 
         (if (null-syntax? syntax) 
             names 
@@ -254,7 +261,6 @@
                     (raise "invalid syntax, expected symbol in lambda formals"))
                 (if (not (null-syntax? cdr-syntax))
                     (mark-lambda-formals-declaration cdr-syntax scopes)))))
-
 
     (define (walk-syntax-validate-lambda syntax scopes) 
         (walk-syntax-validate-lambda-formals (safe-cadr-syntax syntax) '())
@@ -316,6 +322,8 @@
                     ((define-syntax? syntax scopes) (walk-syntax-validate-define syntax scopes))
                     ; (begin 123)
                     ((begin-syntax? syntax scopes) (walk-syntax-validate-begin syntax scopes))
+                    ; (call/cc (lambda (k) (k 123)))
+                    ((call/cc-syntax? syntax scopes) (walk-syntax-validate-call/cc syntax scopes))
                     ; (op operand...)
                     ((cons-syntax? syntax)
                         (walk-syntax-validate-expression (cons-syntax->car syntax) quote-context scopes)

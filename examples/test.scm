@@ -7,10 +7,10 @@
             (fib ($$prim$sub n 1)) 
             (fib ($$prim$sub n 2))))))
 
-($$prim$cons 
-      'symbol 
-      ($$prim$cons 
-            (fib 25)
-            ($$prim$cons
-                  str
-                  '())))
+(call/cc (lambda (k) (k ($$prim$cons 
+                        'symbol 
+                        ($$prim$cons 
+                              (fib 25)
+                              ($$prim$cons
+                                    str
+                                    '()))))))

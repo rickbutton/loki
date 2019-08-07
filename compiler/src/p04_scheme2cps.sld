@@ -13,6 +13,8 @@
 (define rvid (make-anon-id "$rv_"))
 (define kid (make-anon-id "$k_"))
 
+
+
 (define (rvid-var) (let ((id (rvid))) (make-variable id)))
 (define (kid-var) (let ((id (kid))) (make-variable id)))
 
@@ -30,6 +32,7 @@
 (define (aexpr? expr)
     (match expr
         ((or ('lambda (_ ...) _)
+             'call/cc
              (? variable?)
              (? intrinsic?)
              (? quote?)
@@ -91,7 +94,7 @@
         ((f es ...)
             (T-k f (lambda ($f)
                 (T*-k es (lambda ($es)
-                    `(,f ,@$es ,c))))))))
+                    `(,$f ,@$es ,c))))))))
 
 (define (T*-k exprs k)
     (cond
@@ -103,11 +106,24 @@
 (define (intrisnic-call? x)
     (and (list? x) (intrinsic? (car x) )))
 
+; for call/cc
+; TODO - clean this up?
+(define fid (make-anon-id "$f_"))
+(define ccid (make-anon-id "$cc_"))
+(define xid (make-anon-id "$x_"))
+(define emptyid (make-anon-id "$__"))
+
 (define (M aexpr)
     (match aexpr
         (('lambda (vars ...) body)
             (let (($k (kid-var)))
                 `(lambda (,@vars ,$k) ,(T-c body $k))))
+        ((or 'call/cc) 
+            (let ((f (make-variable (fid)))
+                  (cc (make-variable (ccid)))
+                  (x (make-variable (xid)))
+                  (_ (make-variable (emptyid))))
+                `(lambda (,f ,cc) (,f (lambda (,x ,_) (,cc ,x)) ,cc))))
         ((? constant?) aexpr)
         ((? variable?) aexpr)
         ((? quote?) aexpr)
