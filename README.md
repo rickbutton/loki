@@ -37,7 +37,7 @@ make example
     - (begin exprs ...)
     - (quote expr) **no quasi/unquote**
     - (if test t f) **(no single arm if)**
-    - (define var expr) **(no (define (var formals) body))**
+    - (define var expr) **(no `(define (var formals ...) body)`)**
     - (set! var expr)
     - (lambda (formals) body)
     - (call/cc (lambda (k) (k ...)))
