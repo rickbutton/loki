@@ -28,6 +28,7 @@ make example
     - pairs
     - strings
     - symbols
+    - functions
 - operations
     - simple math operations
     - pair operations (cons/car/cdr)
