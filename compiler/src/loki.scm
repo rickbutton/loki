@@ -5,6 +5,7 @@
 (import (scheme repl))
 (import (scheme process-context))
 (import (util))
+(import (shared))
 
 (import (p00_string2tokens))
 (import (p01_tokens2syntax))
@@ -38,11 +39,27 @@
         (show p (program->wat program))
         (close-output-port p)))
 
-(define (handle-error e)
-    (display "compile error: ")
+(define (handle-compile-error e)
+    (let ((location (compile-error->location e))
+          (message (compile-error->message e)))
+        (display "compile error at ")
+        (display (source-location->string location))
+        (display ": ")
+        (display message)
+        (display "\n")
+        (display "\n")
+        (exit 1)))
+
+(define (handle-unexpected-error e)
+    (display "unexpected error in compiler: ")
     (display (show #f (pretty e)))
     (raise e)
     (exit 1))
+
+(define (handle-error e)
+    (if (compile-error? e)
+        (handle-compile-error e)
+        (handle-unexpected-error e)))
 
 (define (compile prog)
     (call/cc (lambda (k)

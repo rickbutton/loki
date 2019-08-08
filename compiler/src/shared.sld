@@ -10,6 +10,7 @@
         make-source-location
         source-location->line
         source-location->col
+        source-location->string
 
         make-token
         token?
@@ -45,6 +46,12 @@
         make-comment
         comment?
         comment->text
+
+        make-compile-error
+        compile-error?
+        compile-error->location
+        compile-error->message
+        raise-syntax-error
         
         syntax->attrs
         syntax-get-attr
@@ -68,6 +75,13 @@
     (line source-location->line)
     (col  source-location->col)
     (offset source-location->offset))
+(define (source-location->string l)
+    (string-append 
+        "["
+        (number->string (source-location->line l))
+        ":"
+        (number->string (source-location->col l))
+        "]"))
 
 (define-record-type <token>
     (make-token string type value location)
@@ -147,6 +161,21 @@
     (lambda (x writer out) 
         (display (string-append "(;" (comment->text x) ";)") out)))
 
+(define-record-type <compile-error>
+    (make-compile-error location message)
+    compile-error?
+    (location compile-error->location)
+    (message compile-error->message))
+
+(define (syntax->location syntax)
+    (cond
+        ((cons-syntax? syntax) (cons-syntax->start syntax))
+        ((atom-syntax? syntax) 
+            (token->location (atom-syntax->token syntax)))
+        (else (raise "unknown syntax type when getting token"))))
+(define (raise-syntax-error syntax message)
+    (let ((location (syntax->location syntax)))
+        (raise (make-compile-error location message))))
 
 (define (syntax->attrs syntax)
     (cond

@@ -104,10 +104,10 @@
                         (walk-syntax-validate-expression expression 'none scopes)
                         (mark-primitive-syntax syntax)
                         (mark-symbol-reference identifier scopes))
-                    (raise (string-append 
+                    (raise-syntax-error syntax (string-append 
                         "attempted to set! undefined variable " 
                         (symbol->string (atom-syntax->value identifier)))))
-                (raise "invalid set! syntax"))
+                (raise-syntax-error syntax "invalid set! syntax"))
             scopes))
 
     (define (quote-syntax? syntax scopes) (prim-symbol-syntax? syntax 'quote scopes))
@@ -156,11 +156,11 @@
             (walk-syntax-validate-expression test 'none scopes)
             (if (and (not (null-syntax? consequent)) (not (equal? #f consequent)))
                 (walk-syntax-validate-expression consequent 'none scopes)
-                (raise "invalid if syntax, not enough arguments"))
+                (raise-syntax-error syntax "invalid if syntax, not enough arguments"))
             (if (not (null-syntax? alternate))
                 (walk-syntax-validate-expression alternate 'none scopes))
             (if (not (or (equal? #f end) (null-syntax? end)))
-                (raise "invalid if syntax, too many arguments"))
+                (raise-syntax-error syntax "invalid if syntax, too many arguments"))
             (mark-primitive-syntax syntax)
             scopes))
 
@@ -178,7 +178,7 @@
                            (lambda-formals (safe-cdr-syntax formals))
                            (lambda-names (lambda-formals-syntax->names lambda-formals)))
                         (if (not (symbol-syntax? id))
-                            (raise "invalid define syntax, attempted to define non-symbol"))
+                            (raise-syntax-error syntax "invalid define syntax, attempted to define non-symbol"))
                         (walk-syntax-validate-lambda-formals lambda-formals '())
                         (let* ((cont-scopes (add-var-name (atom-syntax->value id) scopes 'ignore))
                                (body-scopes (fold-right (lambda (n s) (add-var-name n s 'strict)) (add-new-scope cont-scopes) lambda-names)))
@@ -188,24 +188,24 @@
                             (mark-lambda-formals-declaration lambda-formals body-scopes)
                             cont-scopes)))
                 ((symbol-syntax? formals)
-                    (if (null-syntax? body) (raise "invalid define syntax, expected expression in define"))
+                    (if (null-syntax? body) (raise-syntax-error syntax "invalid define syntax, expected expression in define"))
                     (if (null-syntax? (safe-cdr-syntax body))
                         (let ((cont-scopes (add-var-name (atom-syntax->value formals) scopes 'ignore)))
                             (walk-syntax-validate-expression (safe-car-syntax body) 'none cont-scopes)
                             (mark-primitive-syntax syntax)
                             (mark-symbol-declaration formals cont-scopes)
                             cont-scopes)
-                        (raise "invalid define syntax, expected single expression in define")))
-                (else (raise "invalid define syntax, attempted to define non-symbol")))))
+                        (raise-syntax-error syntax "invalid define syntax, expected single expression in define")))
+                (else (raise-syntax-error syntax "invalid define syntax, attempted to define non-symbol")))))
 
     ; TODO: for now, this will only validate that at least one expression exists
     (define (walk-syntax-validate-body syntax scopes initial)
         (if (null-syntax? syntax)
-            (if initial (raise "invalid empty body syntax, expected expression inside body"))
+            (if initial (raise-syntax-error syntax "invalid empty body syntax, expected expression inside body"))
             (if (cons-syntax? syntax) ; body has at least one expression
                 (let ((new-scopes (walk-syntax-validate-expression (safe-car-syntax syntax) 'none scopes)))
                     (walk-syntax-validate-body (safe-cdr-syntax syntax) new-scopes #f))
-                (raise "invalid body syntax"))))
+                (raise-syntax-error syntax "invalid body syntax"))))
 
     (define (lambda-syntax? syntax scopes) (prim-symbol-syntax? syntax 'lambda scopes))
     ; TODO - handle other types of formals
@@ -216,16 +216,16 @@
                 (if (symbol-syntax? (safe-car-syntax syntax))
                     (let ((name (atom-syntax->value (safe-car-syntax syntax))))
                         (if (member name names)
-                            (raise (string-append
+                            (raise-syntax-error syntax (string-append
                                 "invalid lambda formals syntax, attempted to declare variable "
                                 (symbol->string name)
                                 " more than once"))
                             (walk-syntax-validate-lambda-formals 
                                 (safe-cdr-syntax syntax) 
                                 (cons name names))))
-                    (raise "invalid lambda formal syntax, formals can only be symbols"))
+                    (raise-syntax-error syntax "invalid lambda formal syntax, formals can only be symbols"))
                 ; else, formals is invalid
-                (raise "invalid lambda formals syntax"))
+                (raise-syntax-error syntax "invalid lambda formals syntax"))
             ; formals are null, which is valid
             #t))
 
@@ -258,7 +258,7 @@
                 (cdr-syntax (cons-syntax->cdr formals)))
                 (if (symbol-syntax? car-syntax)
                     (mark-symbol-declaration car-syntax scopes)
-                    (raise "invalid syntax, expected symbol in lambda formals"))
+                    (raise-syntax-error syntax "invalid syntax, expected symbol in lambda formals"))
                 (if (not (null-syntax? cdr-syntax))
                     (mark-lambda-formals-declaration cdr-syntax scopes)))))
 
@@ -285,24 +285,24 @@
                             (begin
                                 (mark-primitive-syntax syntax)
                                 (walk-syntax-validate-expression (quote->datum syntax) 'quote scopes))
-                            (raise "invalid quote syntax")))
+                            (raise-syntax-error syntax "invalid quote syntax")))
                     ; (quasiquote <datum>)
                     ((quasiquote-syntax? syntax scopes) 
                         (if (valid-quasiquote-syntax? syntax scopes) 
                             (begin
                                 (mark-primitive-syntax syntax)
                                 (walk-syntax-validate-expression (quote->datum syntax) 'quasiquote scopes))
-                            (raise "invalid quasiquote syntax")))
+                            (raise-syntax-error syntax "invalid quasiquote syntax")))
                     ; (unquote <expression>)
                     ((unquote-syntax? syntax scopes)
                         (if (valid-unquote-syntax? syntax scopes)
-                            (raise "invalid attempt to unquote when not in quasiquote")
-                            (raise "invalid unquote syntax")))
+                            (raise-syntax-error syntax "invalid attempt to unquote when not in quasiquote")
+                            (raise-syntax-error syntax "invalid unquote syntax")))
                     ; (unquote-splicing <expression>)
                     ((unquote-splicing-syntax? syntax scopes)
                         (if (valid-unquote-splicing-syntax? syntax scopes)
-                            (raise "invalid attempt to unquote-splicing when not in quasiquote")
-                            (raise "invalid unquote-splicing syntax")))
+                            (raise-syntax-error syntax "invalid attempt to unquote-splicing when not in quasiquote")
+                            (raise-syntax-error syntax "invalid unquote-splicing syntax")))
                     ; <intrinsic>
                     ((symbol-intrinsic-syntax? syntax)
                         (mark-symbol-intrinsic-syntax syntax))
@@ -310,7 +310,7 @@
                     ((symbol-syntax? syntax)
                         (if (var-exists? (atom-syntax->value syntax) scopes)
                             (mark-symbol-reference syntax scopes)
-                            (raise (string-append "attempted to reference undefined variable " (symbol->string (atom-syntax->value syntax))))))
+                            (raise-syntax-error syntax (string-append "attempted to reference undefined variable " (symbol->string (atom-syntax->value syntax))))))
                     ; (set! <variable> <expression>)
                     ((set!-syntax? syntax scopes) (walk-syntax-validate-set! syntax scopes))
                     ; (if test conse alte) / (if test conse)
@@ -338,13 +338,13 @@
                             (begin
                                 (mark-primitive-syntax syntax)
                                 (walk-syntax-validate-expression (unquote->expr syntax) 'none scopes))
-                            (raise "invalid unquote syntax")))
+                            (raise-syntax-error syntax "invalid unquote syntax")))
                     ((unquote-splicing-syntax? syntax scopes)
                         (if (valid-unquote-splicing-syntax? syntax scopes)
                             (begin
                                 (mark-primitive-syntax syntax)
                                 (walk-syntax-validate-expression (unquote->expr syntax) 'none scopes))
-                            (raise "invalid unquote-splicing syntax")))
+                            (raise-syntax-error syntax "invalid unquote-splicing syntax")))
                     ((cons-syntax? syntax)
                         (walk-syntax-validate-expression (cons-syntax->car syntax) quote-context scopes)
                         (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes)
