@@ -38,9 +38,9 @@ make example
     - (begin exprs ...)
     - (quote expr) **no quasi/unquote**
     - (if test t f) **(no single arm if)**
-    - (define var expr) **(no (define (var formals) body))**
+    - (define var expr) **(no `(define (var formals ...) body)`)**
     - (set! var expr)
-    - (lambda (formals) body)
+    - (lambda (formals ...) body)
     - (call/cc (lambda (k) (k ...)))
 
 A CPS transformation is done to the source, which enables full tail call optimization and first class continuations. (preliminary call/cc support has landed!)
