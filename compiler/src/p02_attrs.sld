@@ -238,8 +238,8 @@
 
     (define (call/cc-syntax? syntax scopes) (prim-symbol-syntax? syntax 'call/cc scopes))
     (define (walk-syntax-validate-call/cc syntax scopes)
-        (let ((expr-syntax (safe-cdr-syntax syntax)))
-            (walk-syntax-validate-expression expr-syntax 'none scopes)
+        (let ((args (safe-cdr-syntax syntax)))
+            (walk-syntax-validate-body args scopes #t)
             (mark-primitive-syntax syntax)
             scopes))
 

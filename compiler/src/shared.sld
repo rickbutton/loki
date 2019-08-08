@@ -88,6 +88,15 @@
     (attrs cons-syntax->attrs))
 (define (make-cons-syntax start car cdr)
     (make-cons-syntax-record start car cdr (make-attrs)))
+(type-printer-set! <cons-syntax> 
+    (lambda (x writer out) 
+        (display (string-append 
+            "("
+            (show #f (cons-syntax->car x))
+            " . "
+            (show #f (cons-syntax->cdr x))
+            ")"
+            ) out)))
 
 (define-record-type <atom-syntax>
     (make-atom-syntax-record type token value attrs)
@@ -98,6 +107,9 @@
     (attrs atom-syntax->attrs))
 (define (make-atom-syntax type token value)
     (make-atom-syntax-record type token value (make-attrs)))
+(type-printer-set! <atom-syntax> 
+    (lambda (x writer out) 
+        (display (show #f (atom-syntax->value x)) out)))
 
 (define-record-type <variable>
     (make-variable value)
