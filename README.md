@@ -16,7 +16,6 @@ You will need [chibi scheme](https://github.com/ashinn/chibi-scheme/), [node](ht
 
 ```
 make example
-
 ```
 
 ### Things that work?
@@ -29,6 +28,7 @@ make example
     - pairs
     - strings
     - symbols
+    - functions
 - operations
     - simple math operations
     - pair operations (cons/car/cdr)
@@ -38,9 +38,9 @@ make example
     - (begin exprs ...)
     - (quote expr) **no quasi/unquote**
     - (if test t f) **(no single arm if)**
-    - (define var expr) **(no (define (var formals) body))**
+    - (define var expr) **(no `(define (var formals ...) body)`)**
     - (set! var expr)
-    - (lambda (formals) body)
+    - (lambda (formals ...) body)
     - (call/cc (lambda (k) (k ...)))
 
 A CPS transformation is done to the source, which enables full tail call optimization and first class continuations. (preliminary call/cc support has landed!)
