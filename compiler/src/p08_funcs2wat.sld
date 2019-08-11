@@ -242,26 +242,43 @@
         (let* ((body   (func->body func)) 
                (compiled-body (compile-func-body body func))
                (locals (func->locals func))
-               (prelude (func->prelude func)))
-            (if (eq? (func->type func) 'close)
-                `(func ,(func->name func) 
-                    ,@(func->wparams func) 
-                    (param $$close anyref) 
-                    (result anyref) 
-                    ,@(func->wlocals func) 
-                    (local $$tmp anyref)
-                    ,@prelude
-                    ,@compiled-body)
-                `(func ,(func->name func) 
-                    ,@(func->wparams func) 
-                    (result anyref) 
-                    ,@(func->wlocals func) 
-                    (local $$tmp anyref)
-                    ,@prelude
-                    ,@compiled-body))))
+               (prelude (func->prelude func))
+               (type (func->type func)))
+            (cond
+                ((eq? type 'close)
+                    `((func 
+                        ,(func->name func) 
+                        ,@(func->wparams func) 
+                        (param $$close anyref) 
+                        (result anyref) 
+                        ,@(func->wlocals func) 
+                        (local $$tmp anyref)
+                        ,@prelude
+                        ,@compiled-body)))
+                ((eq? type 'open)
+                    `((func 
+                        ,(func->name func) 
+                        ,@(func->wparams func) 
+                        (result anyref) 
+                        ,@(func->wlocals func) 
+                        (local $$tmp anyref)
+                        ,@prelude
+                        ,@compiled-body)))
+                ((eq? type 'start)
+                    `((func 
+                        ,(func->name func) 
+                        ,@(func->wparams func) 
+                        ,@(func->wlocals func) 
+                        (local $$tmp anyref)
+                        ,@prelude
+                        ,@compiled-body)
+                      (start ,(func->name func))))
+                (else (raise "unknown function type")))))
+                    
 
     (define (compile-funcs funcs) 
-        (map (lambda (func) (compile-func func)) funcs))
+        (apply append
+            (map (lambda (func) (compile-func func)) funcs)))
 
     (define (funcs->functable funcs) 
         `(table $$functable ,(length funcs) anyfunc))
@@ -316,7 +333,6 @@
 
             ,@cfuncs
             (export "main" (func $$main))
-            (export "init" (func $$finit))
         ))))
 
 (define (p08_funcs2wat rodatas-and-funcs) (compile-program rodatas-and-funcs))))

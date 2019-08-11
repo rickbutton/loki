@@ -169,10 +169,8 @@ export class Loki {
             env: Object.assign({ memory }, primitives),
         });
 
-        const init = instance.exports.init;
         const main = instance.exports.main;
 
-        init();
         const ret = main();
         return schemeValueToString(ret, this.runtime);
     }

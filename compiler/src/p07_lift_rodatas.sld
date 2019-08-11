@@ -62,11 +62,9 @@
         (define (make-init-rodata-call rodata index)
             `(set-rodata ,index ,rodata))
         (define (make-init-rodata-func rodatas)
-            `(func open $$finit () () ()
+            `(func start $$finit () () ()
                 ,@(map make-init-rodata-call 
-                    rodatas (range 0 (length rodatas) 1))
-                0)) ; TODO - remove 0, only needed because all funcs 
-                    ; must currently return a value
+                    rodatas (range 0 (length rodatas) 1))))
 
         (define (map-func f)
             (let* ((body (func->body f))
