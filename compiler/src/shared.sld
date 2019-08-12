@@ -19,19 +19,15 @@
         token->value
         token->location
         
-        make-cons-syntax
-        cons-syntax?
-        cons-syntax->start
-        cons-syntax->car
-        cons-syntax->cdr
-        cons-syntax->attrs
+        syntax
+        syntax?
+        syntax->location
+        syntax->value
+        syntax->attrs
+        pair-syntax?
 
-        make-atom-syntax
-        atom-syntax?
-        atom-syntax->type
-        atom-syntax->token
-        atom-syntax->value
-        atom-syntax->attrs
+        syntax-get-attr
+        syntax-set-attr
 
         make-variable
         variable?
@@ -52,10 +48,6 @@
         compile-error->location
         compile-error->message
         raise-syntax-error
-        
-        syntax->attrs
-        syntax-get-attr
-        syntax-set-attr
         
         safe-car-syntax
         safe-cdr-syntax
@@ -93,37 +85,16 @@
 
 (define (make-attrs) (make-hash-table))
 
-(define-record-type <cons-syntax>
-    (make-cons-syntax-record start car cdr attrs)
-    cons-syntax?
-    (start cons-syntax->start)
-    (car cons-syntax->car)
-    (cdr cons-syntax->cdr)
-    (attrs cons-syntax->attrs))
-(define (make-cons-syntax start car cdr)
-    (make-cons-syntax-record start car cdr (make-attrs)))
-(type-printer-set! <cons-syntax> 
-    (lambda (x writer out) 
-        (display (string-append 
-            "("
-            (show #f (cons-syntax->car x))
-            " . "
-            (show #f (cons-syntax->cdr x))
-            ")"
-            ) out)))
-
-(define-record-type <atom-syntax>
-    (make-atom-syntax-record type token value attrs)
-    atom-syntax?
-    (type atom-syntax->type)
-    (token atom-syntax->token)
-    (value atom-syntax->value)
-    (attrs atom-syntax->attrs))
-(define (make-atom-syntax type token value)
-    (make-atom-syntax-record type token value (make-attrs)))
-(type-printer-set! <atom-syntax> 
-    (lambda (x writer out) 
-        (display (show #f (atom-syntax->value x)) out)))
+(define-record-type <syntax>
+    (make-syntax-record location value attrs)
+    syntax?
+    (location syntax->location)
+    (value syntax->value)
+    (attrs syntax->attrs))
+(define (syntax location value)
+    (make-syntax-record location value (make-attrs)))
+(define (pair-syntax? syntax)
+    (and (syntax? syntax) (pair? (syntax->value syntax))))
 
 (define-record-type <variable>
     (make-variable value)
@@ -167,21 +138,10 @@
     (location compile-error->location)
     (message compile-error->message))
 
-(define (syntax->location syntax)
-    (cond
-        ((cons-syntax? syntax) (cons-syntax->start syntax))
-        ((atom-syntax? syntax) 
-            (token->location (atom-syntax->token syntax)))
-        (else (raise "unknown syntax type when getting token"))))
 (define (raise-syntax-error syntax message)
     (let ((location (syntax->location syntax)))
         (raise (make-compile-error location message))))
 
-(define (syntax->attrs syntax)
-    (cond
-        ((cons-syntax? syntax) (cons-syntax->attrs syntax))
-        ((atom-syntax? syntax) (atom-syntax->attrs syntax))
-        (else (raise "unknown syntax type when getting attrs"))))
 (define (syntax-set-attr syntax attr value)
     (let ((attrs (syntax->attrs syntax)))
         (hash-table-set! attrs attr value)))
@@ -189,8 +149,18 @@
     (let ((attrs (syntax->attrs syntax)))
         (hash-table-ref/default attrs attr #f)))
 
-(define (safe-car-syntax syntax) (if (cons-syntax? syntax) (cons-syntax->car syntax) #f))
-(define (safe-cdr-syntax syntax) (if (cons-syntax? syntax) (cons-syntax->cdr syntax) #f))
+(define (safe-car-syntax syntax) 
+    (if (syntax? syntax)
+        (if (pair? (syntax->value syntax))
+            (car (syntax->value syntax)) 
+            #f)
+        #f))
+(define (safe-cdr-syntax syntax) 
+    (if (syntax? syntax)
+        (if (pair? (syntax->value syntax)) 
+            (cdr (syntax->value syntax))
+            #f)
+        #f))
 (define (safe-cadr-syntax syntax) (safe-car-syntax (safe-cdr-syntax syntax)))
 (define (safe-cddr-syntax syntax) (safe-cdr-syntax (safe-cdr-syntax syntax)))
 (define (safe-caddr-syntax syntax) (safe-car-syntax (safe-cdr-syntax (safe-cdr-syntax syntax))))
@@ -201,14 +171,15 @@
 (define (scheme->mock-syntax scheme)
     (cond
         ((pair? scheme)
-            (make-cons-syntax #f (scheme->mock-syntax (car scheme)) 
-                                    (scheme->mock-syntax (cdr scheme))))
-        ((string? scheme) (make-atom-syntax 'string #f scheme))
-        ((boolean? scheme) (make-atom-syntax 'boolean #f scheme))
-        ((char? scheme) (make-atom-syntax 'char #f scheme))
-        ((number? scheme) (make-atom-syntax 'number #f scheme))
-        ((symbol? scheme) (make-atom-syntax 'symbol #f scheme))
-        ((null? scheme) (make-atom-syntax 'null #f scheme))
+            (syntax #f (cons 
+                (scheme->mock-syntax (car scheme)) 
+                (scheme->mock-syntax (cdr scheme)))))
+        ((string? scheme) (syntax #f scheme))
+        ((boolean? scheme) (syntax #f scheme))
+        ((char? scheme) (syntax #f scheme))
+        ((number? scheme) (syntax #f scheme))
+        ((symbol? scheme) (syntax #f scheme))
+        ((null? scheme) (syntax #f scheme))
         (else (raise (string-append
             "unknown scheme, can't convert value "
             (show #f scheme)

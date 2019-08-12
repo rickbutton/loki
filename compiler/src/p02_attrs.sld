@@ -67,31 +67,25 @@
     (define (var-exists? name scopes) 
         (or (var-bound? name scopes) (var-free? name scopes)))
 
-    (define (cons-symbol-syntax? syntax symbol)
-        (if (cons-syntax? syntax)
-            (let ((car-syntax (cons-syntax->car syntax)))
-                (and 
-                    (atom-syntax? car-syntax) 
-                    (equal? (atom-syntax->type car-syntax) 'symbol)
-                    (equal? (atom-syntax->value car-syntax) symbol)))
-            #f))
+    (define (pair-symbol-syntax? syntax symbol)
+        (let ((car-syntax (safe-car-syntax syntax)))
+            (if car-syntax
+                (equal? (syntax->value car-syntax) symbol)
+                #f)))
+
     (define (prim-symbol-syntax? syntax symbol scopes)
-        (if (cons-symbol-syntax? syntax symbol)
-            (let ((car-syntax (cons-syntax->car syntax)))
-                (if (atom-syntax? car-syntax)
-                    (and
-                        (equal? (atom-syntax->type car-syntax) 'symbol)
-                        (not (var-exists? (atom-syntax->value car-syntax) scopes)))
-                    #f))
+        (if (pair-symbol-syntax? syntax symbol)
+            (let* ((car-syntax (safe-car-syntax syntax))
+                   (car-value (syntax->value car-syntax)))
+                (and
+                    (symbol? car-value)
+                    (not (var-exists? car-value scopes))))
             #f))
 
-    (define (atom-type-syntax? syntax type)
-        (and (atom-syntax? syntax) (equal? (atom-syntax->type syntax) type)))
-
-
-
-    (define (null-syntax? syntax) (atom-type-syntax? syntax 'null))
-    (define (symbol-syntax? syntax) (atom-type-syntax? syntax 'symbol))
+    (define (type-syntax? syntax pred)
+        (and (syntax? syntax) (pred (syntax->value syntax))))
+    (define (null-syntax? syntax) (type-syntax? syntax null?))
+    (define (symbol-syntax? syntax) (type-syntax? syntax symbol?))
 
     (define (set!-syntax? syntax scopes) (prim-symbol-syntax? syntax 'set! scopes))
     (define (walk-syntax-validate-set! syntax scopes)
@@ -99,14 +93,14 @@
               (expression (safe-car-syntax (safe-cddr-syntax syntax)))
               (end (safe-cdr-syntax (safe-cddr-syntax syntax))))
             (if (and (symbol-syntax? identifier) (null-syntax? end))
-                (if (var-exists? (atom-syntax->value identifier) scopes)
+                (if (var-exists? (syntax->value identifier) scopes)
                     (begin
                         (walk-syntax-validate-expression expression 'none scopes)
                         (mark-primitive-syntax syntax)
                         (mark-symbol-reference identifier scopes))
                     (raise-syntax-error syntax (string-append 
                         "attempted to set! undefined variable " 
-                        (symbol->string (atom-syntax->value identifier)))))
+                        (symbol->string (syntax->value identifier)))))
                 (raise-syntax-error syntax "invalid set! syntax"))
             scopes))
 
@@ -122,13 +116,13 @@
     (define (valid-unquote-splicing-syntax? syntax scopes) (and (unquote-splicing-syntax? syntax scopes) (null-syntax? (safe-cdr-syntax (safe-cdr-syntax syntax)))))
 
     (define (mark-symbol-declaration syntax scopes)
-        (let ((name (atom-syntax->value syntax)))
+        (let ((name (syntax->value syntax)))
             (syntax-set-attr syntax 'unique-id (var->mapped (var-exists? name scopes)))
             (syntax-set-attr syntax 'binding 'bound)
             (syntax-set-attr syntax 'type 'declaration)))
 
     (define (mark-symbol-reference syntax scopes)
-        (let ((name (atom-syntax->value syntax)))
+        (let ((name (syntax->value syntax)))
             (if (var-bound? name scopes)
                 (syntax-set-attr syntax 'binding 'bound)
                 (if (var-free? name scopes)
@@ -143,7 +137,7 @@
 
     (define (symbol-intrinsic-syntax? syntax)
         (and (symbol-syntax? syntax)
-             (intrinsic-name? (atom-syntax->value syntax))))
+             (intrinsic-name? (syntax->value syntax))))
     (define (mark-symbol-intrinsic-syntax syntax)
         (syntax-set-attr syntax 'type 'intrinsic))
 
@@ -173,14 +167,14 @@
         (let ((formals (safe-cadr-syntax syntax))
               (body (safe-cddr-syntax syntax)))
             (cond
-                ((cons-syntax? formals) 
+                ((pair-syntax? formals) 
                     (let* ((id (safe-car-syntax formals))
                            (lambda-formals (safe-cdr-syntax formals))
                            (lambda-names (lambda-formals-syntax->names lambda-formals)))
                         (if (not (symbol-syntax? id))
                             (raise-syntax-error syntax "invalid define syntax, attempted to define non-symbol"))
                         (walk-syntax-validate-lambda-formals lambda-formals '())
-                        (let* ((cont-scopes (add-var-name (atom-syntax->value id) scopes 'ignore))
+                        (let* ((cont-scopes (add-var-name (syntax->value id) scopes 'ignore))
                                (body-scopes (fold-right (lambda (n s) (add-var-name n s 'strict)) (add-new-scope cont-scopes) lambda-names)))
                             (walk-syntax-validate-body body body-scopes #t)
                             (mark-primitive-syntax syntax)
@@ -190,7 +184,7 @@
                 ((symbol-syntax? formals)
                     (if (null-syntax? body) (raise-syntax-error syntax "invalid define syntax, expected expression in define"))
                     (if (null-syntax? (safe-cdr-syntax body))
-                        (let ((cont-scopes (add-var-name (atom-syntax->value formals) scopes 'ignore)))
+                        (let ((cont-scopes (add-var-name (syntax->value formals) scopes 'ignore)))
                             (walk-syntax-validate-expression (safe-car-syntax body) 'none cont-scopes)
                             (mark-primitive-syntax syntax)
                             (mark-symbol-declaration formals cont-scopes)
@@ -202,7 +196,7 @@
     (define (walk-syntax-validate-body syntax scopes initial)
         (if (null-syntax? syntax)
             (if initial (raise-syntax-error syntax "invalid empty body syntax, expected expression inside body"))
-            (if (cons-syntax? syntax) ; body has at least one expression
+            (if (pair-syntax? syntax) ; body has at least one expression
                 (let ((new-scopes (walk-syntax-validate-expression (safe-car-syntax syntax) 'none scopes)))
                     (walk-syntax-validate-body (safe-cdr-syntax syntax) new-scopes #f))
                 (raise-syntax-error syntax "invalid body syntax"))))
@@ -211,10 +205,10 @@
     ; TODO - handle other types of formals
     (define (walk-syntax-validate-lambda-formals syntax names)
         (if (not (null-syntax? syntax))
-            (if (cons-syntax? syntax)
+            (if (pair-syntax? syntax)
                 ; validate list of formals is all unique symbols
                 (if (symbol-syntax? (safe-car-syntax syntax))
-                    (let ((name (atom-syntax->value (safe-car-syntax syntax))))
+                    (let ((name (syntax->value (safe-car-syntax syntax))))
                         (if (member name names)
                             (raise-syntax-error syntax (string-append
                                 "invalid lambda formals syntax, attempted to declare variable "
@@ -248,14 +242,14 @@
             names 
             (lambda-formals-syntax->names* 
                 (safe-cdr-syntax syntax) 
-                (cons (atom-syntax->value (safe-car-syntax syntax)) names))))
+                (cons (syntax->value (safe-car-syntax syntax)) names))))
     (define (lambda-formals-syntax->names syntax)
         (lambda-formals-syntax->names* syntax '()))
 
     (define (mark-lambda-formals-declaration formals scopes)
         (if (not (null-syntax? formals))
-            (let ((car-syntax (cons-syntax->car formals))
-                (cdr-syntax (cons-syntax->cdr formals)))
+            (let ((car-syntax (safe-car-syntax formals))
+                (cdr-syntax (safe-cdr-syntax formals)))
                 (if (symbol-syntax? car-syntax)
                     (mark-symbol-declaration car-syntax scopes)
                     (raise-syntax-error syntax "invalid syntax, expected symbol in lambda formals"))
@@ -308,9 +302,9 @@
                         (mark-symbol-intrinsic-syntax syntax))
                     ; <variable>
                     ((symbol-syntax? syntax)
-                        (if (var-exists? (atom-syntax->value syntax) scopes)
+                        (if (var-exists? (syntax->value syntax) scopes)
                             (mark-symbol-reference syntax scopes)
-                            (raise-syntax-error syntax (string-append "attempted to reference undefined variable " (symbol->string (atom-syntax->value syntax))))))
+                            (raise-syntax-error syntax (string-append "attempted to reference undefined variable " (symbol->string (syntax->value syntax))))))
                     ; (set! <variable> <expression>)
                     ((set!-syntax? syntax scopes) (walk-syntax-validate-set! syntax scopes))
                     ; (if test conse alte) / (if test conse)
@@ -325,9 +319,9 @@
                     ; (call/cc (lambda (k) (k 123)))
                     ((call/cc-syntax? syntax scopes) (walk-syntax-validate-call/cc syntax scopes))
                     ; (op operand...)
-                    ((cons-syntax? syntax)
-                        (walk-syntax-validate-expression (cons-syntax->car syntax) quote-context scopes)
-                        (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes)
+                    ((pair-syntax? syntax)
+                        (walk-syntax-validate-expression (safe-car-syntax syntax) quote-context scopes)
+                        (walk-syntax-validate-expression (safe-cdr-syntax syntax) quote-context scopes)
                         scopes)))
             ((equal? quote-context 'quasiquote)
                 ; we are inside a quasiquote syntax
@@ -345,9 +339,9 @@
                                 (mark-primitive-syntax syntax)
                                 (walk-syntax-validate-expression (unquote->expr syntax) 'none scopes))
                             (raise-syntax-error syntax "invalid unquote-splicing syntax")))
-                    ((cons-syntax? syntax)
-                        (walk-syntax-validate-expression (cons-syntax->car syntax) quote-context scopes)
-                        (walk-syntax-validate-expression (cons-syntax->cdr syntax) quote-context scopes)
+                    ((pair-syntax? syntax)
+                        (walk-syntax-validate-expression (safe-car-syntax syntax) quote-context scopes)
+                        (walk-syntax-validate-expression (safe-cdr-syntax syntax) quote-context scopes)
                         scopes)))))
 
     ; TODO - need to mark "maybe" syntax primitives during variable marking step in order to 

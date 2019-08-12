@@ -17,11 +17,9 @@
     (test-error (show #f scheme) (p02_attrs (scheme->mock-syntax scheme))))
 
 (define (get-second-expr-in-begin syntax)
-    (cons-syntax->car (cons-syntax->car 
-    (cons-syntax->cdr (cons-syntax->cdr syntax)))))
+    (safe-car-syntax (safe-caddr-syntax syntax)))
 (define (get-third-expr-in-begin syntax)
-    (cons-syntax->car (cons-syntax->car 
-    (cons-syntax->cdr (cons-syntax->cdr (cons-syntax->cdr syntax))))))
+    (safe-car-syntax (safe-cadddr-syntax syntax)))
 (define (test-was-type getter scheme type)
     (test-equal (show #f scheme) type (syntax-get-attr (getter (p02_attrs (scheme->mock-syntax scheme))) 'type)))
 (define (test-was-ref getter scheme) (test-was-type getter scheme 'reference))

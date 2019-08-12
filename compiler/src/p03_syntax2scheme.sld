@@ -6,30 +6,25 @@
     (export p03_syntax2scheme)
 (begin
 
-    (define (atom-syntax-type? syntax type)
-        (and
-            (atom-syntax? syntax)
-            (equal? (atom-syntax->type syntax) type)))
-
     (define (symbol-syntax->scheme syntax)
         (let ((type (syntax-get-attr syntax 'type)) 
               (unique-id (syntax-get-attr syntax 'unique-id)))
             (cond
                 ((equal? type 'reference) (make-variable unique-id))
                 ((equal? type 'declaration) (make-variable unique-id))
-                ((equal? type 'primitive) (atom-syntax->value syntax))
+                ((equal? type 'primitive) (syntax->value syntax))
                 ((equal? type 'intrinsic) 
-                    (make-intrinsic (atom-syntax->value syntax)))
-                (else (atom-syntax->value syntax)))))
+                    (make-intrinsic (syntax->value syntax)))
+                (else (syntax->value syntax)))))
 
     (define (syntax->scheme syntax)
-        (if (cons-syntax? syntax)
+        (if (pair-syntax? syntax)
             (cons
-                (syntax->scheme (cons-syntax->car syntax))
-                (syntax->scheme (cons-syntax->cdr syntax)))
+                (syntax->scheme (safe-car-syntax syntax))
+                (syntax->scheme (safe-cdr-syntax syntax)))
             (cond
-                ((atom-syntax-type? syntax 'symbol) (symbol-syntax->scheme syntax))
-                (else (atom-syntax->value syntax)))))
+                ((symbol? (syntax->value syntax)) (symbol-syntax->scheme syntax))
+                (else (syntax->value syntax)))))
 
     (define (p03_syntax2scheme syntax) 
         (syntax->scheme syntax))

@@ -16,29 +16,18 @@
            (syntax (p01_tokens2syntax tokens)))
         syntax))
 
-(define (syntax->value syntax)
-    (if (cons-syntax? syntax)
+(define (syntax->scheme syntax)
+    (if (pair-syntax? syntax)
         (cons 
-            (syntax->value (cons-syntax->car syntax))
-            (syntax->value (cons-syntax->cdr syntax)))
-        (atom-syntax->value syntax)))
+            (syntax->scheme (safe-car-syntax syntax))
+            (syntax->scheme (safe-cdr-syntax syntax)))
+        (syntax->value syntax)))
 
-(define (syntax-equal? a b)
-    (or
-        (and 
-            (cons-syntax? a) 
-            (cons-syntax? b)
-            (syntax-equal? (cons-syntax->car a) (cons-syntax->car b))
-            (syntax-equal? (cons-syntax->cdr a) (cons-syntax->cdr b)))
-        (and
-            (atom-syntax? a)
-            (atom-syntax? b)
-            (equal? (atom-syntax->type a) (atom-syntax->type b))
-            (equal? (atom-syntax->value a) (atom-syntax->value b)))))
+(define (syntax-equal? a b) (equal? (syntax->scheme a) (syntax->scheme b)))
 
 (define test-syntax-equal (make-test-with-predicate syntax-equal?))
 (define (test-parse-equal str expected)
-    (test-equal str expected (syntax->value (lex-and-parse str))))
+    (test-equal str expected (syntax->scheme (lex-and-parse str))))
 
 (define (test-parse-fail str)
     (test-error str (lex-and-parse str)))
