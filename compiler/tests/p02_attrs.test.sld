@@ -28,7 +28,6 @@
 
 (define primitives-to-test-as-vars 
     '((quote (quote 123))
-        (quasiquote (quasiquote 123))
         (lambda (lambda () 123))
         (if (if 123 456 789))
         (if (if 123 456))
@@ -36,21 +35,16 @@
 
 (define (test_p02_attrs) 
     (test-group "p02_attrs"
-        ; valid quote/quasiquote syntax
+        ; valid quote syntax
         (test-pass '(quote 123))
-        (test-pass '(quasiquote 123))
         (test-pass '(quote (123)))
-        (test-pass '(quasiquote (123)))
         (test-pass '(quote (123 456)))
-        (test-pass '(quasiquote (123 456)))
 
         ; expect quoted datum to not be validated 
         ; (quote) is not valid, but is a quoted datum
         ; not an expression
         (test-pass '(quote (quote)))
-        (test-pass '(quasiquote (quote)))
         (test-pass '(quote (quote 123 456)))
-        (test-pass '(quasiquote (quote 123 456)))
 
         ; expect unquote inside quote to pass
         (test-pass '(quote (unquote)))
@@ -60,37 +54,9 @@
         (test-pass '(quote (unquote-splicing 123)))
         (test-pass '(quote (unquote-splicing 123 456)))
 
-        ; expect unquote inside quasiquote to pass
-        (test-pass '(quasiquote (unquote 123)))
-        (test-pass '(quasiquote (unquote-splicing 123)))
-
-        ; invalid quote/quasiquote syntax
+        ; invalid quote syntax
         (test-fail '(quote))
         (test-fail '(quote 123 456))
-        (test-fail '(quasiquote))
-        (test-fail '(quasiquote 123 456))
-
-        ; invalid unquote syntax inside quasiquote
-        (test-fail '(quasiquote (unquote)))
-        (test-fail '(quasiquote (unquote 123 456)))
-        (test-fail '(quasiquote (unquote-splicing)))
-        (test-fail '(quasiquote (unquote-splicing 123 456)))
-
-        ; invalid unquote syntax when not in quote context should fail
-        (test-fail '(unquote))
-        (test-fail '(unquote 123 456))
-        (test-fail '(unquote-splicing))
-        (test-fail '(unquote-splicing 123 456))
-
-        ; valid unquote syntax when not in quote context should fail
-        (test-fail '(unquote 123))
-        (test-fail '(unquote-splicing 123))
-
-        ; invalid quote syntax inside unquoted quote context should fail
-        (test-fail '(quasiquote (123 (unquote (quote 123 456)))))
-        (test-fail '(quasiquote (123 (unquote (quasiquote 123 456)))))
-        (test-fail '(quasiquote (123 (unquote-splicing (quote 123 456)))))
-        (test-fail '(quasiquote (123 (unquote-splicing (quasiquote 123 456)))))
 
         ; valid set! syntax
         (test-pass '(lambda (x) (set! x 1)))

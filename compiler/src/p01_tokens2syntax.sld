@@ -66,7 +66,7 @@
                         ((equal? type 'id) (syntax location value))
                         (else (raise "unexpected token")))
                     '() )))
-
+        
         (define (make-parse-quote-like name)
             (lambda (token)
                 (let ((value-token (pop-token)))
