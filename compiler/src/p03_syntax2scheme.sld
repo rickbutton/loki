@@ -23,6 +23,7 @@
                 (syntax->scheme (safe-car-syntax syntax))
                 (syntax->scheme (safe-cdr-syntax syntax)))
             (cond
+                ((null? syntax) '())
                 ((symbol? (syntax->value syntax)) (symbol-syntax->scheme syntax))
                 (else (syntax->value syntax)))))
 

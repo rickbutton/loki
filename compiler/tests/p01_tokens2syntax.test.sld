@@ -17,11 +17,12 @@
         syntax))
 
 (define (syntax->scheme syntax)
-    (if (pair-syntax? syntax)
-        (cons 
-            (syntax->scheme (safe-car-syntax syntax))
-            (syntax->scheme (safe-cdr-syntax syntax)))
-        (syntax->value syntax)))
+    (if (null? syntax) '()
+        (if (pair-syntax? syntax)
+            (cons 
+                (syntax->scheme (safe-car-syntax syntax))
+                (syntax->scheme (safe-cdr-syntax syntax)))
+            (syntax->value syntax))))
 
 (define (syntax-equal? a b) (equal? (syntax->scheme a) (syntax->scheme b)))
 

@@ -95,6 +95,9 @@
     (make-syntax-record location value (make-attrs)))
 (define (pair-syntax? syntax)
     (and (syntax? syntax) (pair? (syntax->value syntax))))
+(type-printer-set! <syntax> 
+    (lambda (x writer out) 
+        (display (string-append "#'" (show #f (syntax->value x))) out)))
 
 (define-record-type <variable>
     (make-variable value)
@@ -170,6 +173,10 @@
 
 (define (scheme->mock-syntax scheme)
     (cond
+        ((equal? scheme (quote '()))
+            (syntax #f (list 
+                (syntax #f 'quote)
+                (syntax #f '()))))
         ((pair? scheme)
             (syntax #f (cons 
                 (scheme->mock-syntax (car scheme)) 
@@ -179,7 +186,7 @@
         ((char? scheme) (syntax #f scheme))
         ((number? scheme) (syntax #f scheme))
         ((symbol? scheme) (syntax #f scheme))
-        ((null? scheme) (syntax #f scheme))
+        ((null? scheme) '())
         (else (raise (string-append
             "unknown scheme, can't convert value "
             (show #f scheme)

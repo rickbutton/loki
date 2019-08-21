@@ -52,7 +52,7 @@
             (let* ((type (token->type token)) (value (token->value token)) (location (token->location token)))
                 (if token
                     (cond
-                        ((equal? type 'lparen) (parse-cons token))
+                        ((equal? type 'lparen) (parse-cons token #t))
                         ;((equal? type 'lvector) (parse-vector))
                         ;((equal? type 'lbytevector) (parse-bytevector))
                         ((equal? type 'quote) (parse-quote token))
@@ -74,18 +74,22 @@
                         (syntax (token->location token) name)
                         (syntax (token->location value-token) (cons
                             (parse-next-with-token value-token)
-                            (syntax (token->location token) '()))))))))
+                            '()
+                            )))))))
 
         (define parse-quote (make-parse-quote-like 'quote))
         (define parse-quasiquote (make-parse-quote-like 'quasiquote))
         (define parse-unquote (make-parse-quote-like 'unquote))
         (define parse-unquote-splicing (make-parse-quote-like 'unquote-splicing))
 
-        (define (parse-cons lparen-token)
+        (define (parse-cons lparen-token first)
             (let* ((car-token (pop-token)) (car-type (token->type car-token)))
                 (if car-token
                     (cond
-                        ((equal? car-type 'rparen) (syntax (token->location car-token) '()))
+                        ((equal? car-type 'rparen) 
+                            (if first
+                                (syntax (token->location car-token) '()))
+                                '())
                         ((equal? car-type 'dot)
                             (let* ((cdr-token (pop-token)) (cdr-type (token->type cdr-token))
                                    (rparen-token (pop-token)) (rparen-type (token->type rparen-token)))
@@ -94,7 +98,7 @@
                                     (raise "expected rparen after value in dot cdr position"))))
                         (else 
                             (let* ((car-syntax (parse-next-with-token car-token))
-                                    (cdr-syntax (parse-cons lparen-token)))
+                                    (cdr-syntax (parse-cons lparen-token #f)))
                                 (syntax (token->location lparen-token) (cons car-syntax cdr-syntax)))))
                     (raise "unexpected end of stream, expected parens"))))
 
@@ -104,12 +108,12 @@
 
         (define (syntax-list->begin* syntax-list)
             (if (null? syntax-list) 
-                (syntax #f '())
+                '()
                 (syntax #f (cons (car syntax-list) (syntax-list->begin* (cdr syntax-list))))))
             
         (define (syntax-list->begin syntax-list)
             (cond
-                ((null? syntax-list) (syntax #f '()))
+                ((null? syntax-list) '())
                 ((eq? (length syntax-list) 1) (car syntax-list))
                 (else (syntax #f (cons
                         (syntax #f 'begin)
