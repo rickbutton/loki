@@ -47,6 +47,7 @@
         compile-error?
         compile-error->location
         compile-error->message
+        raise-location-error
         raise-syntax-error
         
         safe-car-syntax
@@ -141,9 +142,11 @@
     (location compile-error->location)
     (message compile-error->message))
 
+(define (raise-location-error location message)
+        (raise (make-compile-error location message)))
 (define (raise-syntax-error syntax message)
     (let ((location (syntax->location syntax)))
-        (raise (make-compile-error location message))))
+        (raise-location-error location message)))
 
 (define (syntax-set-attr syntax attr value)
     (let ((attrs (syntax->attrs syntax)))

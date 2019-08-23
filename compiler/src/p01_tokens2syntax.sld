@@ -30,6 +30,9 @@
 ; quote
 ; quasiquote
 
+(define (raise-token-error token message)
+    (raise-location-error (token->location token) message))
+
 (define (p01_tokens2syntax tokens)
     (let ((token-list tokens)
           (syntax-list '()))
@@ -64,7 +67,7 @@
                         ((equal? type 'char) (syntax location value))
                         ((equal? type 'number) (syntax location value))
                         ((equal? type 'id) (syntax location value))
-                        (else (raise "unexpected token")))
+                        (else (raise-token-error token "unexpected token")))
                     '() )))
         
         (define (make-parse-quote-like name)
@@ -95,12 +98,12 @@
                                    (rparen-token (pop-token)) (rparen-type (token->type rparen-token)))
                                 (if (equal? rparen-type 'rparen)
                                     (parse-next-with-token cdr-token)
-                                    (raise "expected rparen after value in dot cdr position"))))
+                                    (raise-token-error car-token "expected rparen after value in dot cdr position"))))
                         (else 
                             (let* ((car-syntax (parse-next-with-token car-token))
                                     (cdr-syntax (parse-cons lparen-token #f)))
                                 (syntax (token->location lparen-token) (cons car-syntax cdr-syntax)))))
-                    (raise "unexpected end of stream, expected parens"))))
+                    (raise-token-error lparen-token "unexpected end of stream, expected parens"))))
 
         (define (parse)
             (push-syntax (parse-next))
