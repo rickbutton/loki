@@ -15,6 +15,9 @@ example-debug: examples/test.wasm examples/test.wat
 test:
 	chibi-scheme -I compiler/src -I compiler/tests compiler/tests/tests.scm
 
+parse-repl:
+	chibi-scheme -I compiler/src compiler/src/parse-repl.scm
+
 %.wat: %.scm compiler/src/**
 	chibi-scheme -I compiler/src compiler/src/loki.scm $< $@
 
