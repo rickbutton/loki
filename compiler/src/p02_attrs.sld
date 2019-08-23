@@ -95,10 +95,11 @@
         (syntax-set-attr syntax 'type 'intrinsic))
 
     (define (prim-symbol-syntax? syntax symbol scopes)
-        (let ((value (syntax->value syntax))) 
-            (and 
-                (equal? value symbol)
-                (not (var-exists? value scopes)))))
+        (and (syntax? syntax)
+            (let ((value (syntax->value syntax))) 
+                (and 
+                    (equal? value symbol)
+                    (not (var-exists? value scopes))))))
 
     (define (type-syntax? syntax pred)
         (and (syntax? syntax) (pred (syntax->value syntax))))
@@ -115,19 +116,32 @@
                       (syntax->match-scheme (cdr pair))))
             syntax))
 
-    (define (walk-body body scopes)
-        (if (null? body) 
+    (define (walk-body syntax scopes)
+        (define (define-syntax? syntax) (prim-symbol-syntax? syntax 'define scopes))
+        (let ((value (syntax->match-scheme syntax)))
+        (match value
+            ; TODO (define (id formals) body...)
+            (((? define-syntax? prim) (? symbol-syntax? id) expr)
+                (let ((cont-scopes (add-var-name id (syntax->value id) scopes 'strict)))
+                    (walk-expression expr cont-scopes)
+                    (mark-primitive-syntax prim)
+                    (mark-symbol-declaration id cont-scopes)
+                    cont-scopes))
+            (((? define-syntax?) args ...) (raise-syntax-error syntax "invalid define syntax"))
+            (else (walk-expression syntax scopes)))))
+
+    (define (walk* walker xs scopes)
+        (if (null? xs) 
             scopes
-            (walk-body (cdr body) (walk-expression (car body) scopes))))
+            (walk* walker (cdr xs) (walker (car xs) scopes))))
 
     (define (walk-expression syntax scopes)
-         (define (quote-syntax? syntax) (prim-symbol-syntax? syntax 'quote scopes))
-         (define (set!-syntax? syntax) (prim-symbol-syntax? syntax 'set! scopes))
-         (define (if-syntax? syntax) (prim-symbol-syntax? syntax 'if scopes))
-         (define (define-syntax? syntax) (prim-symbol-syntax? syntax 'define scopes))
-         (define (lambda-syntax? syntax) (prim-symbol-syntax? syntax 'lambda scopes))
-         (define (begin-syntax? syntax) (prim-symbol-syntax? syntax 'begin scopes))
-         (define (call/cc-syntax? syntax) (prim-symbol-syntax? syntax 'call/cc scopes))
+        (define (quote-syntax? syntax) (prim-symbol-syntax? syntax 'quote scopes))
+        (define (set!-syntax? syntax) (prim-symbol-syntax? syntax 'set! scopes))
+        (define (if-syntax? syntax) (prim-symbol-syntax? syntax 'if scopes))
+        (define (lambda-syntax? syntax) (prim-symbol-syntax? syntax 'lambda scopes))
+        (define (begin-syntax? syntax) (prim-symbol-syntax? syntax 'begin scopes))
+        (define (call/cc-syntax? syntax) (prim-symbol-syntax? syntax 'call/cc scopes))
 
         (let ((value (syntax->match-scheme syntax)))
         (match value
@@ -175,33 +189,24 @@
             (((? lambda-syntax? prim) ((? symbol-syntax? formals) ...) expr exprs ...)
                 (let* ((names (map syntax->value formals))
                        (new-scopes (fold-right (lambda (n s) (add-var-name formals n s 'strict)) (add-new-scope scopes) names)))
-                    (walk-body (cons expr exprs) new-scopes)
+                    (walk* walk-body (cons expr exprs) new-scopes)
                     (mark-primitive-syntax prim)
                     (map (lambda (f) (mark-symbol-declaration f new-scopes)) formals)))
             (((? lambda-syntax?) args ...) (raise-syntax-error syntax "invalid lambda syntax"))
 
-            ; TODO (define (id formals) body...)
-            (((? define-syntax? prim) (? symbol-syntax? id) expr)
-                (let ((cont-scopes (add-var-name id (syntax->value id) scopes 'strict)))
-                    (walk-expression expr cont-scopes)
-                    (mark-primitive-syntax prim)
-                    (mark-symbol-declaration id cont-scopes)
-                    cont-scopes))
-            (((? define-syntax?) args ...) (raise-syntax-error syntax "invalid define syntax"))
-
             (((? begin-syntax? prim) expr exprs ...)
                 (mark-primitive-syntax prim)
-                (walk-body (cons expr exprs) scopes))
+                (walk* walk-body (cons expr exprs) scopes))
             (((? begin-syntax?) args ...) (raise-syntax-error syntax "invalid begin syntax"))
 
             (((? call/cc-syntax? prim) exprs ...)
                 (mark-primitive-syntax prim)
                 ; TODO - not a body, nested defines shouldn't work
-                (walk-body exprs scopes))
+                (walk* walk-expression exprs scopes))
 
             ((expr exprs ...)
                 ; TODO - not a body, nested defines shouldn't work
-                (walk-body (cons expr exprs) scopes))
+                (walk* walk-expression (cons expr exprs) scopes))
 
             (else scopes))))
 
@@ -242,6 +247,6 @@
     ; (include string...)
     ; (include-ci string...)
 
-    (walk-expression syntax (empty-scopes))
+    (walk-body syntax (empty-scopes))
     syntax)
 ))
