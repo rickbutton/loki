@@ -105,6 +105,7 @@
         (and (syntax? syntax) (pred (syntax->value syntax))))
     (define (null-syntax? syntax) (type-syntax? syntax null?))
     (define (symbol-syntax? syntax) (type-syntax? syntax symbol?))
+    (define (vector-syntax? syntax) (type-syntax? syntax vector?))
     (define (symbol-intrinsic-syntax? syntax)
         (and (symbol-syntax? syntax)
              (intrinsic-name? (syntax->value syntax))))
@@ -160,6 +161,12 @@
                         "attempted to reference undefined variable " 
                         (symbol->string (syntax->value syntax)))))
                 (mark-symbol-reference syntax scopes)
+                scopes)
+
+            ((? vector-syntax?)
+                (map 
+                    (lambda (i) (walk-expression i scopes))
+                    (vector->list (syntax->value syntax)))
                 scopes)
 
             (((? set!-syntax? prim) (? symbol-syntax? id) expr)

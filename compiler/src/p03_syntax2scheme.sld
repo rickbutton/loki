@@ -17,6 +17,10 @@
                     (make-intrinsic (syntax->value syntax)))
                 (else (syntax->value syntax)))))
 
+    (define (vector-syntax->scheme syntax)
+        (let ((vec (syntax->value syntax)))
+            (map-vector syntax->scheme vec)))
+
     (define (syntax->scheme syntax)
         (if (pair-syntax? syntax)
             (cons
@@ -24,6 +28,7 @@
                 (syntax->scheme (safe-cdr-syntax syntax)))
             (cond
                 ((null? syntax) '())
+                ((vector? (syntax->value syntax)) (vector-syntax->scheme syntax))
                 ((symbol? (syntax->value syntax)) (symbol-syntax->scheme syntax))
                 (else (syntax->value syntax)))))
 

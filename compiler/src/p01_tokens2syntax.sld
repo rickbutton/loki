@@ -56,7 +56,7 @@
                 (if token
                     (cond
                         ((equal? type 'lparen) (parse-cons token #t))
-                        ;((equal? type 'lvector) (parse-vector))
+                        ((equal? type 'lvector) (parse-vector token '()))
                         ;((equal? type 'lbytevector) (parse-bytevector))
                         ((equal? type 'quote) (parse-quote token))
                         ((equal? type 'quasiquote) (parse-quasiquote token))
@@ -84,6 +84,19 @@
         (define parse-quasiquote (make-parse-quote-like 'quasiquote))
         (define parse-unquote (make-parse-quote-like 'unquote))
         (define parse-unquote-splicing (make-parse-quote-like 'unquote-splicing))
+
+        (define (parse-vector lparen-token items)
+            (let* ((car-token (pop-token)) (car-type (token->type car-token)))
+                (if car-token
+                    (cond
+                        ((equal? car-type 'rparen)
+                            (syntax (token->location lparen-token) (list->vector (reverse items))))
+                        (else 
+                            (parse-vector lparen-token 
+                                (cons
+                                    (parse-next-with-token car-token)
+                                    items))))
+                    (raise-token-error lparen-token "unexpected end of stream, expected parens"))))
 
         (define (parse-cons lparen-token first)
             (let* ((car-token (pop-token)) (car-type (token->type car-token)))

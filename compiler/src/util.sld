@@ -10,6 +10,7 @@
         caddr
         cadddr
         cdddr
+        map-vector
         unique
         find
         filter
@@ -29,6 +30,9 @@
 (define (caddr x) (car (cdr (cdr x))))
 (define (cadddr x) (car (cdr (cdr (cdr x)))))
 (define (cdddr x) (cdr (cdr (cdr x))))
+
+(define (map-vector fn vec)
+    (list->vector (map fn (vector->list vec))))
 
 (define (unique lst)
   (fold-right (lambda (e a)
