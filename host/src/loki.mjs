@@ -28,6 +28,8 @@ function isNumber(v) { return typeof v === "number" && ((v & 1) === 0); }
 function isChar(v) { return typeof v === "number" && ((v & 1) === 1); }
 function isBoolean(v) { return typeof v === "boolean"; }
 
+function isVector(v) { return Array.isArray(v); }
+
 function isSlot(v) { return v instanceof Slot; }
 function isPair(v) { return v instanceof Pair; }
 function isClosure(v) { return v instanceof Closure; }
@@ -67,6 +69,8 @@ function schemeValueToString(value) {
         } else {
             return `(${carString} . ${cdrString.substring(1)})`;
         }
+    } else if (isVector(value)) {
+        return `#(${value.map(v => schemeValueToString(v)).join(" ")})`;
     } else if (value === null) {
         return "()";
     } else if (value === Void) {
@@ -151,6 +155,17 @@ function getPrimitives(memory) {
             const view = new Uint8Array(memory.buffer, offset, length);
             const str = new TextDecoder().decode(view);
             return Symbol.for(str);
+        },
+        "$$prim$make-vector": (length) => {
+            const vector = new Array(length).fill(Void);
+            return vector;
+        },
+        "$$prim$vector-set": (vector, value, index) => {
+            if (index >= vector.length) {
+                throw new Error("out of bounds vector-set");
+            }
+            vector[index] = value;
+            return vector;
         },
         "$$iv$true": true,
         "$$iv$false": false,

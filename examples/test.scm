@@ -8,9 +8,11 @@
             (fib ($$prim$sub n 2))))))
 
 (call/cc (lambda (k) (k ($$prim$cons 
-                        'symbol 
-                        ($$prim$cons 
-                              (fib 25)
-                              ($$prim$cons
-                                    str
-                                    '()))))))
+                          #(1 2 "three" ($$prim$add 2 2) #t #f)
+                          ($$prim$cons
+                              'symbol 
+                              ($$prim$cons 
+                                    (fib 25)
+                                    ($$prim$cons
+                                          str
+                                          '())))))))

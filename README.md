@@ -28,6 +28,7 @@ make example
     - pairs
     - strings
     - symbols
+    - vectors
     - functions
 - operations
     - simple math operations

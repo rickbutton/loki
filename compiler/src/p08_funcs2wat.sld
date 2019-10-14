@@ -98,12 +98,25 @@
                 ,@(compile-quote (cdr expr) func)))
             (compile-expr expr func)))
 
-    (define (intrinsic->wasm-op i) `((call ,(intrinsic->name i))))
     (define (compile-intrinsic intrinsic args k func)
-        `(,@(compile-func-body args func)
-          ,@(intrinsic->wasm-op intrinsic)
-          ,@(compile-expr k func)
-          ,@(compile-apply 1)))
+        (let ((name (intrinsic->name intrinsic)))
+            (cond
+                ((equal? name '$$prim$make-vector)
+                    (let ((len (car args))
+                          (elements (cdr args)))
+                        `((call ,name (i32.const ,len))
+                          ,@(apply append (map (lambda (e idx) 
+                            `(,@(compile-expr e func)
+                              (call $$prim$vector-set (i32.const ,idx))))
+                            elements
+                            (range 0 len 1)))
+                          ,@(compile-expr k func)
+                          ,@(compile-apply 1))))
+                (else 
+                    `(,@(compile-func-body args func)
+                      (call ,name)
+                      ,@(compile-expr k func)
+                      ,@(compile-apply 1))))))
 
     (define (compile-if expr func)
         (let ((condition (cadr expr))
@@ -321,6 +334,8 @@
             (import "env" "$$prim$get-closure-findex" (func $$prim$get-closure-findex (param anyref i32) (result i32)))
             (import "env" "$$prim$make-string"        (func $$prim$make-string (param i32 i32) (result anyref)))
             (import "env" "$$prim$make-symbol"        (func $$prim$make-symbol (param i32 i32) (result anyref)))
+            (import "env" "$$prim$make-vector"        (func $$prim$make-vector (param i32) (result anyref)))
+            (import "env" "$$prim$vector-set"        (func $$prim$vector-set (param anyref anyref i32) (result anyref)))
             (data (i32.const 0)
                 ,(rodatas->wasm-data-section rodatas))
 

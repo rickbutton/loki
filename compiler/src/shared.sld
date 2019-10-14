@@ -119,6 +119,8 @@
                           $$prim$cons
                           $$prim$concat-string
 
+                          $$prim$make-vector
+
                           $$prim$le_s))
 (define (intrinsic-name? name)
     (contains? intrinsic-names name))

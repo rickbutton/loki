@@ -19,7 +19,9 @@
 
     (define (vector-syntax->scheme syntax)
         (let ((vec (syntax->value syntax)))
-            (map-vector syntax->scheme vec)))
+            `(,(make-intrinsic '$$prim$make-vector)
+              ,(vector-length vec)
+              ,@(map syntax->scheme (vector->list vec)))))
 
     (define (syntax->scheme syntax)
         (if (pair-syntax? syntax)

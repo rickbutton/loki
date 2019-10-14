@@ -4,7 +4,7 @@
 (import (p03_syntax2scheme.test))
 (import (chibi time))
 
-(time (test_p00_string2tokens))
+;(time (test_p00_string2tokens))
 (time (test_p01_tokens2syntax))
 (time (test_p02_attrs))
 (time (test_p03_syntax2scheme))
