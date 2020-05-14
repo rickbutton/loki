@@ -1,14 +1,16 @@
 ;;;===============================================================================
 ;;;
-;;; Chez compatibility file:
+;;; chibi compatibility file:
 ;;;
 ;;; Uncomment the appropriate LOAD command in macros-core.scm
 ;;;
 ;;;===============================================================================
 
-;; A number converted to string that uniquely identifies this run in the universe
+;; A numeric string that uniquely identifies this run in the universe
+(import (chibi time))
 
-(define (ex:unique-token) (number->string (real-time)))
+;(define (ex:unique-token) (number->string (current-seconds)))
+(define (ex:unique-token) "1")
 
 ;; The letrec black hole and corresponding setter.
 
@@ -28,9 +30,11 @@
   (lambda args 
     (display 'assertion-violation)
     (newline)
-    (for-each pretty-print args)
+    (display args)
     (newline)
-    (error)))
+    (car #f)))
+
+(define pretty-print write)
 
 ;; These are only partial implementations for specific use cases needed.
 ;; Full implementations should be provided by host implementation.
@@ -42,8 +46,6 @@
                         (memp proc (cdr ls))))
         (else (assertion-violation 'memp "Invalid argument" ls))))
 
-(define for-all andmap)
-
 (define (filter p? lst)
   (if (null? lst)
       '()
@@ -51,6 +53,19 @@
           (cons (car lst)
                 (filter p? (cdr lst)))
           (filter p? (cdr lst)))))
+
+(define (for-all proc l . ls)
+  (or (null? l)
+      (and (apply proc (car l) (map car ls))
+           (apply for-all proc (cdr l) (map cdr ls)))))
+
+;; The best we can do in r5rs is make these no-ops
+
+(define (file-exists? fn) 
+  #f)
+
+(define (delete-file fn)
+  (values))
 
 ;; Only the most minimal extremely partial implementation
 ;; of  r6rs records as needed for our specific use cases.  
@@ -88,3 +103,13 @@
           (lambda (x)
             (and (real-vector? x)
                  (not (eq? (vector-ref x 0) record-tag)))))))
+
+(define (string-join strings delimiter)
+  (if (null? strings)
+      ""
+      (fold-right (lambda (s so-far) (string-append so-far delimiter s))
+            (car strings)
+            (cdr strings))))
+
+(define (library-name->filename name)
+  (string-append (string-join (map symbol->string name) "/") ".sld"))

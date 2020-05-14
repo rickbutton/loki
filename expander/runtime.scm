@@ -76,13 +76,13 @@
           (let ((library (assoc name table)))
             (if library
                 library
-                (assertion-violation 'lookup-library "Library not loaded" name)
+                ;(assertion-violation 'lookup-library "Library not loaded" name)
                 ;; AUTOMATIC LOADING ON IMPORT OF LIBRARIES:
                 ;; Instead of assertion-violation, something like the following
                 ;; can be used to load libraries automatically
-                ;;(begin
-                ;;  (ex:load (library-name->filename name)) 
-                ;;  (ex:lookup-library name))
+                (begin
+                  (ex:load (library-name->filename name)) 
+                  (ex:lookup-library name))
                 )))))
 
 ;; Only instantiate part of the bootstrap library 

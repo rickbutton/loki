@@ -183,8 +183,10 @@
 ;; System exports:
 
 (define ex:expand-file               #f)
+(define ex:expand-sequence           #f)
 (define ex:repl                      #f)
 (define ex:expand-r5rs-file          #f)
+(define ex:expand-r5rs-sequence      #f)
 (define ex:run-r6rs-sequence         #f)
 (define ex:run-r6rs-program          #f)
 
@@ -2293,6 +2295,14 @@
          (write-file (expand-toplevel-sequence (normalize (read-file filename)))
                      target-filename))))
 
+    (define (expand-sequence forms type)
+      (with-toplevel-parameters
+       (lambda ()
+         (cond
+           ((eq? type 'program) (expand-r5rs-sequence forms (ex:environment '(rnrs base))))
+           ((eq? type 'library) (expand-toplevel-sequence (normalize forms)))
+           (else (error (string-append "invalid type: " (symbol->string type))))))))
+
     ;; This approximates the common r5rs behaviour of
     ;; expanding a toplevel file but treating unbound identifiers
     ;; as bare symbols that may refer to variables in the built-in toplevel
@@ -2308,6 +2318,9 @@
     ;; to be preloaded before it can be run.
 
     (define (expand-r5rs-file filename target-filename r6rs-env)
+      (write-file (expand-r5rs-sequence (read-file filename) r6rs-env) target-filename))
+
+    (define (expand-r5rs-sequence forms r6rs-env)
       (with-toplevel-parameters
        (lambda ()
          (fluid-let ((make-free-name (lambda (symbol) symbol))
@@ -2315,11 +2328,10 @@
                      (*macro-table*  *macro-table*))
            (let ((imported-libraries (r6rs-environment-imported-libraries r6rs-env)))
              (import-libraries-for-expand (r6rs-environment-imported-libraries r6rs-env) (map not imported-libraries) 0)
-             (write-file (cons `(ex:import-libraries-for-run ',(r6rs-environment-imported-libraries r6rs-env)
+              (cons `(ex:import-libraries-for-run ',(r6rs-environment-imported-libraries r6rs-env)
                                                              ',(current-builds imported-libraries)
                                                              0)
-                               (expand-toplevel-sequence (read-file filename)))
-                         target-filename))))))
+                               (expand-toplevel-sequence forms)))))))
        
     ;; Keeps (<library> ...) the same.
     ;; Converts (<library> ... . <toplevel program>)
@@ -2478,8 +2490,10 @@
     (set! ex:syntax-violation          syntax-violation)
     
     (set! ex:expand-file               expand-file)
+    (set! ex:expand-sequence           expand-sequence)
     (set! ex:repl                      repl)
     (set! ex:expand-r5rs-file          expand-r5rs-file)
+    (set! ex:expand-r5rs-sequence      expand-r5rs-sequence)
     (set! ex:run-r6rs-sequence         run-r6rs-sequence)
     (set! ex:run-r6rs-program          run-r6rs-program)
 
