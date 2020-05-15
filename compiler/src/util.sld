@@ -22,6 +22,7 @@
         contains?
         range
         debug
+        pretty-print
         string-join
         make-anon-id
         make-named-id)
@@ -103,6 +104,9 @@
                 (display ": ")
                 (display (show #f exp))
                 (display "\n")))))
+
+(define (pretty-print exp)
+    (display (show #f (pretty exp))))
 
 (define (string-join strings delimiter)
     (if (null? strings)

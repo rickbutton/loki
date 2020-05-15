@@ -1,0 +1,7 @@
+move code into loki folder
+
+expose expander and standard libraries that can be expanded during compile time (and cached, separate compilation) to act as libraries to link against thing being compiled
+
+if program includes ex:repl or ex:expand-file, program will automatically include compiler itself in the result.
+
+this means I need to move the emitted ex:register-macro! and other runtime usages into an expanded version that references the in-memory runtime library

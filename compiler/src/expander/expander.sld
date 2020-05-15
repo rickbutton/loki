@@ -164,6 +164,42 @@
 ;; EXPORTS:
 ;;
 ;;=================================================================================
+(define-library (expander expander)
+(import (scheme r5rs))
+(import (expander compat))
+(import (expander runtime))
+(export ex:make-variable-transformer
+        ex:identifier?              
+        ex:bound-identifier=?       
+        ex:free-identifier=?        
+        ex:generate-temporaries     
+        ex:datum->syntax            
+        ex:syntax->datum            
+        ex:environment              
+        ex:environment-bindings     
+        ex:eval                     
+        ex:load                     
+        ex:syntax-violation         
+    
+        ex:expand-file              
+        ex:expand-sequence          
+        ex:repl                     
+        ex:expand-r5rs-file         
+        ex:expand-r5rs-sequence     
+        ex:run-r6rs-sequence        
+        ex:run-r6rs-program         
+
+        ex:uncompress
+        ex:invalid-form             
+        ex:register-macro!          
+        ex:syntax-rename            
+        ex:map-while                
+        ex:dotted-length            
+        ex:dotted-butlast           
+        ex:dotted-last              
+        ex:free=?)
+(begin
+
 
 ;; Direct exports:
 
@@ -192,6 +228,7 @@
 
 ;; Indirect exports:
 
+(define ex:uncompress                #f)
 (define ex:invalid-form              #f)
 (define ex:register-macro!           #f)
 (define ex:syntax-rename             #f)
@@ -199,7 +236,6 @@
 (define ex:dotted-length             #f)
 (define ex:dotted-butlast            #f)
 (define ex:dotted-last               #f)
-(define ex:uncompress                #f)
 (define ex:free=?                    #f)
 
 (letrec-syntax
@@ -713,11 +749,11 @@
 
     (define (uncompress compressed-env-table)
       (map (lambda (env-entry)
-             (cons (car env-entry)
-                   (map (lambda (frame-abbrev)
-                          (cdr (assv frame-abbrev (cdr compressed-env-table))))
-                        (cdr env-entry))))
-           (car compressed-env-table)))
+           (cons (car env-entry)
+            (map (lambda (frame-abbrev)
+                  (cdr (assv frame-abbrev (cdr compressed-env-table))))
+             (cdr env-entry))))
+      (car compressed-env-table)))
 
     ;;=========================================================================
     ;;
@@ -2497,6 +2533,7 @@
     (set! ex:run-r6rs-sequence         run-r6rs-sequence)
     (set! ex:run-r6rs-program          run-r6rs-program)
 
+    (set! ex:uncompress                uncompress)
     (set! ex:invalid-form              invalid-form)
     (set! ex:register-macro!           register-macro!)
     (set! ex:syntax-rename             syntax-rename)
@@ -2504,10 +2541,18 @@
     (set! ex:dotted-length             dotted-length)
     (set! ex:dotted-butlast            dotted-butlast)
     (set! ex:dotted-last               dotted-last)
-    (set! ex:uncompress                uncompress)
     (set! ex:free=?                    free=?)
+
+    ;;==========================================================================
+    ;;
+    ;; Runtime Hooks
+    ;; For the compiler runtime (we are re-using the runtime during compiler in
+    ;; order to manage libraries using same interface used during run)
+    ;;
+    ;;==========================================================================
+    (ex:load-hook-set! ex:load)
 
     ) ; let
   ) ; letrec-syntax
-
-
+)
+(include "standard-libraries.exp"))

@@ -2,25 +2,41 @@
 ;;;
 ;;; chibi compatibility file:
 ;;;
-;;; Uncomment the appropriate LOAD command in macros-core.scm
-;;;
 ;;;===============================================================================
+(define-library (expander compat)
+(import (scheme r5rs))
+(import (chibi time))
+(import (util))
+(export ex:unique-token
+        ex:undefined
+        ex:undefined-set!
+        ex:guid-prefix
+        ex:free-prefix
+        assertion-violation
+        memp filter for-all
+        file-exists?
+        delete-file
+        make-record-type-descriptor
+        make-record-constructor-descriptor
+        record-accessor
+        record-constructor
+        record-predicate
+        string-join
+        library-name->filename)
+(begin
 
 ;; A numeric string that uniquely identifies this run in the universe
-(import (chibi time))
-
-;(define (ex:unique-token) (number->string (current-seconds)))
-(define (ex:unique-token) "1")
+;(define (ex:unique-token) (number->string (current-seconds) 32))
+; TODO - fix this
+(define (ex:unique-token) "")
 
 ;; The letrec black hole and corresponding setter.
-
 (define ex:undefined 'undefined)
 (define ex:undefined-set! 'set!)
 
 ;; Single-character symbol prefixes.
 ;; No builtins may start with one of these.
 ;; If they do, select different values here.
-
 (define ex:guid-prefix "&")
 (define ex:free-prefix "~")
 
@@ -33,8 +49,6 @@
     (display args)
     (newline)
     (car #f)))
-
-(define pretty-print write)
 
 ;; These are only partial implementations for specific use cases needed.
 ;; Full implementations should be provided by host implementation.
@@ -113,3 +127,5 @@
 
 (define (library-name->filename name)
   (string-append (string-join (map symbol->string name) "/") ".sld"))
+
+))

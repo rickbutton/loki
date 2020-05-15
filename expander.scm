@@ -1,20 +1,15 @@
 (import (scheme r5rs))
-(import (scheme base))
+(import (expander runtime))
+;(ex:expand-file "expander/standard-libraries.scm" "expander/standard-libraries.exp")
+;(load "compiler/src/expander/standard-libraries.exp")
+
 (import (scheme write))
 (import (scheme load))
-(import (srfi 159))
-(import (chibi show pretty))
+(import (expander expander))
 (import (util))
-
-(load "expander/compat-chibi.scm")
-(load "expander/runtime.scm")
-(load "expander/expander.scm")
-;(ex:expand-file "expander/standard-libraries.scm" "expander/standard-libraries.exp")
-(load "expander/standard-libraries.exp")
 
 (define (expand forms)
   (ex:expand-sequence forms 'library))
-  ;(ex:run-r6rs-sequence forms))
 
 (define form '(
 (library (main)
@@ -38,4 +33,4 @@
 )
 ))
 
-(display (show #f (pretty (expand form))))
+(display (pretty-print (expand form)))

@@ -4,6 +4,19 @@
 ;;; for running a fully expanded program.
 ;;;
 
+(define (util:filter p? lst)
+  (if (null? lst)
+      '()
+      (if (p? (car lst))
+          (cons (car lst)
+                (util:filter p? (cdr lst)))
+          (util:filter p? (cdr lst)))))
+
+; TODO - set this at runtime to something that crashes
+(define load-hook #f)
+(define (ex:load-hook-set! hook)
+  (set! load-hook hook))
+
 (define ex:unspecified (if #f #f))
 
 (define (ex:make-library name envs exports imports builds visiter invoker build)
@@ -67,7 +80,7 @@
   (set! ex:register-library! 
         (lambda (library)
           (set! table (cons library table))
-          (set! ex:imported (filter (lambda (entry)
+          (set! ex:imported (util:filter (lambda (entry)
                                       (not (equal? (ex:library-name library) 
                                                    (car entry))))
                                     ex:imported))))
@@ -81,7 +94,7 @@
                 ;; Instead of assertion-violation, something like the following
                 ;; can be used to load libraries automatically
                 (begin
-                  (ex:load (library-name->filename name)) 
+                  (load-hook (library-name->filename name)) 
                   (ex:lookup-library name))
                 )))))
 
