@@ -1,8 +1,8 @@
 (define-library 
-(p06_reduce)
+(loki p06_reduce)
 (import (scheme base))
-(import (util))
-(import (shared))
+(import (loki util))
+(import (loki shared))
 (export p06_reduce)
 (begin
 

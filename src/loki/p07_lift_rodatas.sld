@@ -1,10 +1,10 @@
 (define-library 
-(p07_lift_rodatas)
+(loki p07_lift_rodatas)
 (import (scheme base))
 (import (scheme write))
 (import (chibi match))
 (import (srfi 151))
-(import (util))
+(import (loki util))
 (export p07_lift_rodatas)
 (begin
 

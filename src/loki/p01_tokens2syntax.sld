@@ -6,10 +6,10 @@
 ; e.g. '123 => (quote 123)
 ; whether the quote/unquote syntax is valid in-context is not validated, and is checked in a later pass.
 (define-library 
-    (p01_tokens2syntax)
+    (loki p01_tokens2syntax)
     (import (scheme base))
-    (import (util))
-    (import (shared))
+    (import (loki util))
+    (import (loki shared))
     (export 
         p01_tokens2syntax)
 (begin
@@ -31,7 +31,8 @@
 ; quasiquote
 
 (define (raise-token-error token message)
-    (raise-location-error (token->location token) message))
+    (raise-location-error (token->location token) 
+        (string-append message " [" (symbol->string (token->type token)) "]"))
 
 (define (p01_tokens2syntax tokens)
     (let ((token-list tokens)
@@ -73,12 +74,7 @@
         (define (make-parse-quote-like name)
             (lambda (token)
                 (let ((value-token (pop-token)))
-                    (syntax (token->location token) (cons
-                        (syntax (token->location token) name)
-                        (syntax (token->location value-token) (cons
-                            (parse-next-with-token value-token)
-                            '()
-                            )))))))
+                    (list (syntax (token->location token) name) (parse-next-with-token value-token)))))
 
         (define parse-quote (make-parse-quote-like 'quote))
         (define parse-quasiquote (make-parse-quote-like 'quasiquote))
@@ -115,7 +111,7 @@
                         (else 
                             (let* ((car-syntax (parse-next-with-token car-token))
                                     (cdr-syntax (parse-cons lparen-token #f)))
-                                (syntax (token->location lparen-token) (cons car-syntax cdr-syntax)))))
+                                (cons car-syntax cdr-syntax))))
                     (raise-token-error lparen-token "unexpected end of stream, expected parens"))))
 
         (define (parse)
@@ -125,15 +121,15 @@
         (define (syntax-list->begin* syntax-list)
             (if (null? syntax-list) 
                 '()
-                (syntax #f (cons (car syntax-list) (syntax-list->begin* (cdr syntax-list))))))
+                (cons (car syntax-list) (syntax-list->begin* (cdr syntax-list)))))
             
         (define (syntax-list->begin syntax-list)
             (cond
                 ((null? syntax-list) '())
                 ((eq? (length syntax-list) 1) (car syntax-list))
-                (else (syntax #f (cons
+                (else (cons
                         (syntax #f 'begin)
-                        (syntax-list->begin* syntax-list))))))
+                        (syntax-list->begin* syntax-list)))))
 
         (parse)
         (syntax-list->begin (reverse syntax-list))))

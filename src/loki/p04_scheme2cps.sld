@@ -1,12 +1,12 @@
 (define-library 
-    (p04_scheme2cps)
+    (loki p04_scheme2cps)
     (import (scheme base))
     (import (scheme write))
     (import (chibi match))
     (import (srfi 159))
     (import (chibi show pretty))
-    (import (util))
-    (import (shared))
+    (import (loki util))
+    (import (loki shared))
     (export p04_scheme2cps)
 (begin
 

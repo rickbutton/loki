@@ -12,11 +12,11 @@
 ; so this is the last stop on the "compile time error" train. this means that any ambiguities
 ; around syntax vs definitions and scoping need to be determined by the end of this pass.
 (define-library
-    (p02_attrs)
+    (loki p02_attrs)
     (import (scheme base))
     (import (srfi 69))
-    (import (util))
-    (import (shared))
+    (import (loki util))
+    (import (loki shared))
     (import (chibi match))
     (export p02_attrs)
 (begin

@@ -1,8 +1,8 @@
 (define-library
-    (p03_syntax2scheme)
+    (loki p03_syntax2scheme)
     (import (scheme base))
-    (import (shared))
-    (import (util))
+    (import (loki shared))
+    (import (loki util))
     (export p03_syntax2scheme)
 (begin
 

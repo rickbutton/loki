@@ -1,11 +1,10 @@
 (define-library 
-    (shared)
+    (loki shared)
     (import (scheme base))
     (import (scheme write))
     (import (srfi 69))
-    (import (srfi 159))
-    (import (util))
-    (import (chibi ast)) ; TODO, remove this!
+    (import (loki util))
+    (import (loki compat))
     (export 
         make-source-location
         source-location->line
@@ -48,6 +47,7 @@
         compile-error->location
         compile-error->message
         raise-location-error
+        raise-token-error
         raise-syntax-error
         
         safe-car-syntax
@@ -63,14 +63,16 @@
 (begin
 
 (define-record-type <source-location>
-    (make-source-location line col offset)
+    (make-source-location path line col offset)
     source-location?
+    (path source-location->path)
     (line source-location->line)
     (col  source-location->col)
     (offset source-location->offset))
 (define (source-location->string l)
     (string-append 
-        "["
+        (source-location->path l)
+        " ["
         (number->string (source-location->line l))
         ":"
         (number->string (source-location->col l))
@@ -97,15 +99,16 @@
 (define (pair-syntax? syntax)
     (and (syntax? syntax) (pair? (syntax->value syntax))))
 (type-printer-set! <syntax> 
-    (lambda (x writer out) 
-        (display (string-append "#'" (show #f (syntax->value x))) out)))
+    (lambda (x out) 
+        (display "#'" out)
+        (display (syntax->value x) out)))
 
 (define-record-type <variable>
     (make-variable value)
     variable?
     (value variable->value))
 (type-printer-set! <variable> 
-    (lambda (x writer out) 
+    (lambda (x out) 
         (display (symbol->string (variable->value x)) out)))
 
 (define-record-type <intrinsic>
@@ -125,7 +128,7 @@
 (define (intrinsic-name? name)
     (contains? intrinsic-names name))
 (type-printer-set! <intrinsic> 
-    (lambda (x writer out) 
+    (lambda (x out) 
         (display (string-append 
             "i:" (symbol->string (intrinsic->name x))) out)))
 
@@ -135,7 +138,7 @@
     comment?
     (text comment->text))
 (type-printer-set! <comment> 
-    (lambda (x writer out) 
+    (lambda (x out) 
         (display (string-append "(;" (comment->text x) ";)") out)))
 
 (define-record-type <compile-error>
@@ -146,6 +149,9 @@
 
 (define (raise-location-error location message)
         (raise (make-compile-error location message)))
+(define (raise-token-error token message)
+    (raise-location-error (token->location token) 
+        (string-append message " [" (symbol->string (token->type token)) "]")))
 (define (raise-syntax-error syntax message)
     (let ((location (syntax->location syntax)))
         (raise-location-error location message)))
@@ -193,7 +199,5 @@
         ((symbol? scheme) (syntax #f scheme))
         ((null? scheme) '())
         (else (raise (string-append
-            "unknown scheme, can't convert value "
-            (show #f scheme)
-            "to syntax")))))
+            "unknown scheme, can't convert value to syntax")))))
 ))

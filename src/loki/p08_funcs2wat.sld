@@ -1,10 +1,10 @@
 (define-library 
-(p08_funcs2wat)
+(loki p08_funcs2wat)
 (import (scheme base))
 (import (srfi 151))
 (import (chibi match))
-(import (util))
-(import (shared))
+(import (loki util))
+(import (loki shared))
 (export p08_funcs2wat)
 (begin
 

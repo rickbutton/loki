@@ -1,15 +1,11 @@
 (define-library 
-    (util)
+    (loki util)
     (import (scheme base))
     (import (scheme read))
     (import (scheme eval))
     (import (scheme write))
-    (import (srfi 159))
-    (import (chibi show pretty))
+    (import (loki compat))
     (export 
-        caddr
-        cadddr
-        cdddr
         map-vector
         unique
         find
@@ -25,12 +21,9 @@
         pretty-print
         string-join
         make-anon-id
-        make-named-id)
+        make-named-id
+        fluid-let)
 (begin
-
-(define (caddr x) (car (cdr (cdr x))))
-(define (cadddr x) (car (cdr (cdr (cdr x)))))
-(define (cdddr x) (cdr (cdr (cdr x))))
 
 (define (map-vector fn vec)
     (list->vector (map fn (vector->list vec))))
@@ -49,11 +42,13 @@
             (car list)
             (find pred (cdr list)))))
 
-(define filter
-    (lambda (pred lst)
-    (cond ((null? lst) '())
-            ((pred (car lst)) (cons (car lst) (filter pred (cdr lst))))
-            (else (filter pred (cdr lst))))))
+(define (filter p? lst)
+  (if (null? lst)
+      '()
+      (if (p? (car lst))
+          (cons (car lst)
+                (filter p? (cdr lst)))
+          (filter p? (cdr lst)))))
 
 (define (fold-left f init seq) 
     (if (null? seq) 
@@ -100,20 +95,16 @@
     (syntax-rules ()
         ((debug exp)
             (begin
-                (display (show #f (quote exp)))
+                ;(display (show #f (quote exp)))
+                (display (quote exp))
                 (display ": ")
-                (display (show #f exp))
+                ;(display (show #f exp))
+                (display exp)
                 (display "\n")))))
 
 (define (pretty-print exp)
-    (display (show #f (pretty exp))))
-
-(define (string-join strings delimiter)
-    (if (null? strings)
-        ""
-        (fold-right (lambda (s so-far) (string-append so-far delimiter s))
-            (car strings)
-            (cdr strings))))
+    (display exp))
+    ;(display (show #f (pretty exp))))
 
 (define (make-anon-id prefix)
     (let ((count 0))
@@ -125,4 +116,17 @@
     (let ((count 0))
         (lambda (name) 
             (set! count (+ 1 count))
-            (string->symbol (string-append prefix (number->string count) "_" (symbol->string name))))))))
+            (string->symbol (string-append prefix (number->string count) "_" (symbol->string name))))))
+
+(define-syntax fluid-let
+      (syntax-rules ()
+        ((fluid-let () be ...)
+         (begin be ...))
+        ((fluid-let ((p0 e0) (p e) ...) be ...)
+         (let ((saved p0))
+           (set! p0 e0)
+           (call-with-values (lambda ()
+                               (fluid-let ((p e) ...) be ...))
+             (lambda results
+               (set! p0 saved)
+               (apply values results)))))))))

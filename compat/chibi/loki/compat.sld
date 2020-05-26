@@ -3,26 +3,27 @@
 ;;; chibi compatibility file:
 ;;;
 ;;;===============================================================================
-(define-library (expander compat)
+(define-library (loki compat)
+(import (scheme base))
 (import (scheme r5rs))
-(import (chibi time))
-(import (util))
+(import (scheme process-context))
+(import (scheme write))
+(import (scheme file))
+(import (scheme eval))
+(import (rename (chibi ast) (type-printer-set! chibi-type-printer-set!)))
 (export ex:unique-token
         ex:undefined
         ex:undefined-set!
         ex:guid-prefix
         ex:free-prefix
         assertion-violation
-        memp filter for-all
+        memp for-all
         file-exists?
         delete-file
-        make-record-type-descriptor
-        make-record-constructor-descriptor
-        record-accessor
-        record-constructor
-        record-predicate
         string-join
-        library-name->filename)
+        library-name->filename
+        compat-eval
+        type-printer-set!)
 (begin
 
 ;; A numeric string that uniquely identifies this run in the universe
@@ -48,7 +49,7 @@
     (newline)
     (display args)
     (newline)
-    (car #f)))
+    (error)))
 
 ;; These are only partial implementations for specific use cases needed.
 ;; Full implementations should be provided by host implementation.
@@ -60,64 +61,21 @@
                         (memp proc (cdr ls))))
         (else (assertion-violation 'memp "Invalid argument" ls))))
 
-(define (filter p? lst)
-  (if (null? lst)
-      '()
-      (if (p? (car lst))
-          (cons (car lst)
-                (filter p? (cdr lst)))
-          (filter p? (cdr lst)))))
-
 (define (for-all proc l . ls)
   (or (null? l)
       (and (apply proc (car l) (map car ls))
            (apply for-all proc (cdr l) (map cdr ls)))))
 
-;; The best we can do in r5rs is make these no-ops
-
-(define (file-exists? fn) 
-  #f)
-
-(define (delete-file fn)
-  (values))
-
-;; Only the most minimal extremely partial implementation
-;; of  r6rs records as needed for our specific use cases.  
-;; Note that most arguments are ignored.
-
-(define (make-record-type-descriptor name parent uid sealed? opaque? fields)
-  (list name))
-
-(define (make-record-constructor-descriptor rtd parent-constructor-descriptor protocol)
-  rtd)
-
-(define (record-accessor rtd k)
-  (lambda (r) (vector-ref r (+ k 2))))
-
-(define record-constructor #f) 
-(define record-predicate   #f) 
-
-(let ((record-tag (list 'record)))
-
-  (set! record-constructor 
-        (lambda (cd) 
-          (lambda args
-            (apply vector record-tag cd args))))
-        
-  (set! record-predicate 
-        (lambda (rtd) 
-          (let ((real-vector? (eval 'vector? (scheme-report-environment 5))))
-            (lambda (x)
-              (and (real-vector? x)
-                   (eq? (vector-ref x 0) record-tag)
-                   (eq? (vector-ref x 1) rtd))))))
-  
-  (set! vector?
-        (let ((real-vector? (eval 'vector? (scheme-report-environment 5))))
-          (lambda (x)
-            (and (real-vector? x)
-                 (not (eq? (vector-ref x 0) record-tag)))))))
-
+(define (find pred list)
+    (if (null? list) #f
+        (if (pred (car list))
+            (car list)
+            (find pred (cdr list)))))
+(define (fold-right f init seq) 
+    (if (null? seq) 
+        init 
+        (f (car seq) 
+            (fold-right f init (cdr seq))))) 
 (define (string-join strings delimiter)
   (if (null? strings)
       ""
@@ -125,7 +83,27 @@
             (car strings)
             (cdr strings))))
 
+(define (library-name-part->string p)
+    (if (symbol? p) (symbol->string p)
+                    (number->string p)))
+
+(define library-dirs (list "src" "compat/loki"))
 (define (library-name->filename name)
-  (string-append (string-join (map symbol->string name) "/") ".sld"))
+    (find file-exists?
+        (map (lambda (dir)
+            (string-append 
+                (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
+            library-dirs)))
+
+(define compat-env #f)
+(define (compat-eval e) 
+    (if (not compat-env)
+        (set! compat-env 
+            (environment '(scheme r5rs) '(loki compat) '(loki runtime) '(loki expander))))
+    (eval e compat-env))
+
+(define (type-printer-set! type printer)
+    (chibi-type-printer-set! type 
+        (lambda (x writer out) (printer x out))))
 
 ))

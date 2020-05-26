@@ -1,9 +1,9 @@
 (define-library 
-(p05_liftlambda)
+(loki p05_liftlambda)
 (import (scheme base))
 (import (chibi match))
-(import (util))
-(import (shared))
+(import (loki util))
+(import (loki shared))
 (export p05_liftlambda)
 (begin
 

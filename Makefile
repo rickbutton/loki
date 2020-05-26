@@ -13,13 +13,16 @@ example-debug: examples/test.wasm examples/test.wat
 	node --inspect-brk $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
 
 test:
-	chibi-scheme -I compiler/src -I compiler/tests compiler/tests/tests.scm
+	chibi-scheme -I src -I compat/chibi src/tests.scm
 
 parse-repl:
-	chibi-scheme -I compiler/src compiler/src/parse-repl.scm
+	chibi-scheme -I src -I compat/chibi src/parse-repl.scm
+
+expander:
+	chibi-scheme -T -A src -A compat/chibi src/expander.scm
 
 %.wat: %.scm compiler/src/**
-	chibi-scheme -I compiler/src compiler/src/loki.scm $< $@
+	chibi-scheme -I src -I compat/chibi src/loki.scm $< $@
 
 %.wasm: %.wat
 	wat2wasm $(WABT_FLAGS) --debug-names $< -o $@

@@ -1,3 +1,10 @@
+;;;
+;;; loki expander
+;;;
+;;; This library was been ported from the reference implementation
+;;; of a R6RS macro expander and library support in SRFI-72, to R7RS.
+;;;
+;;; Original License:
 ;;;=================================================================================
 ;;;
 ;;; R6RS Macros and R6RS libraries:
@@ -7,30 +14,6 @@
 ;;;   Copyright statement at http://srfi.schemers.org/srfi-process.html
 ;;;
 ;;;=================================================================================
-;;;
-;;;=================================================================================
-;;;
-;;; PORTING COMMENTS:
-;;;
-;;;=================================================================================
-;;;
-;;; The file compat-*.scm has to be loaded before loading this expander.
-;;;
-;;; Compat-*.scm should supply whatever is missing from your implementation of
-;;; the following.
-;;;
-;;; NOTE: A purely r5rs approximation is provided that can be used
-;;;       as a customization template.
-;;;
-;;;  - Procedures assertion-violation, memp, filter, for-all, pretty-print,
-;;;    file-exists? and delete-file.
-;;;  - Procedures make-record-type-descriptor, make-record-constructor-descriptor,
-;;;    record-constructor, record-predicate and record-accessor.
-;;;  - Procedure (ex:unique-token) that provides a numeric GUID string once per run.
-;;;  - Single-character string ex:guid-prefix.  No builtin may start with this.
-;;;  - Single-character string ex:free-prefix.  No builtin may start with this.
-;;;  - Value ex:undefined representing the letrec black hole value.
-;;;  - Symbol ex:undefined-set! representing the corresponding setter.
 ;;;
 ;;; HOOKS:
 ;;; ------
@@ -59,23 +42,6 @@
 ;;;
 ;;; COMPILATION:
 ;;; ------------
-;;;
-;;; Example compilation scripts can be seen in examples.scm.
-;;; The expander expands everything to r5rs toplevel definitions
-;;; and expressions, so the expanded code should be compilable
-;;; with an r5rs compiler.
-;;;
-;;; REPL:
-;;; -----
-;;;
-;;; Example REPL interaction can be seen in examples.scm.
-;;;
-;;; The REPL goes beyond r6rs to allow incremental development in
-;;; a toplevel environment.
-;;; The developer can freely change, replace and make new toplevel
-;;; definitions, evaluate toplevel expressions, enter libraries and
-;;; <toplevel programs> at the prompt, as well as import libraries
-;;; into the toplevel environment.
 ;;;    
 ;;; EX:REPL evaluates a sequence of library definitions, commands, and top-level 
 ;;; import forms in the interactive environment.  The semantics for 
@@ -84,11 +50,6 @@
 ;;; http://scheme-punks.cyber-rush.org/wiki/index.php?title=ERR5RS:Libraries.
 ;;; Bindings in the interactive environment persist between invocations 
 ;;; of REPL. 
-;;;
-;;; An example session where I do all these things is in examples.scm.
-;;; All an integrator would need to do is to automate the call to
-;;; ex:repl in the development system so users don't have to type
-;;; (ex:repl '( <code> )) at each prompt.
 ;;;
 ;;; FORMAT OF EXPANDED CODE:
 ;;; ------------------------
@@ -150,24 +111,16 @@
 ;;; library in one session and use macros from the /expanded/ library to
 ;;; expand another library or program in a new session.  The customization
 ;;; to get rid of separate compilation, if desired, would be trivial.
-
-;;=================================================================================
-;;
-;; IMPORTS:
-;;
-;;=================================================================================
-;;
-;; The include file runtime.scm has to be loaded before loading this expander
-;;
-;;=================================================================================
-;;
-;; EXPORTS:
-;;
-;;=================================================================================
-(define-library (expander expander)
-(import (scheme r5rs))
-(import (expander compat))
-(import (expander runtime))
+(define-library (loki expander)
+(import (scheme base))
+(import (scheme file))
+(import (scheme write))
+(import (scheme cxr))
+(import (scheme process-context))
+(import (loki compat))
+(import (loki runtime))
+(import (loki util))
+(import (loki reader))
 (export ex:make-variable-transformer
         ex:identifier?              
         ex:bound-identifier=?       
@@ -238,28 +191,48 @@
 (define ex:dotted-last               #f)
 (define ex:free=?                    #f)
 
+;;==========================================================================
+;;
+;; Identifiers:
+;;
+;;==========================================================================
+;; <name>             ::= <symbol>
+;; <colors>           ::= (<color> ...)
+;; <transformer-envs> ::= (<env> ...)
+;; <displacement>     ::= <integer>
+;; <maybe-library>    ::= (<symbol> ...) | #f
+;;
+;; where
+;;   <name>             : The symbolic name of the identifier in the source.
+;;   <colors>           : Each time an introduced identifier is renamed, a fresh
+;;                        color gets prepended to its <colors>.
+;;   <transformer-envs> : List of reflected transformer environments.
+;;                        The environment (env-reify (car <transformer-envs>)) was the
+;;                        usage environment valid during expansion of any (syntax id)
+;;                        expression whose evaluation introduced this identifier, while
+;;                        (cdr <transformer-envs>) are in turn the reflected
+;;                        <transformer-envs> of the original id.
+;;   <displacement>     : Integer that keeps track of shifts in phases
+;;                        between transformer and usage sites of identifier.
+;;   <maybe-library>    : Library name if identifier was introduced by evaluation of
+;;                        a (syntax ...) expression, otherwise #f.
+;;                        The empty name '() is used for toplevel.
+(define-record-type :identifier
+    (make-identifier name colors transformer-envs displacement maybe-library)
+    identifier?
+    (name id-name)
+    (colors id-colors)
+    (transformer-envs id-transformer-envs)
+    (displacement id-displacement)
+    (maybe-library id-maybe-library))
+
 (letrec-syntax
-    ;; Not everyone has the same parameter API:
-
-    ((fluid-let
-      (syntax-rules ()
-        ((fluid-let () be ...)
-         (begin be ...))
-        ((fluid-let ((p0 e0) (p e) ...) be ...)
-         (let ((saved p0))
-           (set! p0 e0)
-           (call-with-values (lambda ()
-                               (fluid-let ((p e) ...) be ...))
-             (lambda results
-               (set! p0 saved)
-               (apply values results)))))))
-
      ;; A trivial but extremely useful s-expression matcher.
      ;; Implements a subset of Wright's matcher's patterns.
      ;; Includes additional (syntax id) pattern that matches
      ;; if input is identifier? and free=? to 'id.
 
-     (match
+     ((match
       (syntax-rules ()
         ((match (op arg ...) clause ...)
          (let ((x (op arg ...)))
@@ -377,55 +350,7 @@
          ;; whether expanded library introduces identifiers via syntax
          ;; expressions - if not, save lots of space by not including
          ;; env-table in object code
-         (*syntax-reflected* #f)
-
-         ;;==========================================================================
-         ;;
-         ;; Identifiers:
-         ;;
-         ;;==========================================================================
-
-         ;; <name>             ::= <symbol>
-         ;; <colors>           ::= (<color> ...)
-         ;; <transformer-envs> ::= (<env> ...)
-         ;; <displacement>     ::= <integer>
-         ;; <maybe-library>    ::= (<symbol> ...) | #f
-         ;;
-         ;; where
-         ;;   <name>             : The symbolic name of the identifier in the source.
-         ;;   <colors>           : Each time an introduced identifier is renamed, a fresh
-         ;;                        color gets prepended to its <colors>.
-         ;;   <transformer-envs> : List of reflected transformer environments.
-         ;;                        The environment (env-reify (car <transformer-envs>)) was the
-         ;;                        usage environment valid during expansion of any (syntax id)
-         ;;                        expression whose evaluation introduced this identifier, while
-         ;;                        (cdr <transformer-envs>) are in turn the reflected
-         ;;                        <transformer-envs> of the original id.
-         ;;   <displacement>     : Integer that keeps track of shifts in phases
-         ;;                        between transformer and usage sites of identifier.
-         ;;   <maybe-library>    : Library name if identifier was introduced by evaluation of
-         ;;                        a (syntax ...) expression, otherwise #f.
-         ;;                        The empty name '() is used for toplevel.
-
-         (:identifier
-          (make-record-type-descriptor 'identifier #f #f #f #f
-                                       '#((immutable name)
-                                          (immutable colors)
-                                          (immutable transformer-envs)
-                                          (immutable displacement)
-                                          (immutable maybe-library))))
-         (make-identifier
-          (record-constructor (make-record-constructor-descriptor :identifier #f #f))))
-
-    ;; We sequenced stuff in the let* above because r5rs internal
-    ;; definitions use letrec semantics and cannot be used for sequencing.
-
-    (define identifier?         (record-predicate :identifier))
-    (define id-name             (record-accessor :identifier 0))
-    (define id-colors           (record-accessor :identifier 1))
-    (define id-transformer-envs (record-accessor :identifier 2))
-    (define id-displacement     (record-accessor :identifier 3))
-    (define id-maybe-library    (record-accessor :identifier 4))
+         (*syntax-reflected* #f))
 
     (define (id-library id)
       (or (id-maybe-library id)
@@ -1029,6 +954,13 @@
          `(let ((x ,(expand e)))
             (if x x ,(expand `(,or ,@es)))))))
 
+    (define (expand-not exp)
+      (match exp
+        (not
+            `(lambda (e) (not e)))
+        ((not e)
+         `(if (eq? #f ,(expand e)) #t #f))))
+
     ;;=========================================================================
     ;;
     ;; Lambda:
@@ -1152,7 +1084,7 @@
                        (match form
                          ((- specs ___)
                           (call-with-values
-                              (lambda () (scan-imports specs))
+                              (lambda () (scan-imports specs '() '()))
                             (lambda (imported-libraries imports)
                               (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
                               (env-import! (car form) imports common-env)
@@ -1169,7 +1101,7 @@
                              (cons (list #f #f (expand-program form)) forms)
                              syntax-defs
                              bound-variables))
-                      ((library)
+                      ((define-library)
                        (loop (cdr ws)
                              (cons (list #f #f (expand-library form)) forms)
                              syntax-defs
@@ -1196,7 +1128,7 @@
                              (env-extend! (list mapping) common-env)
                              (let ((rhs (fluid-let ((*phase* (+ 1 *phase*)))
                                           (expand rhs))))
-                               (register-macro! (binding-name (cdr mapping)) (make-user-macro (eval rhs (interaction-environment))))
+                               (register-macro! (binding-name (cdr mapping)) (make-user-macro (compat-eval rhs)))
                                (loop (cdr ws)
                                      forms
                                      (cons (cons (binding-name (binding id)) rhs) syntax-defs)
@@ -1227,7 +1159,7 @@
                                                   ((let-syntax)    original-env)
                                                   ((letrec-syntax) extended-env))))
                                      (map expand rhs)))
-                                  (macros (map (lambda (e) (eval e (interaction-environment))) rhs-expanded)))
+                                  (macros (map (lambda (e) (compat-eval e)) rhs-expanded)))
                              (for-each (lambda (mapping macro)
                                          (register-macro! (binding-name (cdr mapping)) (make-user-macro macro)))
                                        usage-diff
@@ -1285,7 +1217,8 @@
            (duplicate? id common-env)
            (syntax-violation type "Redefinition of identifier in body" form id))
       (check-used id body-type form)
-      (and (not (memq body-type `(toplevel program)))
+      (debug body-type)
+      (and (not (memq body-type `(toplevel program library)))
            (not (null? forms))
            (not (symbol? (car (car forms))))
            (syntax-violation type "Definitions may not follow expressions in a body" form)))
@@ -1642,86 +1575,85 @@
 
     (define (expand-library-or-program t library-type)
       (match t
-        ((keyword name ((syntax export) sets ___) ((syntax import) specs ___) body-forms ___)
+        ((keyword name declarations ___)
          (let ((name (syntax->datum (scan-library-name name))))
-           (let ((exports (scan-exports sets)))
-             (call-with-values
-                 (lambda () (scan-imports specs))
-               (lambda (imported-libraries imports)
-                 (fluid-let ((*usage-env*        (make-unit-env))
-                             (*current-library*  name)
-                             (*syntax-reflected* #f))       ; +++ space
+           (call-with-values
+               (lambda () (scan-declarations declarations))
+             (lambda (imported-libraries imports exports body-forms)
+               (fluid-let ((*usage-env*        (make-unit-env))
+                           (*current-library*  name)
+                           (*syntax-reflected* #f))       ; +++ space
 
-                   (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
-                   (env-import! keyword imports *usage-env*)
+                 (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
+                 (env-import! keyword imports *usage-env*)
 
-                   (let ((initial-env-table *env-table*))   ; +++ space
-                     (scan-sequence library-type
-                                    make-local-mapping
-                                    body-forms
-                                    (lambda (forms syntax-definitions bound-variables)
-                                      (let* ((exports
-                                              (map (lambda (mapping)
-                                                     (cons (id-name (car mapping))
-                                                           (let ((binding (binding (cadr mapping))))
-                                                             (or binding
-                                                                 (syntax-violation
-                                                                  'library "Unbound export" t (cadr mapping)))
-                                                             (if (binding-mutable? binding)
-                                                                 (syntax-violation
-                                                                  'library "Attempt to export mutable variable" t (cadr mapping)))
-                                                             binding)))
-                                                   exports))
-                                             (expanded-library
-                                              (case library-type
-                                                ((program)
-                                                 `(begin
-                                                    (ex:import-libraries-for-run ',imported-libraries
-                                                                                 ',(current-builds imported-libraries)
-                                                                                 0)
-                                                    ,@(emit-body forms 'define)))
-                                                ((library)
-                                                 `(begin
-                                                    ,@(map (lambda (var)
-                                                             `(define ,var ex:unspecified))
-                                                           bound-variables)
-                                                    (ex:register-library!
-                                                     (ex:make-library
-                                                      ',name
-                                                      ;; Store as thunk so that it is not unnecesarily
-                                                      ;; uncompressed at runtime
-                                                      (lambda ()
-                                                        ,(if *syntax-reflected*                     ; +++ space
-                                                             `(ex:uncompress                        ; +++ space
-                                                               ',(compress (drop-tail
-                                                                            *env-table*
-                                                                            initial-env-table)))
-                                                             `'()))                                 ; +++ space
-                                                      ',exports
-                                                      ',imported-libraries
-                                                      ',(current-builds imported-libraries)
-                                                      ;; visit
-                                                      (lambda ()
-                                                        ,@(map (lambda (def)
-                                                                 `(ex:register-macro! ',(car def) ,(cdr def)))
-                                                               syntax-definitions)
-                                                        (values))
-                                                      ;; invoke
-                                                      (lambda ()
-                                                        ,@(map (lambda (var)
-                                                                 `(set! ,var ex:undefined))
-                                                               bound-variables)
-                                                        ,@(emit-body forms ex:undefined-set!)
-                                                        (values))
-                                                      ;; build
-                                                      ',(generate-guid 'build)))
-                                                    (values))))))
+                 (let ((initial-env-table *env-table*))   ; +++ space
+                   (scan-sequence library-type
+                                  make-local-mapping
+                                  body-forms
+                                  (lambda (forms syntax-definitions bound-variables)
+                                    (let* ((exports
+                                            (map (lambda (mapping)
+                                                   (cons (id-name (car mapping))
+                                                         (let ((binding (binding (cadr mapping))))
+                                                           (or binding
+                                                               (syntax-violation
+                                                                'library "Unbound export" t (cadr mapping)))
+                                                           ;(if (binding-mutable? binding)
+                                                           ;    (syntax-violation
+                                                           ;     'library "Attempt to export mutable variable" t (cadr mapping)))
+                                                           binding)))
+                                                 exports))
+                                           (expanded-library
+                                            (case library-type
+                                              ((program)
+                                               `(begin
+                                                  (ex:import-libraries-for-run ',imported-libraries
+                                                                               ',(current-builds imported-libraries)
+                                                                               0)
+                                                  ,@(emit-body forms 'define)))
+                                              ((library)
+                                               `(begin
+                                                  ,@(map (lambda (var)
+                                                           `(define ,var ex:unspecified))
+                                                         bound-variables)
+                                                  (ex:register-library!
+                                                   (ex:make-library
+                                                    ',name
+                                                    ;; Store as thunk so that it is not unnecesarily
+                                                    ;; uncompressed at runtime
+                                                    (lambda ()
+                                                      ,(if *syntax-reflected*                     ; +++ space
+                                                           `(ex:uncompress                        ; +++ space
+                                                             ',(compress (drop-tail
+                                                                          *env-table*
+                                                                          initial-env-table)))
+                                                           `'()))                                 ; +++ space
+                                                    ',exports
+                                                    ',imported-libraries
+                                                    ',(current-builds imported-libraries)
+                                                    ;; visit
+                                                    (lambda ()
+                                                      ,@(map (lambda (def)
+                                                               `(ex:register-macro! ',(car def) ,(cdr def)))
+                                                             syntax-definitions)
+                                                      (values))
+                                                    ;; invoke
+                                                    (lambda ()
+                                                      ,@(map (lambda (var)
+                                                               `(set! ,var ex:undefined))
+                                                             bound-variables)
+                                                      ,@(emit-body forms ex:undefined-set!)
+                                                      (values))
+                                                    ;; build
+                                                    ',(generate-guid 'build)))
+                                                  (values))))))
 
-                                        ;; Register library for any further expansion.
-                                        (if (eq? library-type 'library)
-                                            (eval expanded-library (interaction-environment)))
+                                      ;; Register library for any further expansion.
+                                      (if (eq? library-type 'library)
+                                          (compat-eval expanded-library))
 
-                                        expanded-library))))))))))))
+                                      expanded-library)))))))))))
 
     (define (env-import! keyword imports env)
       (env-extend! (map (lambda (import)
@@ -1755,16 +1687,45 @@
                (ex:library-invoked?-set! library #t))))
        'expand))
 
+    (define (scan-declarations declarations)
+        (let loop ((declarations declarations)
+                   (imported-libraries '())
+                   (imports '())
+                   (exports '())
+                   (body-forms '()))
+            (if (null? declarations)
+                (let ()
+                    (check-set? exports
+                        (lambda (x y)
+                            (eq? (id-name (car x))
+                                 (id-name (car y))))
+                        (lambda (dup) (syntax-violation 'export "Duplicate export" exports dup)))
+                        (values imported-libraries imports exports body-forms))
+            (match (car declarations)
+                (((syntax import) specs ___)
+                    (call-with-values
+                        (lambda () (scan-imports specs imported-libraries imports))
+                        (lambda (imported-libraries imports)
+                            (loop (cdr declarations) imported-libraries imports exports body-forms))))
+                (((syntax export) sets ___)
+                    (loop (cdr declarations)
+                          imported-libraries
+                          imports
+                          (append exports (scan-exports sets))
+                          body-forms))
+                (((syntax begin) forms ___)
+                    (loop (cdr declarations)
+                          imported-libraries
+                          imports
+                          exports
+                          (append body-forms forms)))
+                (- 
+                    (syntax-violation 'define-library "Invalid declaration" (car declarations)))))))
+
     ;; Returns ((<rename-identifier> <identifier> <level> ...) ...)
 
     (define (scan-exports sets)
-      (let ((exports (apply append (map scan-export-set sets))))
-        (check-set? exports
-                    (lambda (x y)
-                      (eq? (id-name (car x))
-                           (id-name (car y))))
-                    (lambda (dup) (syntax-violation 'export "Duplicate export" sets dup)))
-        exports))
+      (apply append (map scan-export-set sets)))
 
     (define (scan-export-set set)
       (match set
@@ -1779,22 +1740,19 @@
     ;;            ((<local name> . <binding>) ...))
     ;; with no repeats.
 
-    (define (scan-imports specs)
-      (let loop ((specs specs)
-                 (imported-libraries '())
-                 (imports '()))
-        (if (null? specs)
-            (values imported-libraries (unify-imports imports))
-            (call-with-values
-                (lambda () (scan-import-spec (car specs)))
-              (lambda (library-ref levels more-imports)
-                (loop (cdr specs)
-                      ;; library-ref = #f if primitives spec
-                      (if library-ref
-                          (cons (cons library-ref levels)
-                                imported-libraries)
-                          imported-libraries)
-                      (append more-imports imports)))))))
+    (define (scan-imports specs imported-libraries imports)
+      (if (null? specs)
+          (values imported-libraries (unify-imports imports))
+          (call-with-values
+              (lambda () (scan-import-spec (car specs)))
+            (lambda (library-ref levels more-imports)
+              (scan-imports (cdr specs)
+                    ;; library-ref = #f if primitives spec
+                    (if library-ref
+                        (cons (cons library-ref levels)
+                              imported-libraries)
+                        imported-libraries)
+                    (append more-imports imports))))))
 
     ;; Returns (values <library reference> | #f
     ;;                 (<level> ...)
@@ -1949,51 +1907,22 @@
                     (set! seen (cons mapping seen)))
                 (loop (cdr imports)))))))
 
-    (define (scan-library-name e)
-      (library-ref-helper e version?))
+    (define (library-name-part? p)
+        (or (identifier? p) (number? p)))
+
+    (define (scan-library-name e) (library-ref-helper e))
 
     (define (library-ref e)
       (library-ref-helper
        (match e
-         (((syntax library) name) name)
-         (((syntax library) . -)  (invalid-form e))
-         (- e))
-       version-reference?))
+         (((syntax define-library) name) name)
+         (((syntax define-library) . -)  (invalid-form e))
+         (- e))))
 
-    (define (library-ref-helper e version?)
+    (define (library-ref-helper e)
       (match e
-        (((? identifier? ids) ___)                ids)
-        (((? identifier? ids) ___ (? version? -)) ids)
+        (((? library-name-part? ids) ___) ids)
         (- (syntax-violation 'library "Invalid library reference" e))))
-
-    (define (version? e)
-      (and (list? e)
-           (for-all subversion? e)))
-
-    (define (subversion? x)
-      (and (integer? x)
-           (>= x 0)))
-
-    (define (version-reference? e)
-      (match e
-        (((syntax and) (? version-reference? -) ___) #t)
-        (((syntax or)  (? version-reference? -) ___) #t)
-        (((syntax not) (? version-reference? -))     #t)
-        (((? subversion-reference? -) ___)           #t)
-        (-                                           #f)))
-
-    (define (subversion-reference? e)
-      (or (subversion? e)
-          (subversion-condition? e)))
-
-    (define (subversion-condition? e)
-      (match e
-        (((syntax >=)  (? subversion? -))               #t)
-        (((syntax <=)  (? subversion? -))               #t)
-        (((syntax not) (? subversion? -))               #t)
-        (((syntax and) (? subversion-reference? -) ___) #t)
-        (((syntax or)  (? subversion-reference? -) ___) #t)
-        (-                                              #f)))
 
     ;;==========================================================================
     ;;
@@ -2040,7 +1969,8 @@
                     (pretty-print (syntax-debug exp))
                     (newline))
                   *trace*)
-        (error 'syntax-violation "Integrate with host error handling here")))
+        ;(error 'syntax-violation "Integrate with host error handling here")))
+        (exit)))
 
     (define (syntax-debug exp)
       (sexp-map (lambda (leaf)
@@ -2076,7 +2006,7 @@
                 (scan-imports
                  (map (lambda (spec)
                         (datum->syntax eval-template spec))
-                      import-specs))))
+                      import-specs) '() '())))
           (lambda (imported-libraries imports)
             (make-r6rs-environment imported-libraries
                                    (let ((env (make-unit-env)))
@@ -2089,10 +2019,9 @@
               (imported-libraries (r6rs-environment-imported-libraries env)))
           (import-libraries-for-expand (r6rs-environment-imported-libraries env) (map not imported-libraries) 0)
           (ex:import-libraries-for-run (r6rs-environment-imported-libraries env) (map not imported-libraries) 0)
-          (eval (expand-begin
+          (compat-eval (expand-begin
                  ;; wrap in expression begin so no definition can occur as required by r6rs
-                 `(,(rename 'macro 'begin) ,exp))
-                (interaction-environment)))))
+                 `(,(rename 'macro 'begin) ,exp))))))
 
     ;;==========================================================================
     ;;
@@ -2261,7 +2190,7 @@
                                              (newline))
                                            (call-with-values
                                             (lambda ()
-                                              (eval exp (interaction-environment)))
+                                              (compat-eval exp))
                                             list)))
                                (expand-toplevel-sequence (list exp))))
                    exps))))
@@ -2277,7 +2206,7 @@
     (define (run-r6rs-sequence forms)
       (with-toplevel-parameters
        (lambda ()
-         (for-each (lambda (exp) (eval exp (interaction-environment)))
+         (for-each (lambda (exp) (compat-eval exp))
                    (expand-toplevel-sequence (normalize forms))))))
     
     (define (run-r6rs-program filename)
@@ -2315,7 +2244,7 @@
        (lambda ()
          (for-each (lambda (exp)
                      (for-each (lambda (exp)
-                                 (eval exp (interaction-environment)))
+                                 (compat-eval exp))
                                (expand-toplevel-sequence (list exp))))
                    (read-file filename)))))
       
@@ -2389,7 +2318,7 @@
             (reverse normalized)
             (if (pair? (car exps))
                 (case (caar exps)
-                  ((library)
+                  ((define-library)
                    (loop (cdr exps)
                          (cons (car exps) normalized)))
                   ((import)
@@ -2400,12 +2329,13 @@
                 (error)))))
 
     (define (read-file fn)
-      (let ((p (open-input-file fn)))
-        (let f ((x (read p)))
-          (if (eof-object? x)
-              (begin (close-input-port p) '())
-              (cons x
-                    (f (read p)))))))
+      (with-reader-file-name fn (lambda ()
+        (let ((p (open-input-file fn)))
+          (let f ((x (read p)))
+            (if (eof-object? x)
+                (begin (close-input-port p) '())
+                (cons x
+                      (f (read p)))))))))
 
     (define (write-file exps fn)
       (if (file-exists? fn)
@@ -2440,7 +2370,7 @@
     ;;===================================================================
 
     (define library-language-names
-      `(program library export import for run expand meta only
+      `(program define-library export import begin for run expand meta only
                 except prefix rename primitives >= <= and or not))
 
     (define (make-library-language)
@@ -2467,6 +2397,7 @@
               (syntax-case   . ,expand-syntax-case)
               (and           . ,expand-and)
               (or            . ,expand-or)
+              (not           . ,expand-not)
               (define        . ,invalid-form)
               (define-syntax . ,invalid-form)
               (_             . ,invalid-form)
@@ -2502,7 +2433,7 @@
     ;; Import only the minimal library language into the toplevel:
 
     (env-import! toplevel-template (make-library-language) *toplevel-env*)
-    (register-macro! 'library (make-expander invalid-form))
+    (register-macro! 'define-library (make-expander invalid-form))
     (register-macro! 'program (make-expander invalid-form))
     (register-macro! 'import  (make-expander invalid-form))
 
@@ -2554,5 +2485,4 @@
 
     ) ; let
   ) ; letrec-syntax
-)
-(include "standard-libraries.exp"))
+))

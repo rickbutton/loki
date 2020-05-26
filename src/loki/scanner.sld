@@ -1,4 +1,4 @@
-; string2tokens
+; scanner
 ; this pass converts a stream of characters (via an input port) into a list of scheme tokens.
 ; if the stream of characters is not a valid list of scheme tokens an error will be raised
 
@@ -6,18 +6,18 @@
 ; and the original location in the source file
 
 ; TODO: implement string escapes and multi-line strings
+; TODO comments
 
 (define-library 
-    (p00_string2tokens)
+    (loki scanner)
     (import (scheme base))
     (import (scheme char))
     (import (scheme complex))
     (import (scheme write))
     (import (srfi 115))
-    (import (srfi 159))
-    (import (util))
-    (import (shared))
-    (export p00_string2tokens)
+    (import (loki util))
+    (import (loki shared))
+    (export with-scanner-file-name scan-port)
 (begin
 
 (define *whitespace* '(#\tab #\return #\newline #\space))
@@ -250,19 +250,29 @@
             (tchar->location (car tchars)))))
 
 (define-record-type <reader>
-    (make-reader port saves line col offset)
+    (make-reader port filename saves line col offset)
     reader?
     (port reader->port)
+    (filename reader->filename)
     (saves reader->saves set-reader-saves)
     (line reader->line set-reader-line)
     (col reader->col set-reader-col)
     (offset reader->offset set-reader-offset))
 
 (define (port->reader port)
-    (make-reader port '() 1 1 0))
+    (make-reader port current-file-name '() 1 1 0))
+
+(define (raise-reader-error reader message)
+    (let ((location (make-source-location 
+                        (reader->filename reader)
+                        (reader->line reader)
+                        (reader->col reader)
+                        (reader->offset reader))))
+        (raise-location-error location message)))
 
 (define (read-reader reader)
     (let ((port (reader->port reader))
+          (filename (reader->filename reader)) 
           (saves (reader->saves reader)) 
           (line (reader->line reader)) 
           (col (reader->col reader))
@@ -270,7 +280,7 @@
         (if (null? saves)
             (let* ((char (read-char port)) 
                    (next (peek-char port))
-                   (tchar (make-tchar char (make-source-location line col offset))))
+                   (tchar (make-tchar char (make-source-location filename line col offset))))
                 (if (return? char)
                     (if (newline? next)
                         (begin
@@ -307,109 +317,246 @@
             
 (define (roll-back-reader reader tchar)
     (set-reader-saves reader (cons tchar (reader->saves reader))))
+
+(define current-file-name "unknown")
+
+(define (with-scanner-file-name name k)
+    (fluid-let ((current-file-name name))
+        (k)))
                 
-(define (add-token token tokens) (cons token tokens))
+(define (scan-port port)
+    (define raw-reader (port->reader port))
+    (define buffer '())
+    (define should-roll-back #f)
 
-(define (p00_string2tokens port)
-    (let* ((raw-reader (port->reader port))
-           (tokens '())
-           (buffer '())
-           (should-roll-back #f))
-        (define (emit-tchar tchar type value)
-            (set! tokens (cons (tchar->token tchar type value) tokens)))
-        (define (emit-buffer type value)
-            (set! tokens (cons (tchars->token (reverse buffer) type value) tokens))
-            (set! buffer '()))
-        (define (push-buffer tchar)
-            (set! buffer (cons tchar buffer)))
-        (define (reader) (read-reader raw-reader))
-        (define (peek) (peek-reader raw-reader))
-        (define (roll-back tchar)
-            (roll-back-reader raw-reader tchar))
-        (define (buffer->string)
-            (tchars->string (reverse buffer)))
-        (define (error-with-value msg value)
-            (error (string-append 
-                "error! "
-                msg
-                ": "
-                value)))
+    (define (emit-tchar tchar type value)
+        (tchar->token tchar type value))
+    (define (emit-buffer type value)
+        (let ((tchars (reverse buffer)))
+            (set! buffer '())
+            (tchars->token tchars type value)))
+    (define (emit-eof) (eof-object))
+    (define (push-buffer tchar)
+        (set! buffer (cons tchar buffer)))
+    (define (reader) (read-reader raw-reader))
+    (define (peek) (peek-reader raw-reader))
+    (define (roll-back tchar)
+        (roll-back-reader raw-reader tchar))
+    (define (buffer->string)
+        (tchars->string (reverse buffer)))
 
-        (define (lex-ready)
-            (let* ((tchar (reader)) (char (tchar->char tchar)))
+    (define (lex-ready)
+        (let* ((tchar (reader)) (char (tchar->char tchar)))
+            (cond
+                ((eof-object? char) (emit-eof))
+                ((whitespace? char) (lex-ready))
+                ((quote? char) (emit-tchar tchar 'quote #f))
+                ((quasiquote? char) (emit-tchar tchar 'quasiquote #f))
+                ((unquote? char) 
+                    (let* ((next (peek)) (next-char (tchar->char next)))
+                            (if (equal? next-char #\@)
+                                (begin
+                                    (push-buffer tchar)
+                                    (push-buffer (reader))
+                                    (emit-buffer 'unquote-splicing #f))
+                                (emit-tchar tchar 'unquote #f))))
+                ((doublequote? char) 
+                    (push-buffer tchar)
+                    (lex-string))
+                ((left-paren? char)
+                    (emit-tchar tchar 'lparen #f))
+                ((right-paren? char)
+                    (emit-tchar tchar 'rparen #f))
+                ((semicolon? char)
+                    (lex-comment))
+                (else 
+                    (push-buffer tchar)
+                    (lex-reading)))))
+
+    (define (lex-comment)
+        (let loop ((line (reader->line raw-reader)))
+            (let* ((tchar (reader)) (after-line (reader->line raw-reader)))
+                (if (= line after-line)
+                    (loop after-line)
+                    (lex-ready)))))
+
+
+    (define (lex-reading)
+        (let* ((tchar (reader)) (char (tchar->char tchar)))
+            (if (delimiter? char)
+                (let* ((string (buffer->string)))
+                    (cond 
+                        ((and (left-paren? char) (equal? string "#")) 
+                            (push-buffer tchar)
+                            (emit-buffer 'lvector #f))
+                        ((and (left-paren? char) (equal? string "#u8")) 
+                            (push-buffer tchar)
+                            (emit-buffer 'lbytevector #f))
+                        (else
+                            (roll-back tchar)
+                            (cond
+                                ((equal? string "#t") (emit-buffer 'boolean #t))
+                                ((equal? string "#true") (emit-buffer 'boolean #t))
+                                ((equal? string "#f") (emit-buffer 'boolean #f))
+                                ((equal? string "#false") (emit-buffer 'boolean #f))
+                                ((equal? string ".") (emit-buffer 'dot #f))
+                                ((parse-num string) => (lambda (matches) (emit-buffer 'number (lexed-num->num string matches))))
+                                ((parse-id string) => (lambda (matches) (emit-buffer 'id (string->symbol (lexed-id->symbol matches)))))
+                                ((char-literal? string) (emit-buffer 'char (char-literal->char string)))
+                                ((char-name? string) (emit-buffer 'char (char-name->char string)))
+                                ((char-scalar? string) (emit-buffer 'char (char-scalar->char string)))
+                                (else 
+                                    (raise-reader-error raw-reader (string-append "unknown value: " string)))))))
+                (begin
+                    (push-buffer tchar)
+                    (lex-reading)))))
+
+    ; escapes need to be re-handled
+    ; as well as multi line strings with \
+    (define (lex-string)
+        (let* ((tchar (reader)) (char (tchar->char tchar)))
+            (cond
+                ((eof-object? char) (raise-reader-error raw-reader "unterminated string!!!"))
+                ((doublequote? char) 
+                    (push-buffer tchar)
+                    (let ((str (buffer->string)))
+                        (emit-buffer 'string (string-copy str 1 (- (string-length str) 1)))))
+                (else 
+                    (push-buffer tchar)
+                    (lex-string)))))
+    lex-ready
+)))
+
+; reader
+; this pass converts a list of tokens into an object
+; if the list of tokens cannot be represented by valid objects, an error is thrown.
+
+; this pass also converts quote/unquote syntax shortcuts into their long-form counterparts. 
+; e.g. '123 => (quote 123)
+(define-library 
+    (loki reader)
+    (import (scheme base))
+    (import (scheme write))
+    (import (rename (scheme read) (read host-read)))
+    (import (loki util))
+    (import (loki shared))
+    (import (loki scanner))
+    (export read (rename with-scanner-file-name with-reader-file-name))
+(begin
+
+; lvector
+; lbytevector
+
+; lparen
+; rparen
+; dot
+; string
+; boolean
+; char
+; number
+; id
+; unquote-splicing
+; unquote
+; quote
+; quasiquote
+
+(define (read-tokens pop-token)
+    (define (parse-next-with-token token)
+        (if (eof-object? token)
+            (eof-object)
+            (let* ((type (token->type token))
+                   (value (token->value token))
+                   (location (token->location token)))
+                (if token
+                    (cond
+                        ((equal? type 'lparen) (parse-cons token #t))
+                        ((equal? type 'lvector) (parse-vector token '()))
+                        ;((equal? type 'lbytevector) (parse-bytevector))
+                        ((equal? type 'quote) (parse-quote token))
+                        ((equal? type 'quasiquote) (parse-quasiquote token))
+                        ((equal? type 'unquote) (parse-unquote token))
+                        ((equal? type 'unquote-splicing) (parse-unquote-splicing token))
+                        ((or (equal? type 'string)
+                             (equal? type 'boolean)
+                             (equal? type 'char)
+                             (equal? type 'number)
+                             (equal? type 'id))
+                            value)
+                        (else (raise-token-error token "unexpected token")))
+                    '() ))))
+
+    (define (make-parse-quote-like name)
+        (lambda (token)
+            (let ((value-token (pop-token)))
+                (list name (parse-next-with-token value-token)))))
+
+    (define parse-quote (make-parse-quote-like 'quote))
+    (define parse-quasiquote (make-parse-quote-like 'quasiquote))
+    (define parse-unquote (make-parse-quote-like 'unquote))
+    (define parse-unquote-splicing (make-parse-quote-like 'unquote-splicing))
+
+    (define (parse-vector lparen-token items)
+        (let* ((car-token (pop-token)) (car-type (token->type car-token)))
+            (if car-token
                 (cond
-                    ((eof-object? char) #f)
-                    ((whitespace? char) (lex-ready))
-                    ((dot? char) (emit-tchar tchar 'dot #f) (lex-ready))
-                    ((quote? char) (emit-tchar tchar 'quote #f) (lex-ready))
-                    ((quasiquote? char) (emit-tchar tchar 'quasiquote #f) (lex-ready))
-                    ((unquote? char) 
-                        (let* ((next (peek)) (next-char (tchar->char next)))
-                                (if (equal? next-char #\@)
-                                    (begin
-                                        (push-buffer tchar)
-                                        (push-buffer (reader))
-                                        (emit-buffer 'unquote-splicing #f))
-                                    (emit-tchar tchar 'unquote #f))
-                                (lex-ready)))
-                    ((doublequote? char) 
-                        (push-buffer tchar)
-                        (lex-string))
-                    ((left-paren? char)
-                        (emit-tchar tchar 'lparen #f)
-                        (lex-ready))
-                    ((right-paren? char)
-                        (emit-tchar tchar 'rparen #f)
-                        (lex-ready))
+                    ((equal? car-type 'rparen)
+                        (list->vector (reverse items)))
                     (else 
-                        (push-buffer tchar)
-                        (lex-reading)))))
+                        (parse-vector lparen-token 
+                            (cons
+                                (parse-next-with-token car-token)
+                                items))))
+                (raise-token-error lparen-token "unexpected end of stream, expected parens"))))
 
-        (define (lex-reading)
-            (let* ((tchar (reader)) (char (tchar->char tchar)))
-                (if (delimiter? char)
-                    (let* ((string (buffer->string)))
-                        (cond 
-                            ((and (left-paren? char) (equal? string "#")) 
-                                (push-buffer tchar)
-                                (emit-buffer 'lvector #f))
-                            ((and (left-paren? char) (equal? string "#u8")) 
-                                (push-buffer tchar)
-                                (emit-buffer 'lbytevector #f))
-                            (else
-                                (roll-back tchar)
-                                (cond
-                                    ((equal? string "#t") (emit-buffer 'boolean #t))
-                                    ((equal? string "#true") (emit-buffer 'boolean #t))
-                                    ((equal? string "#f") (emit-buffer 'boolean #f))
-                                    ((equal? string "#false") (emit-buffer 'boolean #f))
-                                    ((parse-num string) => (lambda (matches) (emit-buffer 'number (lexed-num->num string matches))))
-                                    ((parse-id string) => (lambda (matches) (emit-buffer 'id (string->symbol (lexed-id->symbol matches)))))
-                                    ((char-literal? string) (emit-buffer 'char (char-literal->char string)))
-                                    ((char-name? string) (emit-buffer 'char (char-name->char string)))
-                                    ((char-scalar? string) (emit-buffer 'char (char-scalar->char string)))
-                                    (else (error-with-value "unknown value" string)))))
-                            (lex-ready))
-                    (begin
-                        (push-buffer tchar)
-                        (lex-reading)))))
-
-        ; escapes need to be re-handled
-        ; as well as multi line strings with \
-        (define (lex-string)
-            (let* ((tchar (reader)) (char (tchar->char tchar)))
+    (define (parse-cons lparen-token first)
+        (let* ((car-token (pop-token)) (car-type (token->type car-token)))
+            (if car-token
                 (cond
-                    ((eof-object? char) (error "unterminated string!!!"))
-                    ((doublequote? char) 
-                        (push-buffer tchar)
-                        (let ((str (buffer->string)))
-                            (emit-buffer 'string (string-copy str 1 (- (string-length str) 1)))
-                            (lex-ready)))
+                    ((equal? car-type 'rparen) 
+                            '())
+                    ((equal? car-type 'dot)
+                        (let* ((cdr-token (pop-token)) (cdr-type (token->type cdr-token))
+                               (rparen-token (pop-token)) (rparen-type (token->type rparen-token)))
+                            (if (equal? rparen-type 'rparen)
+                                (parse-next-with-token cdr-token)
+                                (raise-token-error car-token "expected rparen after value in dot cdr position"))))
                     (else 
-                        (push-buffer tchar)
-                        (lex-string)))))
+                        (let* ((car-syntax (parse-next-with-token car-token))
+                                (cdr-syntax (parse-cons lparen-token #f)))
+                            (cons car-syntax cdr-syntax))))
+                (raise-token-error lparen-token "unexpected end of stream, expected parens"))))
 
-        (lex-ready)
-        (reverse tokens)))
+    (parse-next-with-token (pop-token)))
 
+    (define (handle-read-error e)
+        (let ((location (compile-error->location e))
+              (message (compile-error->message e)))
+            (display "read error at ")
+            (display (source-location->string location))
+            (display ": ")
+            (display message)
+            (display "\n")
+            (display "\n")
+            (exit 1)))
+
+    (define (handle-unexpected-error e)
+        (display "unexpected error in compiler: ")
+        (display e)
+        (raise e)
+        (exit 1))
+
+    (define (handle-error e)
+        (if (compile-error? e)
+            (handle-read-error e)
+            (handle-unexpected-error e)))
+
+   ;(define (read port) (host-read port))
+    (define (read port)
+        (let ((out
+        (call/cc (lambda (k)
+            (with-exception-handler
+                (lambda (e) (handle-error e))
+                (lambda () (read-tokens (scan-port port))))))))
+        (debug out)
+        out))
 ))

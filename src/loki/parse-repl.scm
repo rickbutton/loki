@@ -3,11 +3,11 @@
 (import (scheme write))
 (import (scheme repl))
 
-(import (util))
-(import (shared))
-(import (p00_string2tokens))
-(import (p01_tokens2syntax))
-(import (p02_attrs))
+(import (loki util))
+(import (loki shared))
+(import (loki p00_string2tokens))
+(import (loki p01_tokens2syntax))
+(import (loki p02_attrs))
 
 (import (srfi 159))
 (import (chibi show pretty))
