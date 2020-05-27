@@ -27,116 +27,96 @@
 ;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ;; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 ;; DEALINGS IN THE SOFTWARE.
-#!r6rs
-
-;; RnRS lexer and reader with source annotations.
-
-;; Incomplete but useful list of lexical differences in R7RS:
-;; https://github.com/larcenists/larceny/wiki/R7RSconversion
-
 (define-library (loki reader)
-  (export
-    get-token
-    read-annotated read-datum
-    detect-scheme-file-type
-    reader? make-reader reader-warning
-    reader-port
-    reader-mode reader-mode-set!
-    reader-fold-case? reader-fold-case?-set!
-    reader-tolerant? reader-tolerant?-set!
-    reader-line reader-column
-    reader-saved-line reader-saved-column
-    annotation? annotation-expression annotation-stripped annotation-source
-    annotation-source->condition source-condition? source-filename
-    source-line source-column)
-  (import
-    (rnrs arithmetic fixnums (6))
-    (rnrs base (6))
-    (rnrs bytevectors (6))
-    (rnrs conditions (6))
-    (rnrs control (6))
-    (rnrs exceptions (6))
-    (rnrs hashtables (6))
-    (rnrs lists (6))
-    (rnrs mutable-pairs (6))            ;for #<n>=
-    (prefix (only (rnrs io ports (6)) lookahead-char get-char put-char eof-object?
-                  call-with-string-output-port)
-            rnrs:)
-    (only (rnrs io simple (6)) write display newline current-error-port) ;debugging
-    (rnrs records syntactic (6))
-    (rnrs unicode (6)))
+(import (scheme base))
+(import (scheme char))
+(import (loki compat))
+(import (loki shared))
+(import (loki util))
+(import (srfi 69))
+(export make-reader read-annotated read-datum)
+(begin
 
-(define eof-object? rnrs:eof-object?)
+;; r7rs compat
+(define (rnrs:call-with-string-output-port proc)
+    (define port (open-output-string))
+    (proc port)
+    (get-output-string port))
+; don't currently support unicode
+; return an invalid category
+(define (char-general-category c) 'ZZ)
 
 ;; Peek at the next char from the reader.
 (define (lookahead-char reader)
-  (rnrs:lookahead-char (reader-port reader)))
+  (let ((next-char (reader-next-char reader)))
+    (if next-char
+        next-char
+        (let ((c (get-next-char reader)))
+            (reader-next-char-set! reader c)
+            c))))
+
+(define (get-next-char reader)
+  (let ((next-char (reader-next-char reader)))
+    (if next-char 
+        (begin
+            (reader-next-char-set! reader #f)
+            next-char)
+        (read-char (reader-port reader)))))
 
 ;; Get a char from the reader.
 (define (get-char reader)
-  (let ((c (rnrs:get-char (reader-port reader))))
-    (when (eqv? c #\linefeed)
+  (let ((c (get-next-char reader)))
+    (when (eqv? c #\newline)
       (reader-line-set! reader (+ (reader-line reader) 1))
       (reader-column-set! reader -1))
     (reader-column-set! reader (+ (reader-column reader) 1))
     c))
 
-;; Detects the (intended) type of Scheme source: r6rs-library,
-;; r6rs-program, empty or unknown.
+;; Detects the (intended) type of Scheme source: r7rs-library,
+;; r7rs-program, empty or unknown.
 (define (detect-scheme-file-type port)
   (let ((reader (make-reader port "<unknown>")))
     (let-values (((type lexeme) (get-lexeme reader)))
       (case type
         ((eof)
          'empty)
-        ((shebang)
-         'r6rs-program)
-        ((openp openb)                  ;a pair
+        ((openp)                  ;a pair
          (let-values (((type lexeme) (get-lexeme reader)))
            (case type
              ((identifier)
               (case lexeme
-                ((import) 'r6rs-program)
-                ((library) 'r6rs-library)
+                ((import) 'r7rs-program)
                 ((define-library) 'r7rs-library)
                 (else 'unknown)))
              (else 'unknown))))
         (else 'unknown)))))
 
-(define-record-type reader
-  (fields port filename
-          (mutable line) (mutable column)
-          (mutable saved-line) (mutable saved-column)
-          (mutable fold-case?)       ;boolean
-          (mutable mode)             ;a symbol: rnrs, r5rs, r6rs, r7rs
-          (mutable tolerant?))       ;tolerant to errors?
-  (sealed #t) (opaque #f)
-  (nongenerative reader-v0-eec5b78f-a766-4be4-9cd0-fbb52ec572dc)
-  (protocol
-   (lambda (p)
-     (lambda (port filename)
-       (p port filename 1 0 1 0 #f 'rnrs #f)))))
+(define-record-type <reader>
+    (make-reader-record 
+        port filename next-char line column saved-line saved-column fold-case? tolerant?)
+    reader?
+    (port reader-port)
+    (filename reader-filename)
+    (next-char reader-next-char reader-next-char-set!)
+    (line reader-line reader-line-set!)
+    (column reader-column reader-column-set!)
+    (saved-line reader-saved-line reader-saved-line-set!)
+    (saved-column reader-saved-column reader-saved-column-set!)
+    (fold-case? reader-fold-case? reader-fold-case?-set!)
+    (tolerant? reader-tolerant? reader-tolerant?-set!))
+(define (make-reader port filename)
+    (make-reader-record port filename #f 1 0 1 0 #f #f))
 
 (define (reader-mark reader)
   (reader-saved-line-set! reader (reader-line reader))
   (reader-saved-column-set! reader (reader-column reader)))
 
-;; As wanted by psyntax
-(define-record-type annotation
-  (fields expression source stripped)
-  (sealed #t) (opaque #f)
-  (nongenerative annotation-v0-dc9637b3-85e8-4599-9fe9-151508e9c850))
-
-(define-condition-type &source-information &condition
-                       make-source-condition source-condition?
-                       (file-name source-filename)
-                       (line source-line)
-                       (column source-column))
-
-(define (annotation-source->condition x)
-  (if (vector? x)
-      (apply make-source-condition (vector->list x))
-      (condition)))
+(define-record-type <annotation>
+    (make-annotation expression source stripped)
+    annotation?
+    (expression annotation-expression)
+    (source annotation-source)
+    (stripped annotation-stripped))
 
 (define (reader-source reader)
   (vector (reader-filename reader)
@@ -144,7 +124,6 @@
           (reader-saved-column reader)))
 
 (define (annotate source stripped datum)
-  #;(assert (reader? reader))
   (assert (vector? source))
   (make-annotation datum
                    source
@@ -154,7 +133,7 @@
   (assert (reader? reader))
   (let ((labels (make-labels)))
     (let*-values (((type x) (get-lexeme reader))
-                  ((_ d^) (handle-lexeme reader type x labels #f)))
+                  ((__ d^) (handle-lexeme reader type x labels #f)))
       (resolve-labels reader labels)
       d^)))
 
@@ -162,72 +141,61 @@
   (assert (reader? reader))
   (let ((labels (make-labels)))
     (let*-values (((type x) (get-lexeme reader))
-                  ((d _) (handle-lexeme reader type x labels #f)))
+                  ((d __) (handle-lexeme reader type x labels #f)))
       (resolve-labels reader labels)
       d)))
 
 ;;; Lexeme reader
 
-(define (lexical-condition reader msg irritants)
-  (condition
-   (make-lexical-violation)
-   (make-message-condition msg)
-   (make-source-condition (reader-filename reader)
-                          (reader-saved-line reader)
-                          (reader-saved-column reader))
-   (make-irritants-condition irritants)))
-
+; TODO - use irritants
 (define (reader-error reader msg . irritants)
   ;; Non-recoverable errors.
-  (raise (lexical-condition reader msg irritants)))
+  (raise-loki-error
+    (make-source-location
+      (reader-filename reader)
+      (reader-saved-line reader)
+      (reader-saved-column reader))
+    msg))
 
+; TODO - use irritants
 (define (reader-warning reader msg . irritants)
-  ;; Recoverable if the reader is in tolerant mode.
+  ;; Recoverable if the reader is tolerant.
   (if (reader-tolerant? reader)
-      (raise-continuable
-        (condition
-         (make-warning)
-         (lexical-condition reader msg irritants)))
+      (raise-loki-error
+        (make-source-location
+          (reader-filename reader)
+          (reader-saved-line reader)
+          (reader-saved-column reader))
+        msg)
       (apply reader-error reader msg irritants)))
 
-(define (assert-mode p msg modes)
-  (unless (memq (reader-mode p) modes)
-    (reader-warning p (string-append msg " is not allowed in this mode")
-                    (reader-mode p))))
-
 (define (eof-warning reader)
-  (reader-warning reader "Unexpected EOF"))
+  (reader-warning reader "Unexpected EOF" (eof-object)))
 
 (define (unicode-scalar-value? sv)
-  (and (fx<=? 0 sv #x10FFFF)
-       (not (fx<=? #xD800 sv #xDFFF))))
+  (and (<= 0 sv #x10FFFF)
+       (not (<= #xD800 sv #xDFFF))))
 
 (define (char-delimiter? reader c)
   ;; Treats the eof-object as a delimiter
   (or (eof-object? c)
       (char-whitespace? c)
-      (case (reader-mode reader)
-        ((r6rs)
-         (memv c '(#\( #\) #\[ #\] #\" #\; #\#)))
-        ((r7rs)
-         (memv c '(#\( #\) #\" #\; #\|)))
-        (else
-         (memv c '(#\( #\) #\[ #\] #\" #\; #\# #\|))))))
+      (memv c '(#\( #\) #\" #\; #\|))))
 
 ;; Get a line from the reader.
 (define (get-line reader)
   (rnrs:call-with-string-output-port
    (lambda (out)
      (do ((c (get-char reader) (get-char reader)))
-         ((or (eqv? c #\linefeed) (eof-object? c)))
-       (rnrs:put-char out c)))))
+         ((or (eqv? c #\newline) (eof-object? c)))
+       (write-char c out)))))
 
 ;; Gets whitespace from the reader.
 (define (get-whitespace reader char)
   (rnrs:call-with-string-output-port
    (lambda (out)
      (let lp ((char char))
-       (rnrs:put-char out char)
+       (write-char char out)
        (let ((char (lookahead-char reader)))
          (when (and (char? char) (char-whitespace? char))
            (lp (get-char reader))))))))
@@ -262,12 +230,10 @@
               (or (char-ci<=? #\a c #\Z)
                   (char<=? #\0 c #\9)
                   (memv c '(#\! #\$ #\% #\& #\* #\/ #\: #\< #\= #\> #\? #\^ #\_ #\~
-                            #\+ #\- #\. #\@))
-                  (and (> (char->integer c) 127)
-                       (memq (char-general-category c) ;XXX: could be done faster
-                             '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))
-                  (and (memv (reader-mode p) '(rnrs r7rs))
-                       (memv c '(#\x200C #\x200D)))))
+                            #\+ #\- #\. #\@ #\x200C #\x200D))
+                (and (> (char->integer c) 127)
+                    (memq (char-general-category c) ;XXX: could be done faster
+                           '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))))
          (lp (cons (get-char p) chars)))
         ((and pipe-quoted? (char? c) (not (memv c '(#\| #\\))))
          (lp (cons (get-char p) chars)))
@@ -289,7 +255,7 @@
                                  (#\a . #\alarm)
                                  (#\b . #\backspace)
                                  (#\t . #\tab)
-                                 (#\n . #\linefeed)
+                                 (#\n . #\newline)
                                  (#\r . #\return)
                                  (#\| . #\|))))
                   => (lambda (c) (lp (cons (cdr c) chars))))
@@ -314,10 +280,9 @@
                (cond ((string->number str) =>
                       (lambda (num)
                         (values 'value num)))
-                     ((and (memq (reader-mode p) '(rnrs r7rs))
-                           ;; TODO: This is incomplete.
-                           (not (and (pair? initial-chars)
-                                     (char<=? #\0 (car initial-chars) #\9))))
+                                ;; TODO: This is incomplete.
+                     ((not (and (pair? initial-chars)
+                                (char<=? #\0 (car initial-chars) #\9)))
                       (values 'identifier (string->symbol str)))
                      (else
                       (reader-warning p "Invalid number syntax" str)
@@ -341,7 +306,7 @@
                (cond ((eof-object? c)
                       (eof-warning p)
                       c)
-                     ((or (memv c '(#\tab #\linefeed #\x85 #\x2028))
+                     ((or (memv c '(#\tab #\newline #\x85 #\x2028))
                           (eq? (char-general-category c) 'Zs))
                       ;; \<intraline whitespace>*<line ending>
                       ;; <intraline whitespace>*
@@ -358,15 +323,11 @@
                                (skip-newline
                                 (lambda ()
                                   (let ((c (get-char p)))
-                                    ;; XXX: it appears that the port
-                                    ;; transcoder is meant to
-                                    ;; replace all these linefeeds
-                                    ;; with #\linefeed.
                                     (cond ((eof-object? c) c)
-                                          ((memv c '(#\linefeed #\x85 #\x2028)))
+                                          ((memv c '(#\newline #\x85 #\x2028)))
                                           ((char=? c #\return)
                                            (when (memv (lookahead-char p)
-                                                       '(#\linefeed #\x85))
+                                                       '(#\newline #\x85))
                                              (get-char p)))
                                           (else
                                            (reader-warning p "Expected a line ending" c)))))))
@@ -382,11 +343,9 @@
                              ((#\a) #\alarm)
                              ((#\b) #\backspace)
                              ((#\t) #\tab)
-                             ((#\n) #\linefeed)
-                             ((#\v) (assert-mode p "\\v" '(rnrs r6rs)) #\vtab)
-                             ((#\f) (assert-mode p "\\f" '(rnrs r6rs)) #\page)
+                             ((#\n) #\newline)
                              ((#\r) #\return)
-                             ((#\|) (assert-mode p "\\|" '(rnrs r7rs)) #\|)
+                             ((#\|) #\|)
                              ((#\x) (get-inline-hex-escape p))
                              (else
                               (reader-warning p "Invalid escape in string" c)
@@ -406,31 +365,16 @@
                 (eof-warning reader))
                ((and (eqv? c0 #\|) (eqv? c1 #\#))
                 (unless (eqv? levels 1)
-                  (rnrs:put-char out c0)
-                  (rnrs:put-char out c1)
+                  (write-char c0 out)
+                  (write-char c1 out)
                   (lp (- levels 1) (get-char reader))))
                ((and (eqv? c0 #\#) (eqv? c1 #\|))
-                (rnrs:put-char out c0)
-                (rnrs:put-char out c1)
+                (write-char c0 out)
+                (write-char c1 out)
                 (lp (+ levels 1) (get-char reader)))
                (else
-                (rnrs:put-char out c0)
+                (write-char c0 out)
                 (lp levels c1))))))))
-
-;; Gets a #! !# comment from the reader.
-(define (get-!-comment reader)
-  ;; The reader is immediately after "#!".
-  (rnrs:call-with-string-output-port
-   (lambda (out)
-     (let lp ((c0 (get-char reader)))
-       (let ((c1 (get-char reader)))
-         (cond ((eof-object? c0)
-                (eof-warning reader))
-               ((and (eqv? c0 #\!) (eqv? c1 #\#))
-                #f)
-               (else
-                (rnrs:put-char out c0)
-                (lp c1))))))))
 
 ;; Get a comment from the reader (including the terminating whitespace).
 (define (get-comment reader)
@@ -440,13 +384,13 @@
      (let lp ()
        (let ((c (get-char reader)))
          (unless (eof-object? c)
-           (rnrs:put-char out c)
-           (cond ((memv c '(#\linefeed #\x85 #\x2028 #\x2029)))
+           (write-char c out)
+           (cond ((memv c '(#\newline #\x85 #\x2028 #\x2029)))
                  ((char=? c #\return)
                   ;; Weird line ending. This lookahead is what forces
                   ;; the procedure to include the terminator.
-                  (when (memv (lookahead-char reader) '(#\linefeed #\x85))
-                    (rnrs:put-char out (get-char reader))))
+                  (when (memv (lookahead-char reader) '(#\newline #\x85))
+                    (write-char (get-char reader) out)))
                  (else
                   (lp)))))))))
 
@@ -486,21 +430,10 @@
                (get-char p)
                (values 'abbrev 'unsyntax-splicing))
               (else (values 'abbrev 'unsyntax))))
-           ((#\v)                       ;r6rs
-            (let* ((c1 (and (eqv? (lookahead-char p) #\u) (get-char p)))
-                   (c2 (and (eqv? c1 #\u) (eqv? (lookahead-char p) #\8) (get-char p)))
-                   (c3 (and (eqv? c2 #\8) (eqv? (lookahead-char p) #\() (get-char p))))
-              (cond ((and (eqv? c1 #\u) (eqv? c2 #\8) (eqv? c3 #\())
-                     (assert-mode p "#vu8(" '(rnrs r6rs))
-                     (values 'bytevector #f))
-                    (else
-                     (reader-warning p "Expected #vu8(")
-                     (get-token p)))))
            ((#\u #\U)                   ;r7rs
             (let* ((c1 (and (eqv? (lookahead-char p) #\8) (get-char p)))
                    (c2 (and (eqv? c1 #\8) (eqv? (lookahead-char p) #\() (get-char p))))
               (cond ((and (eqv? c1 #\8) (eqv? c2 #\())
-                     (assert-mode p "#u8(" '(rnrs r7rs))
                      (values 'bytevector #f))
                     (else
                      (reader-warning p "Expected #u8(")
@@ -514,7 +447,7 @@
                       ((atmosphere? type)
                        (lp (cons (cons type token) atmosphere)))
                       (else
-                       (let-values ([(d _) (handle-lexeme p type token #f #t)])
+                       (let-values (((d __) (handle-lexeme p type token #f #t)))
                          (values 'inline-comment (cons (reverse atmosphere) d))))))))
            ((#\|)                     ;nested comment
             (values 'nested-comment (get-nested-comment p)))
@@ -529,22 +462,10 @@
                        (cond
                          ((eq? type 'identifier)
                           (case id
-                            ((r6rs)          ;r6rs.pdf
-                             (assert-mode p "#!r6rs" '(rnrs r6rs))
-                             (reader-mode-set! p 'r6rs))
                             ((fold-case)     ;r6rs-app.pdf
-                             (assert-mode p "#!fold-case" '(rnrs r6rs r7rs))
                              (reader-fold-case?-set! p #t))
                             ((no-fold-case)  ;r6rs-app.pdf
-                             (assert-mode p "#!no-fold-case" '(rnrs r6rs r7rs))
                              (reader-fold-case?-set! p #f))
-                            ((r7rs)          ;oddly missing in r7rs
-                             (assert-mode p "#!r7rs" '(rnrs))
-                             (reader-mode-set! p 'r7rs))
-                            ((false)         ;r2rs
-                             (assert-mode p "#!false" '(rnrs r2rs)))
-                            ((true)          ;r2rs
-                             (assert-mode p "#!true" '(rnrs r2rs)))
                             (else
                              (reader-warning p "Invalid directive" type id)))
                           (cond ((assq id '((false . #f) (true . #t)))
@@ -554,10 +475,6 @@
                          (else
                           (reader-warning p "Expected an identifier after #!")
                           (get-token p)))))
-                    ((eq? (reader-mode p) 'rnrs)
-                     ;; Guile compat.
-                     (get-token p)
-                     (values 'comment (get-!-comment p)))
                     (else
                      (reader-warning p "Expected an identifier after #!")
                      (get-token p)))))
@@ -565,24 +482,20 @@
             (get-number p (list c #\#)))
            ((#\t #\T)
             (unless (char-delimiter? p (lookahead-char p))
-              (if (memq (reader-mode p) '(rnrs r7rs))
-                  (let* ((c1 (and (memv (lookahead-char p) '(#\r #\R)) (get-char p)))
-                         (c2 (and c1 (memv (lookahead-char p) '(#\u #\U)) (get-char p)))
-                         (c3 (and c2 (memv (lookahead-char p) '(#\e #\E)) (get-char p))))
-                    (unless (and c1 c2 c3 (char-delimiter? p (lookahead-char p)))
-                      (reader-warning p "Expected #true")))
-                  (reader-warning p "A delimiter is expected after #t")))
+              (let* ((c1 (and (memv (lookahead-char p) '(#\r #\R)) (get-char p)))
+                     (c2 (and c1 (memv (lookahead-char p) '(#\u #\U)) (get-char p)))
+                     (c3 (and c2 (memv (lookahead-char p) '(#\e #\E)) (get-char p))))
+                (unless (and c1 c2 c3 (char-delimiter? p (lookahead-char p)))
+                  (reader-warning p "Expected #true"))))
             (values 'value #t))
            ((#\f #\F)
             (unless (char-delimiter? p (lookahead-char p))
-              (if (memq (reader-mode p) '(rnrs r7rs))
-                  (let* ((c1 (and (memv (lookahead-char p) '(#\a #\A)) (get-char p)))
-                         (c2 (and c1 (memv (lookahead-char p) '(#\l #\L)) (get-char p)))
-                         (c3 (and c2 (memv (lookahead-char p) '(#\s #\S)) (get-char p)))
-                         (c4 (and c3 (memv (lookahead-char p) '(#\e #\E)) (get-char p))))
-                    (unless (and c1 c2 c3 c4 (char-delimiter? p (lookahead-char p)))
-                      (reader-warning p "Expected #false" c1 c2 c3 c4)))
-                  (reader-warning p "A delimiter is expected after #f")))
+              (let* ((c1 (and (memv (lookahead-char p) '(#\a #\A)) (get-char p)))
+                     (c2 (and c1 (memv (lookahead-char p) '(#\l #\L)) (get-char p)))
+                     (c3 (and c2 (memv (lookahead-char p) '(#\s #\S)) (get-char p)))
+                     (c4 (and c3 (memv (lookahead-char p) '(#\e #\E)) (get-char p))))
+                (unless (and c1 c2 c3 c4 (char-delimiter? p (lookahead-char p)))
+                  (reader-warning p "Expected #false" c1 c2 c3 c4))))
             (values 'value #f))
            ((#\\)
             (let lp ((char* '()))
@@ -610,27 +523,21 @@
                                        (values 'value #\xFFFD))))
                                (else
                                 (let ((char-name (list->string char*))
-                                      (char-names '(("nul" #\nul r6rs)
-                                                    ("null" #\nul r7rs)
-                                                    ("alarm" #\alarm r6rs r7rs)
-                                                    ("backspace" #\backspace r6rs r7rs)
-                                                    ("tab" #\tab r6rs r7rs)
-                                                    ("linefeed" #\linefeed r6rs)
-                                                    ("newline" #\linefeed r5rs r6rs r7rs)
-                                                    ("vtab" #\vtab r6rs)
-                                                    ("page" #\page r6rs)
-                                                    ("return" #\return r6rs r7rs)
-                                                    ("esc" #\esc r6rs)
-                                                    ("escape" #\esc r7rs)
-                                                    ("space" #\space r5rs r6rs r7rs)
-                                                    ("delete" #\delete r6rs r7rs))))
+                                      (char-names '(("null" #\null)
+                                                    ("alarm" #\alarm)
+                                                    ("backspace" #\backspace)
+                                                    ("tab" #\tab)
+                                                    ("newline" #\newline)
+                                                    ("return" #\return)
+                                                    ("escape" #\escape)
+                                                    ("space" #\space)
+                                                    ("delete" #\delete))))
                                   (cond
                                     ((or (assoc char-name char-names)
                                          (and (reader-fold-case? p)
                                               (assoc (string-foldcase char-name)
                                                      char-names)))
                                      => (lambda (char-data)
-                                          (assert-mode p char-name (cons 'rnrs (cddr char-data)))
                                           (values 'value (cadr char-data))))
                                     (else
                                      (reader-warning p "Invalid character name" char-name)
@@ -641,7 +548,6 @@
                       (else
                        (lp (cons (get-char p) char*)))))))
            ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
-            (assert-mode p "#<n>=<datum> and #<n>#" '(rnrs r7rs))
             (let lp ((char* (list c)))
               (let ((next (lookahead-char p)))
                 (cond
@@ -674,22 +580,12 @@
              (else
               (get-number p (list c)))))
       ((char=? c #\.)                 ;peculiar identifier
-       (cond ((char-delimiter? p (lookahead-char p))
-              (values 'dot #f))
-             ((and (eq? (reader-mode p) 'r6rs)
-                   (eqv? #\. (lookahead-char p)))
-              (get-char p)            ;consume second dot
-              (unless (eqv? #\. (get-char p)) ;consume third dot
-                (reader-warning p "Expected the ... identifier"))
-              (unless (char-delimiter? p (lookahead-char p))
-                (reader-warning p "Expected the ... identifier"))
-              (values 'identifier '...))
-             (else
-              (get-number p (list c)))))
+       (if (char-delimiter? p (lookahead-char p))
+         (values 'dot #f)
+         (get-number p (list c))))
       ((or (char-ci<=? #\a c #\Z) ;<constituent> and <special initial>
            (memv c '(#\! #\$ #\% #\& #\* #\/ #\: #\< #\= #\> #\? #\^ #\_ #\~))
-           (and (memv (reader-mode p) '(rnrs r7rs))
-                (or (eqv? c #\@) (memv c '(#\x200C #\x200D))))
+           (or (eqv? c #\@) (memv c '(#\x200C #\x200D)))
            (and (> (char->integer c) 127)
                 (memq (char-general-category c)
                       '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co))))
@@ -708,8 +604,8 @@
        (case c
          ((#\() (values 'openp #f))
          ((#\)) (values 'closep #f))
-         ((#\[) (values 'openb #f))
-         ((#\]) (values 'closeb #f))
+         ;((#\[) (values 'openb #f))
+         ;((#\]) (values 'closeb #f))
          ((#\') (values 'abbrev 'quote))
          ((#\`) (values 'abbrev 'quasiquote))
          ((#\,)
@@ -718,9 +614,7 @@
              (get-char p)
              (values 'abbrev 'unquote-splicing))
             (else (values 'abbrev 'unquote))))
-         ((#\|)
-          (assert-mode p "Quoted identifiers" '(rnrs r7rs))
-          (get-identifier p #f 'pipe))
+         ((#\|) (get-identifier p #f 'pipe))
          (else
           (reader-warning p "Invalid leading character" c)
           (get-token p)))))))
@@ -765,7 +659,7 @@
            ((list)
             (values head (annotate src head head^)))
            ((bytevector)
-            (let ((s (u8-list->bytevector head)))
+            (let ((s (apply bytevector head)))
               (values s (annotate src s s))))
            (else
             (reader-error p "Internal error in get-compound-datum" type))))
@@ -774,7 +668,7 @@
            ((eq? type 'list)
             (let*-values (((lextype x) (get-lexeme p))
                           ((d d^) (handle-lexeme p lextype x labels #t)))
-              (let-values (((termtype _) (get-lexeme p)))
+              (let-values (((termtype __) (get-lexeme p)))
                 (cond ((eq? termtype terminator))
                       ((eq? termtype 'eof)
                        (eof-warning p))
@@ -800,7 +694,7 @@
            (cond
              ((and (eq? type 'bytevector)
                    (or (eq? d^ 'reference)
-                       (not (and (fixnum? d) (fx<=? 0 d 255)))))
+                       (not (and (integer? d) (<= 0 d 255)))))
               (reader-warning p "Invalid datum in bytevector" x)
               (lp head head^ prev prev^ len))
              (else
@@ -820,17 +714,14 @@
                                             (set-car! new-prev d)
                                             (set-car! new-prev^ d^)))))
                 (if (pair? head)
-                    (lp head head^ new-prev new-prev^ (fx+ len 1))
-                    (lp new-prev new-prev^ new-prev new-prev^ (fx+ len 1))))))))))))
+                    (lp head head^ new-prev new-prev^ (+ len 1))
+                    (lp new-prev new-prev^ new-prev new-prev^ (+ len 1))))))))))))
 
 (define (handle-lexeme p lextype x labels allow-refs?)
   (let ((src (reader-source p)))
     (case lextype
       ((openp)
        (get-compound-datum p src 'closep 'list labels))
-      ((openb)
-       (assert-mode p "Square brackets" '(rnrs r6rs))
-       (get-compound-datum p src 'closeb 'list labels))
       ((vector)
        (get-compound-datum p src 'closep 'vector labels))
       ((bytevector)
@@ -868,11 +759,11 @@
 ;;; Shared/circular data
 
 (define (make-labels)
-  (make-eqv-hashtable))
+  (make-hash-table eqv?))
 
 (define (register-label p labels label datum annotated-datum)
   (when labels
-    (hashtable-update! labels label (lambda (old)
+    (hash-table-update! labels label (lambda (old)
                                       (when (car old)
                                         (reader-warning p "Duplicate label" label))
                                       (cons (cons datum annotated-datum)
@@ -881,20 +772,23 @@
 
 (define (register-reference _p labels label setter)
   (when labels
-    (hashtable-update! labels label (lambda (old)
+    (hash-table-update! labels label (lambda (old)
                                       (cons (car old)
                                             (cons setter (cdr old))))
                        (cons #f '()))))
 
 (define (resolve-labels p labels)
-  (let-values (((ids datum/refs*) (hashtable-entries labels)))
-    (vector-for-each
-     (lambda (id datum/refs)
-       (let ((datum (car datum/refs))
-             (refs (cdr datum/refs)))
+  (let ((entries (hash-table->alist labels)))
+    (for-each
+     (lambda (entry)
+       (let ((id (car entry))
+             (datum (cdar entry))
+             (refs (cddr entry)))
          (unless datum
            (reader-warning p "Missing label" id))
          (for-each (lambda (ref)
                      (ref (car datum) (cdr datum)))
                    refs)))
-     ids datum/refs*))))
+     entries)))
+
+))

@@ -22,7 +22,8 @@
         string-join
         make-anon-id
         make-named-id
-        fluid-let)
+        fluid-let
+        assert)
 (begin
 
 (define (map-vector fn vec)
@@ -129,4 +130,9 @@
                                (fluid-let ((p e) ...) be ...))
              (lambda results
                (set! p0 saved)
-               (apply values results)))))))))
+               (apply values results)))))))
+
+(define (assert e)
+    (if e e (raise e)))
+
+))

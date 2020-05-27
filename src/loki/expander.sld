@@ -1217,7 +1217,6 @@
            (duplicate? id common-env)
            (syntax-violation type "Redefinition of identifier in body" form id))
       (check-used id body-type form)
-      (debug body-type)
       (and (not (memq body-type `(toplevel program library)))
            (not (null? forms))
            (not (symbol? (car (car forms))))
@@ -2329,13 +2328,12 @@
                 (error)))))
 
     (define (read-file fn)
-      (with-reader-file-name fn (lambda ()
-        (let ((p (open-input-file fn)))
-          (let f ((x (read p)))
+        (let* ((p (open-input-file fn))
+               (reader (make-reader p fn)))
+          (let f ((x (read-datum reader)))
             (if (eof-object? x)
-                (begin (close-input-port p) '())
-                (cons x
-                      (f (read p)))))))))
+                '()
+                (cons x (f (read-datum reader)))))))
 
     (define (write-file exps fn)
       (if (file-exists? fn)

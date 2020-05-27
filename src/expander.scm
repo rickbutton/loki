@@ -12,10 +12,37 @@
 (import (chibi show pretty))
 (import (loki reader))
 
-(ex:expand-file "src/loki/r7rs.scm" "src/loki/r7rs.exp")
+(define (handle-loki-message e)
+  (let ((type (loki-message->type e))
+        (location (loki-message->location e))
+        (message (loki-message->message e)))
+    (display type)
+    (display " at ")
+    (display (source-location->string location))
+    (display ": ")
+    (display message)
+    (display "\n")
+    (if (eq? type 'error) (exit 1))))
 
-(define (expand forms)
-  (ex:expand-sequence forms 'library))
+(define (handle-unexpected-error e)
+  (display "unexpected error: ")
+  (display e)
+  (raise e)
+  (exit 1))
+
+(define (handle-error e)
+        (if (loki-message? e)
+            (handle-loki-message e)
+            (handle-unexpected-error e)))
+
+(define (run)
+  (call/cc (lambda (k)
+    (with-exception-handler
+      handle-error
+      (lambda ()
+        (ex:expand-file "src/loki/r7rs.scm" "src/loki/r7rs.exp"))))))
+
+(run)
 
 (define form 
 '(define-library (my)
@@ -31,17 +58,11 @@
       (define a 3)
       (mac (+ a (bar))))))
 (define str (show #f (pretty form)))
-(set! str (string-append str str))
-
-(expand (list (read (open-input-string str))))
-;(define syn (p01_tokens2syntax toks))
-;(display (show #f (pretty syn)))
-;(expand syn)
 
 ; TODO - interaction-environment sort of simulates real
 ; expected runtime environment
 ; current can't resolve ex:undefined, which is inside expander
 ; will need to resolve these to expanded code instead of direct emit
 ; (including register-macro etc)
-;(expand form)
-(display (show #f (pretty (ex:lookup-library '(loki expander)))))
+;(ex:expand-sequence (list form) 'library)
+;(display (show #f (pretty (ex:lookup-library '(loki expander)))))
