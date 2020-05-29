@@ -57,7 +57,11 @@
           ((_ arg) (display arg))))
       (define a 3)
       (mac (+ a (bar))))))
-(define str (show #f (pretty form)))
+;(define str (show #f (pretty form)))
+
+; TODO - need a way to expand raw forms
+; TODO - provide clean interface
+; TODO - clean up source-location usages to make-source, prob move back to record instead of vector
 
 ; TODO - interaction-environment sort of simulates real
 ; expected runtime environment
@@ -65,4 +69,4 @@
 ; will need to resolve these to expanded code instead of direct emit
 ; (including register-macro etc)
 ;(ex:expand-sequence (list form) 'library)
-;(display (show #f (pretty (ex:lookup-library '(loki expander)))))
+(display (show #f (pretty (ex:lookup-library '(scheme base)))))

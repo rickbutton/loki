@@ -34,7 +34,7 @@
 (import (loki shared))
 (import (loki util))
 (import (srfi 69))
-(export make-reader read-annotated read-datum)
+(export make-reader read-annotated)
 (begin
 
 ;; r7rs compat
@@ -111,37 +111,21 @@
   (reader-saved-line-set! reader (reader-line reader))
   (reader-saved-column-set! reader (reader-column reader)))
 
-(define-record-type <annotation>
-    (make-annotation expression source stripped)
-    annotation?
-    (expression annotation-expression)
-    (source annotation-source)
-    (stripped annotation-stripped))
-
 (define (reader-source reader)
-  (vector (reader-filename reader)
+  (make-source (reader-filename reader)
           (reader-saved-line reader)
           (reader-saved-column reader)))
 
-(define (annotate source stripped datum)
-  (assert (vector? source))
-  (make-annotation datum
-                   source
-                   stripped))
+(define-record-type <reference>
+    (make-reference label)
+    reference?
+    (label reference-label))
 
 (define (read-annotated reader)
   (assert (reader? reader))
   (let ((labels (make-labels)))
     (let*-values (((type x) (get-lexeme reader))
-                  ((__ d^) (handle-lexeme reader type x labels #f)))
-      (resolve-labels reader labels)
-      d^)))
-
-(define (read-datum reader)
-  (assert (reader? reader))
-  (let ((labels (make-labels)))
-    (let*-values (((type x) (get-lexeme reader))
-                  ((d __) (handle-lexeme reader type x labels #f)))
+                  ((d) (handle-lexeme reader type x labels #f)))
       (resolve-labels reader labels)
       d)))
 
@@ -151,7 +135,7 @@
 (define (reader-error reader msg . irritants)
   ;; Non-recoverable errors.
   (raise-loki-error
-    (make-source-location
+    (make-source
       (reader-filename reader)
       (reader-saved-line reader)
       (reader-saved-column reader))
@@ -162,7 +146,7 @@
   ;; Recoverable if the reader is tolerant.
   (if (reader-tolerant? reader)
       (raise-loki-error
-        (make-source-location
+        (make-source
           (reader-filename reader)
           (reader-saved-line reader)
           (reader-saved-column reader))
@@ -640,8 +624,7 @@
 
 (define (get-compound-datum p src terminator type labels)
   (define vec #f)                     ;TODO: ugly, should be rewritten
-  (define vec^ #f)
-  (let lp ((head '()) (head^ '()) (prev #f) (prev^ #f) (len 0))
+  (let lp ((head '()) (prev #f) (len 0))
     (let-values (((lextype x) (get-lexeme p)))
       (case lextype
         ((closep closeb eof)
@@ -651,23 +634,20 @@
                (reader-warning p "Mismatched parenthesis/brackets" lextype x terminator)))
          (case type
            ((vector)
-            (let ((s (list->vector head))
-                  (s^ (list->vector head^)))
+            (let ((s (list->vector head)))
               (set! vec s)
-              (set! vec^ (annotate src s s^))
-              (values vec vec^)))
+              vec))
            ((list)
-            (values head (annotate src head head^)))
+            head)
            ((bytevector)
-            (let ((s (apply bytevector head)))
-              (values s (annotate src s s))))
+            (apply bytevector head))
            (else
             (reader-error p "Internal error in get-compound-datum" type))))
         ((dot)                          ;a dot like in (1 . 2)
          (cond
            ((eq? type 'list)
             (let*-values (((lextype x) (get-lexeme p))
-                          ((d d^) (handle-lexeme p lextype x labels #t)))
+                          ((d) (handle-lexeme p lextype x labels #t)))
               (let-values (((termtype __) (get-lexeme p)))
                 (cond ((eq? termtype terminator))
                       ((eq? termtype 'eof)
@@ -675,47 +655,39 @@
                       (else
                        (reader-warning p "Improperly terminated dot list"))))
               (cond ((pair? prev)
-                     (cond ((eq? d^ 'reference)
+                     (cond ((reference? d)
                             (register-reference p labels d
-                                                (lambda (d d^)
-                                                  (set-cdr! prev d)
-                                                  (set-cdr! prev^ d^))))
+                                                (lambda (d) (set-cdr! prev d))))
                            (else
-                            (set-cdr! prev d)
-                            (set-cdr! prev^ d^))))
+                            (set-cdr! prev d))))
                     (else
                      (reader-warning p "Unexpected dot")))
-              (values head (annotate src head head^))))
+              head))
            (else
             (reader-warning p "Dot used in non-list datum")
-            (lp head head^ prev prev^ len))))
+            (lp head prev len))))
         (else
-         (let-values (((d d^) (handle-lexeme p lextype x labels #t)))
+         (let ((d (handle-lexeme p lextype x labels #t)))
            (cond
              ((and (eq? type 'bytevector)
-                   (or (eq? d^ 'reference)
-                       (not (and (integer? d) (<= 0 d 255)))))
+                   (or (reference? d)
+                       (not (and (integer? (reference-label d)) (<= 0 d 255)))))
               (reader-warning p "Invalid datum in bytevector" x)
-              (lp head head^ prev prev^ len))
+              (lp head prev len))
              (else
-              (let ((new-prev (cons d '()))
-                    (new-prev^ (cons d^ '())))
+              (let ((new-prev (cons d '())))
                 (when (pair? prev)
-                  (set-cdr! prev new-prev)
-                  (set-cdr! prev^ new-prev^))
-                (when (eq? d^ 'reference)
+                  (set-cdr! prev new-prev))
+                (when (reference? d)
                   (register-reference p labels d
                                       (if (eq? type 'vector)
-                                          (lambda (d d^)
-                                            (vector-set! vec len d)
-                                            (vector-set! (annotation-expression vec^)
-                                                         len d^))
-                                          (lambda (d d^)
-                                            (set-car! new-prev d)
-                                            (set-car! new-prev^ d^)))))
+                                          (lambda (d)
+                                            (vector-set! vec len d))
+                                          (lambda (d)
+                                            (set-car! new-prev d)))))
                 (if (pair? head)
-                    (lp head head^ new-prev new-prev^ (+ len 1))
-                    (lp new-prev new-prev^ new-prev new-prev^ (+ len 1))))))))))))
+                    (lp head new-prev (+ len 1))
+                    (lp new-prev new-prev (+ len 1))))))))))))
 
 (define (handle-lexeme p lextype x labels allow-refs?)
   (let ((src (reader-source p)))
@@ -728,26 +700,25 @@
        ;; TODO: open-bytevector-output-port would be faster
        (get-compound-datum p src 'closep 'bytevector labels))
       ((value eof identifier)
-       (values x (annotate src x x)))
+       (annotate lextype src x))
       ((abbrev)
        (let-values (((type lex) (get-lexeme p)))
          (cond ((eq? type 'eof)
                 (eof-warning p)
-                (values lex lex))
+                  lex)
                (else
-                (let-values (((d d^) (handle-lexeme p type lex labels #t)))
-                  (let ((s (list x d)))
-                    (values s (annotate src s (list x d^)))))))))
+                (let ((d (handle-lexeme p type lex labels #t)))
+                  (list (annotate 'identifier src x) d))))))
       ((label)
        ;; The object that follows this label can be referred
        ;; back from elsewhere.
        (let*-values (((lextype lexeme) (get-lexeme p))
-                     ((d d^) (handle-lexeme p lextype lexeme labels allow-refs?)))
-         (register-label p labels x d d^)
-         (values d d^)))
+                     ((d) (handle-lexeme p lextype lexeme labels allow-refs?)))
+         (register-label p labels x d)
+        d))
       (else
        (cond ((and allow-refs? (eq? lextype 'reference))
-              (values x 'reference))    ;XXX: different return types
+              (make-reference x))
              (else
               ;; Ignore the shebang ("#!/" or "#! " at the start of files).
               ;; FIXME: should only work for programs.
@@ -759,20 +730,19 @@
 ;;; Shared/circular data
 
 (define (make-labels)
-  (make-hash-table eqv?))
+  (make-hash-table eq?))
 
-(define (register-label p labels label datum annotated-datum)
+(define (register-label p labels label datum)
   (when labels
-    (hash-table-update! labels label (lambda (old)
+    (hash-table-update!/default labels label (lambda (old)
                                       (when (car old)
                                         (reader-warning p "Duplicate label" label))
-                                      (cons (cons datum annotated-datum)
-                                            (cdr old)))
+                                      (cons datum (cdr old)))
                        (cons #f '()))))
 
-(define (register-reference _p labels label setter)
+(define (register-reference _p labels reference setter)
   (when labels
-    (hash-table-update! labels label (lambda (old)
+    (hash-table-update!/default labels (reference-label reference) (lambda (old)
                                       (cons (car old)
                                             (cons setter (cdr old))))
                        (cons #f '()))))
@@ -782,12 +752,11 @@
     (for-each
      (lambda (entry)
        (let ((id (car entry))
-             (datum (cdar entry))
+             (datum (cadr entry))
              (refs (cddr entry)))
          (unless datum
            (reader-warning p "Missing label" id))
-         (for-each (lambda (ref)
-                     (ref (car datum) (cdr datum)))
+         (for-each (lambda (ref) (ref datum))
                    refs)))
      entries)))
 

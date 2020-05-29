@@ -118,6 +118,7 @@
 (import (scheme cxr))
 (import (scheme process-context))
 (import (loki compat))
+(import (loki shared))
 (import (loki runtime))
 (import (loki util))
 (import (loki reader))
@@ -190,41 +191,6 @@
 (define ex:dotted-butlast            #f)
 (define ex:dotted-last               #f)
 (define ex:free=?                    #f)
-
-;;==========================================================================
-;;
-;; Identifiers:
-;;
-;;==========================================================================
-;; <name>             ::= <symbol>
-;; <colors>           ::= (<color> ...)
-;; <transformer-envs> ::= (<env> ...)
-;; <displacement>     ::= <integer>
-;; <maybe-library>    ::= (<symbol> ...) | #f
-;;
-;; where
-;;   <name>             : The symbolic name of the identifier in the source.
-;;   <colors>           : Each time an introduced identifier is renamed, a fresh
-;;                        color gets prepended to its <colors>.
-;;   <transformer-envs> : List of reflected transformer environments.
-;;                        The environment (env-reify (car <transformer-envs>)) was the
-;;                        usage environment valid during expansion of any (syntax id)
-;;                        expression whose evaluation introduced this identifier, while
-;;                        (cdr <transformer-envs>) are in turn the reflected
-;;                        <transformer-envs> of the original id.
-;;   <displacement>     : Integer that keeps track of shifts in phases
-;;                        between transformer and usage sites of identifier.
-;;   <maybe-library>    : Library name if identifier was introduced by evaluation of
-;;                        a (syntax ...) expression, otherwise #f.
-;;                        The empty name '() is used for toplevel.
-(define-record-type :identifier
-    (make-identifier name colors transformer-envs displacement maybe-library)
-    identifier?
-    (name id-name)
-    (colors id-colors)
-    (transformer-envs id-transformer-envs)
-    (displacement id-displacement)
-    (maybe-library id-maybe-library))
 
 (letrec-syntax
      ;; A trivial but extremely useful s-expression matcher.
@@ -701,20 +667,35 @@
                          ',(cons (env-reflect *usage-env*)
                                  (id-transformer-envs id))
                          ,(- (- *phase* (id-displacement id)) 1)
-                         ',(id-library id)))
+                         ',(id-library id)
+                         ',(id-source id)))
 
-    (define (syntax-rename name colors transformer-envs transformer-phase source-library)
+    (define (syntax-rename name colors transformer-envs transformer-phase source-library source)
       (make-identifier name
                        (cons *color* colors)
                        transformer-envs
                        (- *phase* transformer-phase)
-                       source-library))
+                       source-library
+                       source))
 
     ;;=====================================================================
     ;;
     ;; Capture and sexp <-> syntax conversions:
     ;;
     ;;=====================================================================
+
+    (define (add-context-to-identifiers tid datum)
+      (check tid identifier? 'add-context-to-identifiers)
+      (sexp-map (lambda (leaf)
+                  (cond ((annotation-type? 'identifier leaf)
+                         (make-identifier (annotation-expression leaf)
+                                          (id-colors tid)
+                                          (id-transformer-envs tid)
+                                          (id-displacement tid)
+                                          (id-maybe-library tid)
+                                          (id-source tid)))
+                        (else leaf)))
+                datum))
 
     (define (datum->syntax tid datum)
       (check tid identifier? 'datum->syntax)
@@ -724,13 +705,15 @@
                                           (id-colors tid)
                                           (id-transformer-envs tid)
                                           (id-displacement tid)
-                                          (id-maybe-library tid)))
+                                          (id-maybe-library tid)
+                                          (id-source tid)))
                         (else leaf)))
                 datum))
 
     (define (syntax->datum exp)
       (sexp-map (lambda (leaf)
                   (cond ((identifier? leaf) (id-name leaf))
+                        ((annotation? leaf) (annotation-expression leaf))
                         ((symbol? leaf)
                          (assertion-violation 'syntax->datum "A symbol is not a valid syntax object" leaf))
                         (else leaf)))
@@ -745,7 +728,8 @@
                               (list (generate-color))
                               (list (make-null-env))
                               *phase*
-                              #f))
+                              #f
+                              (make-source "<temp>" 1 0)))
            ls))
 
     ;; For use internally as in the explicit renaming system.
@@ -758,7 +742,8 @@
                                           (make-binding type symbol '(0) #f '())))
                               (make-null-env)))
                        *phase*
-                       #f))
+                       #f
+                       (make-source "<unknown>" 1 0)))
 
     ;;=========================================================================
     ;;
@@ -956,10 +941,8 @@
 
     (define (expand-not exp)
       (match exp
-        (not
-            `(lambda (e) (not e)))
         ((not e)
-         `(if (eq? #f ,(expand e)) #t #f))))
+         `(if ,(expand e)) #f #t)))
 
     ;;=========================================================================
     ;;
@@ -1346,6 +1329,7 @@
                                     (make-local-mapping 'pattern-variable (car pvar) (cdr pvar)))
                                   pvars)))
                (fluid-let ((*usage-env* (env-extend mappings *usage-env*)))
+                
                  (process-match input
                                 pattern
                                 (match rest
@@ -1367,6 +1351,7 @@
          (let ((fail  (generate-guid 'fail)))
            `(let ((,fail (lambda () ,(process-clauses clauses input literals))))
               ,(process-clause clause input `(,fail)))))))
+              
 
     ;;=========================================================================
     ;;
@@ -1856,7 +1841,7 @@
                        (match level
                          ((syntax run)                   0)
                          ((syntax expand)                1)
-                         (((syntax meta) (? integer? n)) n)
+                         (((syntax meta) (? integer-syntax? n)) (annotation-expression n))
                          (- (syntax-violation 'for "Invalid level in for spec" spec level))))
                      levels)))
            (check-set? levels = (lambda (dup) (syntax-violation 'for "Repeated level in for spec" spec dup)))
@@ -1907,7 +1892,7 @@
                 (loop (cdr imports)))))))
 
     (define (library-name-part? p)
-        (or (identifier? p) (number? p)))
+        (or (identifier? p) (integer-syntax? p)))
 
     (define (scan-library-name e) (library-ref-helper e))
 
@@ -1989,7 +1974,8 @@
                        '()
                        '()
                        0
-                       `(anonymous)))
+                       `(anonymous)
+                       (make-source "<eval>" 1 0)))
 
     (define (make-r6rs-environment imported-libraries env)
       (cons imported-libraries env))
@@ -2229,7 +2215,7 @@
     (define (expand-toplevel-sequence forms)
       (scan-sequence 'toplevel
                      make-toplevel-mapping
-                     (source->syntax forms)
+                     (source->syntax toplevel-template forms)
                      (lambda (forms syntax-definitions bound-variables)
                        (emit-body forms 'define))))
 
@@ -2316,7 +2302,7 @@
         (if (null? exps)
             (reverse normalized)
             (if (pair? (car exps))
-                (case (caar exps)
+                (case (unwrap-annotation (caar exps))
                   ((define-library)
                    (loop (cdr exps)
                          (cons (car exps) normalized)))
@@ -2330,10 +2316,11 @@
     (define (read-file fn)
         (let* ((p (open-input-file fn))
                (reader (make-reader p fn)))
-          (let f ((x (read-datum reader)))
-            (if (eof-object? x)
+          (let f ((x (read-annotated reader)))
+            (if (and (annotation? x)
+                     (eof-object? (annotation-expression x)))
                 '()
-                (cons x (f (read-datum reader)))))))
+                (cons x (f (read-annotated reader)))))))
 
     (define (write-file exps fn)
       (if (file-exists? fn)
@@ -2356,10 +2343,11 @@
                        '()
                        '()
                        0
-                       #f))
+                       #f
+                       (make-source "<toplevel>" 1 0)))
 
-    (define (source->syntax datum)
-      (datum->syntax toplevel-template datum))
+    (define (source->syntax tid datum)
+        (add-context-to-identifiers tid datum))
 
     ;;===================================================================
     ;;
@@ -2369,7 +2357,7 @@
 
     (define library-language-names
       `(program define-library export import begin for run expand meta only
-                except prefix rename primitives >= <= and or not))
+                except prefix rename primitives))
 
     (define (make-library-language)
       (map (lambda (name)
