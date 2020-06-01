@@ -2,6 +2,7 @@
     (loki shared)
     (import (scheme base))
     (import (scheme write))
+    (import (scheme process-context))
     (import (srfi 69))
     (import (loki util))
     (import (loki compat))
@@ -11,12 +12,19 @@
         comment->text
 
         make-source
+        source?
+        source-filename
+        source-line
+        source-column
+        source->string
 
         annotate
         annotation?
         annotation-type?
         annotation-expression
+        annotation-source
         unwrap-annotation
+        syntax->closest-source
 
         identifier?
         make-identifier
@@ -34,18 +42,10 @@
         make-loki-message
         loki-message?
         loki-message->type
-        loki-message->location
-        loki-message->message)
+        loki-message->source
+        loki-message->message
+        with-loki-error-handler)
 (begin
-
-#;(define (source-location->string l)
-    (string-append 
-        (source-location->path l)
-        " ["
-        (number->string (source-location->line l))
-        ":"
-        (number->string (source-location->column l))
-        "]"))
 
 (define-record-type <comment>
     (make-comment text)
@@ -55,8 +55,20 @@
     (lambda (x out) 
         (display (string-append "(;" (comment->text x) ";)") out)))
 
-(define (make-source filename line column)
-    (vector filename line column))
+(define-record-type <source>
+    (make-source filename line column)
+    source?
+    (filename source-filename)
+    (line source-line)
+    (column source-column))
+(define (source->string s)
+    (string-append 
+        (source-filename s)
+        " ["
+        (number->string (source-line s))
+        ":"
+        (number->string (source-column s))
+        "]"))
 
 (define-record-type <annotation>
     (make-annotation-record type expression source context)
@@ -74,7 +86,7 @@
     (make-annotation-record type expr src #f))
 
 (define (annotate type source datum)
-  (assert (vector? source))
+  (assert (source? source))
   (make-annotation type datum
                    source))
 
@@ -95,10 +107,14 @@
         (let ((source (annotation-source x))
               (expr-str (get-output-string expr-port)))
             (display (string-append
-                "#<syntax:"
-                (vector-ref source 0) ":"
-                (number->string (vector-ref source 1)) ":"
-                (number->string (vector-ref source 2)) " "
+                "#<syntax"
+                (if source
+                    (string-append
+                        ":"
+                        (source-filename source) ":"
+                        (number->string (source-line source)) ":"
+                        (number->string (source-column source)) " ")
+                    " ")
                 expr-str ">" ) out))))
 
 ;;==========================================================================
@@ -148,16 +164,51 @@
 (define (unwrap-annotation a)
     (if (annotation? a) (annotation-expression a) a))
 
+(define (syntax->closest-source s)
+    (cond
+        ((annotation? s) (annotation-source s))
+        ((and (pair? s) (annotation? (car s)))
+            (annotation-source (car s)))
+        ((pair? s) (syntax->closest-source (cdr s)))
+        (else #f)))
+
 (define-record-type <loki-message>
-    (make-loki-message type location message)
+    (make-loki-message type source message)
     loki-message?
     (type loki-message->type)
-    (location loki-message->location)
+    (source loki-message->source)
     (message loki-message->message))
 
-(define (raise-loki-error location message)
-        (raise (make-loki-message 'error location message)))
+(define (raise-loki-error source message)
+        (raise (make-loki-message 'error source message)))
 
-(define (raise-loki-warning location message)
-        (raise (make-loki-message 'warning location message)))
+(define (raise-loki-warning source message)
+        (raise (make-loki-message 'warning source message)))
+
+(define (handle-loki-message e)
+  (let ((type (loki-message->type e)) (source (loki-message->source e))
+        (message (loki-message->message e)))
+    (display type)
+    (display " at ")
+    (if (source? source)
+        (display (source->string source))
+        (display "<unknown>"))
+    (display ": ")
+    (display message)
+    (display "\n")
+    (if (eq? type 'error) (error "loki error"))))
+
+(define (handle-unexpected-error e)
+  (display "unexpected error: ")
+  (display e)
+  (error "unexpected error"))
+
+(define (handle-error e)
+        (if (loki-message? e)
+            (handle-loki-message e)
+            (handle-unexpected-error e)))
+
+(define (with-loki-error-handler proc)
+    (with-exception-handler handle-error proc))
+
 ))

@@ -4,6 +4,10 @@
 ;;;
 ;;;===============================================================================
 (define-library (loki compat)
+(import (chibi time))
+(import (chibi trace))
+(import (chibi show pretty))
+(import (srfi 159))
 (import (scheme base))
 (import (scheme r5rs))
 (import (scheme process-context))
@@ -23,13 +27,12 @@
         string-join
         library-name->filename
         compat-eval
-        type-printer-set!)
+        type-printer-set!
+        trace)
 (begin
 
 ;; A numeric string that uniquely identifies this run in the universe
-;(define (ex:unique-token) (number->string (current-seconds) 32))
-; TODO - fix this
-(define (ex:unique-token) "")
+(define (ex:unique-token) (number->string (current-seconds) 32))
 
 ;; The letrec black hole and corresponding setter.
 (define ex:undefined 'undefined)
@@ -105,5 +108,4 @@
 (define (type-printer-set! type printer)
     (chibi-type-printer-set! type 
         (lambda (x writer out) (printer x out))))
-
 ))

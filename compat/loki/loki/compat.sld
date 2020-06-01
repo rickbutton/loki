@@ -22,7 +22,8 @@
         string-join
         library-name->filename
         compat-eval
-        type-printer-set!)
+        type-printer-set!
+        trace)
 (begin
 
 ;; A numeric string that uniquely identifies this run in the universe
@@ -104,4 +105,5 @@
 ; noop
 (define (type-printer-set! type printer) #f)
 
+(define (trace f) f)
 ))

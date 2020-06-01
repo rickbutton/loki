@@ -37,11 +37,6 @@
 (export make-reader read-annotated)
 (begin
 
-;; r7rs compat
-(define (rnrs:call-with-string-output-port proc)
-    (define port (open-output-string))
-    (proc port)
-    (get-output-string port))
 ; don't currently support unicode
 ; return an invalid category
 (define (char-general-category c) 'ZZ)
@@ -168,7 +163,7 @@
 
 ;; Get a line from the reader.
 (define (get-line reader)
-  (rnrs:call-with-string-output-port
+  (call-with-string-output-port
    (lambda (out)
      (do ((c (get-char reader) (get-char reader)))
          ((or (eqv? c #\newline) (eof-object? c)))
@@ -176,7 +171,7 @@
 
 ;; Gets whitespace from the reader.
 (define (get-whitespace reader char)
-  (rnrs:call-with-string-output-port
+  (call-with-string-output-port
    (lambda (out)
      (let lp ((char char))
        (write-char char out)
@@ -341,7 +336,7 @@
 ;; Gets a nested comment from the reader.
 (define (get-nested-comment reader)
   ;; The reader is immediately after "#|".
-  (rnrs:call-with-string-output-port
+  (call-with-string-output-port
    (lambda (out)
      (let lp ((levels 1) (c0 (get-char reader)))
        (let ((c1 (get-char reader)))
@@ -363,7 +358,7 @@
 ;; Get a comment from the reader (including the terminating whitespace).
 (define (get-comment reader)
   ;; The reader is immediately after #\;.
-  (rnrs:call-with-string-output-port
+  (call-with-string-output-port
    (lambda (out)
      (let lp ()
        (let ((c (get-char reader)))
@@ -724,8 +719,9 @@
               ;; FIXME: should only work for programs.
               (unless (and (eq? lextype 'shebang) (eqv? (car x) 1) (eqv? (cadr x) 0))
                 (reader-warning p "Unexpected lexeme" lextype x))
-              (let-values (((lextype x) (get-lexeme p)))
-                (handle-lexeme p lextype x labels allow-refs?))))))))
+              (call-with-values 
+                (lambda () (get-lexeme p))
+                (lambda (lextype x) (handle-lexeme p lextype x labels allow-refs?)))))))))
 
 ;;; Shared/circular data
 

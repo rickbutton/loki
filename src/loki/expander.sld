@@ -1,4 +1,3 @@
-;;;
 ;;; loki expander
 ;;;
 ;;; This library was been ported from the reference implementation
@@ -20,25 +19,19 @@
 ;;;
 ;;; For compiler and REPL integration, see the procedures
 ;;;
-;;;   - ex:repl              : Use this as REPL evaluator.  See description below.
 ;;;   - ex:expand-file       : Use this to expand a file containing libraries and/or
 ;;;                            toplevel programs before loading into an r5rs-type system
 ;;;                            or feeding result to an r5rs-type compiler.
 ;;;                            Suitable for separate compilation.
-;;;   - ex:run-r6rs-sequence : Evaluates a sequence of forms of the format
+;;;   - ex:run-sequence      : Evaluates a sequence of forms of the format
 ;;;                            <library>* | <library>* <toplevel program>.
 ;;;                            The <toplevel program> environment is separate from the 
 ;;;                            interactive REPL environment and does not persist
-;;;                            between invocations of run-r6rs-sequence.  
+;;;                            between invocations of run-sequence.  
 ;;;                            For importing and evaluating stuff in the persistent 
 ;;;                            interactive environment, ex:REPL should be used instead.
-;;;   - ex:run-r6rs-program  : Same as ex:run-r6rs-sequence, except that it reads the 
+;;;   - ex:run-program       : Same as ex:run-sequence, except that it reads the 
 ;;;                            input from a file.
-;;;   - ex:expand-r5rs-file  : For expanding r5rs-like toplevel files in a given environment.
-;;;                            Mainly provided so this expander can expand itself, but may
-;;;                            have other uses.  See the documentation below where the
-;;;                            procedure is defined.  See also the note below on
-;;;                            metacircularity.
 ;;;
 ;;; COMPILATION:
 ;;; ------------
@@ -59,31 +52,6 @@
 ;;; is set to).  This seems to be the preferred input format for Larceny.
 ;;; It would be very easy to abstract or change, but we don't bother for now
 ;;; until implementors other than Larceny show a serious interest.
-;;;
-;;; METACIRCULARITY AND BOOTSTRAPPING:
-;;; ----------------------------------
-;;;
-;;; This section is mostly of interest for r5rs non-compliant systems.
-;;;
-;;; The expander relies on r5rs (or r6rs) syntax-rules and letrec-syntax
-;;; and should run in a correct r5rs system, but if you don't have 
-;;; r5rs macros, you may bootstrap it by expanding the expander itself
-;;; first on an R5RS system.
-;;; Here is how to do it:
-;;;
-;;;   (load "compat-mzscheme.scm")   ; for example bootstrapping from mzscheme 
-;;;   (load "runtime.scm")
-;;;   (load "expander.scm")
-;;;   (ex:expand-file "standard-libraries.scm" "standard-libraries.exp")
-;;;   (ex:expand-r5rs-file "expander.scm" "expander.exp" (ex:environment '(rnrs base)))
-;;; 
-;;; The expanded (.exp) files are vanilla Scheme and can then be run on the target
-;;; system as follows:
-;;;
-;;;   (load "compat-chez.scm")       ; for example
-;;;   (load "runtime.scm")
-;;;   (load "standard-libraries.exp")
-;;;   (load "expander.exp")
 ;;;
 ;;; SIZE OF OBJECT CODE:
 ;;; --------------------
@@ -137,11 +105,9 @@
     
         ex:expand-file              
         ex:expand-sequence          
-        ex:repl                     
-        ex:expand-r5rs-file         
-        ex:expand-r5rs-sequence     
-        ex:run-r6rs-sequence        
-        ex:run-r6rs-program         
+        ex:expand-datum-sequence          
+        ex:run-sequence          
+        ex:run-program          
 
         ex:uncompress
         ex:invalid-form             
@@ -174,11 +140,9 @@
 
 (define ex:expand-file               #f)
 (define ex:expand-sequence           #f)
-(define ex:repl                      #f)
-(define ex:expand-r5rs-file          #f)
-(define ex:expand-r5rs-sequence      #f)
-(define ex:run-r6rs-sequence         #f)
-(define ex:run-r6rs-program          #f)
+(define ex:expand-datum-sequence     #f)
+(define ex:run-sequence              #f)
+(define ex:run-program               #f)
 
 ;; Indirect exports:
 
@@ -661,22 +625,25 @@
     ;;=========================================================================
 
     (define (syntax-reflect id)
-      (set! *syntax-reflected* #t)
-      `(ex:syntax-rename ',(id-name id)
-                         ',(id-colors id)
-                         ',(cons (env-reflect *usage-env*)
-                                 (id-transformer-envs id))
-                         ,(- (- *phase* (id-displacement id)) 1)
-                         ',(id-library id)
-                         ',(id-source id)))
+      (let ((source (id-source id)))
+        (set! *syntax-reflected* #t)
+        `(ex:syntax-rename ',(id-name id)
+                           ',(id-colors id)
+                           ',(cons (env-reflect *usage-env*)
+                                   (id-transformer-envs id))
+                           ,(- (- *phase* (id-displacement id)) 1)
+                           ',(id-library id)
+                           ,(source-filename source)
+                           ,(source-line source)
+                           ,(source-column source))))
 
-    (define (syntax-rename name colors transformer-envs transformer-phase source-library source)
+    (define (syntax-rename name colors transformer-envs transformer-phase source-library filename line column)
       (make-identifier name
                        (cons *color* colors)
                        transformer-envs
                        (- *phase* transformer-phase)
                        source-library
-                       source))
+                       (make-source filename line column)))
 
     ;;=====================================================================
     ;;
@@ -693,7 +660,7 @@
                                           (id-transformer-envs tid)
                                           (id-displacement tid)
                                           (id-maybe-library tid)
-                                          (id-source tid)))
+                                          (annotation-source leaf)))
                         (else leaf)))
                 datum))
 
@@ -819,6 +786,7 @@
                             (syntax-violation #f "Pattern variable used outside syntax template" t))))
                 ((list? t)       (map expand t))
                 ((identifier? t) (make-free-name (id-name t)))
+                ((annotation? t) (annotation-expression t))
                 ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
                 ((symbol? t)     (syntax-violation #f "Symbol may not appear in syntax object" t))
                 (else t)))))
@@ -919,7 +887,7 @@
     (define (expand-local-syntax exp)
       (expand-begin `(,(rename 'macro 'begin) ,exp)))
 
-    ;; Define and and or as primitives  so we can import them into the repl
+    ;; Define and and or as primitives  so we can import them into the
     ;; toplevel without spoiling the and and or of the library language.
 
     (define (expand-and exp)
@@ -938,11 +906,6 @@
         ((or e es ___)
          `(let ((x ,(expand e)))
             (if x x ,(expand `(,or ,@es)))))))
-
-    (define (expand-not exp)
-      (match exp
-        ((not e)
-         `(if ,(expand e)) #f #t)))
 
     ;;=========================================================================
     ;;
@@ -1229,7 +1192,6 @@
               ,(process-clauses clauses input literals))))))
 
     (define (process-clauses clauses input literals)
-
       (define (literal? pattern)
         (and (identifier? pattern)
              (memp (lambda (x)
@@ -1302,7 +1264,8 @@
               ((? symbol? -)
                (syntax-violation 'syntax-case "Symbol object may not appear in pattern" pattern))
               (other
-               `(if (equal? ,input ',other) ,sk ,fk)))))
+                #t
+               `(if (equal? ,input ',(syntax->datum other)) ,sk ,fk)))))
 
       (define (pattern-vars pattern level)
         (match pattern
@@ -1915,53 +1878,24 @@
     ;;==========================================================================
 
     (define (syntax-violation who message form . maybe-subform)
-      (newline)
-      (display "Syntax violation: ")
-      (let ((who (if who
-                     who
-                     (cond ((identifier? form)
-                            (syntax->datum form))
-                           ((and (list? form)
-                                 (identifier? (car form)))
-                            (syntax->datum (car form)))
-                           (else ""))))
-            (subform (cond ((null? maybe-subform) #f)
+      (let* ((subform (cond ((null? maybe-subform) #f)
                            ((and (pair? maybe-subform)
                                  (null? (cdr maybe-subform)))
                             (car maybe-subform))
                            (else (assertion-violation 'syntax-violation
                                                       "Invalid subform in syntax violation"
-                                                      maybe-subform)))))
-        (display who)
-        (newline)
-        (newline)
-        (display message)
-        (newline)
-        (newline)
-        (if subform
-            (begin (display "Subform: ")
-                   (pretty-print (syntax-debug subform))
-                   (newline)))
-        (display "Form: ")
-        (pretty-print (syntax-debug form))
-        (newline)
-        (display "Trace: ")
-        (newline)
-        (newline)
-        (for-each (lambda (exp)
-                    (display "  ")
-                    (pretty-print (syntax-debug exp))
-                    (newline))
-                  *trace*)
-        ;(error 'syntax-violation "Integrate with host error handling here")))
-        (exit)))
-
-    (define (syntax-debug exp)
-      (sexp-map (lambda (leaf)
-                  (cond ((identifier? leaf)
-                         (id-name leaf))
-                        (else leaf)))
-                exp))
+                                                      maybe-subform))))
+            (form-source (syntax->closest-source form))
+            (subform-source (syntax->closest-source subform)))
+        
+        (raise-loki-error (or form-source subform-source) 
+            (call-with-string-output-port (lambda (out)
+                ; TODO use *trace*
+                (if who (display who out))
+                (if who (display " - " out))
+                (display message out)
+                (display "\n" out)
+                (display (syntax->datum form) out))))))
 
     ;;==========================================================================
     ;;
@@ -1977,10 +1911,10 @@
                        `(anonymous)
                        (make-source "<eval>" 1 0)))
 
-    (define (make-r6rs-environment imported-libraries env)
+    (define (make-environment imported-libraries env)
       (cons imported-libraries env))
-    (define r6rs-environment-imported-libraries car)
-    (define r6rs-environment-env                cdr)
+    (define environment-imported-libraries car)
+    (define environment-env                cdr)
 
     (define (environment . import-specs)
       (fluid-let ((*usage-env* (make-unit-env)))
@@ -1993,17 +1927,17 @@
                         (datum->syntax eval-template spec))
                       import-specs) '() '())))
           (lambda (imported-libraries imports)
-            (make-r6rs-environment imported-libraries
+            (make-environment imported-libraries
                                    (let ((env (make-unit-env)))
                                      (env-import! eval-template imports env)
                                      env))))))
 
-    (define (r6rs-eval exp env)
-      (fluid-let ((*usage-env* (r6rs-environment-env env)))
+    (define (loki-eval exp env)
+      (fluid-let ((*usage-env* (environment-env env)))
         (let ((exp (datum->syntax eval-template exp))
-              (imported-libraries (r6rs-environment-imported-libraries env)))
-          (import-libraries-for-expand (r6rs-environment-imported-libraries env) (map not imported-libraries) 0)
-          (ex:import-libraries-for-run (r6rs-environment-imported-libraries env) (map not imported-libraries) 0)
+              (imported-libraries (environment-imported-libraries env)))
+          (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
+          (ex:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
           (compat-eval (expand-begin
                  ;; wrap in expression begin so no definition can occur as required by r6rs
                  `(,(rename 'macro 'begin) ,exp))))))
@@ -2014,9 +1948,9 @@
     ;;
     ;;=========================================================================
 
-    (define (environment-bindings r6rs-env)
+    (define (environment-bindings env)
       (map format-mapping
-           (caar (r6rs-environment-env r6rs-env))))
+           (caar (environment-env env))))
 
     (define (format-mapping mapping)
       `((name ,(caar mapping))
@@ -2151,51 +2085,22 @@
     (define (invalid-form exp)
       (syntax-violation #f "Invalid form" exp))
 
-    ;;============================================================================
-    ;;
-    ;; REPL integration:
-    ;;
-    ;;============================================================================
-
-    ;; Evaluates a sequence of library definitions, commands, and top-level 
-    ;; import forms in the interactive environment.  The semantics for 
-    ;; evaluating libraries in and importing bindings into the interactive 
-    ;; environment is consistent with the ERR5RS proposal at
-    ;; http://scheme-punks.cyber-rush.org/wiki/index.php?title=ERR5RS:Libraries.
-    ;; Bindings in the interactive environment persist between invocations 
-    ;; of REPL.
-    
-    (define (repl exps)
-      (with-toplevel-parameters
-       (lambda ()
-         (for-each (lambda (exp)
-                     (for-each (lambda (exp)
-                                 (for-each (lambda (result)
-                                             (display result)
-                                             (newline))
-                                           (call-with-values
-                                            (lambda ()
-                                              (compat-eval exp))
-                                            list)))
-                               (expand-toplevel-sequence (list exp))))
-                   exps))))
-    
     ;; Evaluates a sequence of forms of the format
     ;; <library>* | <library>* <toplevel program>.
     ;; The <toplevel program> environment is separate from the 
     ;; interactive REPL environment and does not persist
-    ;; between invocations of run-r6rs-sequence.  
+    ;; between invocations of run-sequence.  
     ;; For importing and evaluating stuff in the persistent 
     ;; interactive environment, see REPL above.
     
-    (define (run-r6rs-sequence forms)
+    (define (run-sequence forms)
       (with-toplevel-parameters
        (lambda ()
          (for-each (lambda (exp) (compat-eval exp))
                    (expand-toplevel-sequence (normalize forms))))))
     
-    (define (run-r6rs-program filename)
-      (run-r6rs-sequence (read-file filename)))
+    (define (run-program filename)
+      (run-sequence (read-file filename)))
 
     ;; Puts parameters to a consistent state for the toplevel
     ;; Old state is restored afterwards so that things will be
@@ -2224,7 +2129,7 @@
     ;; it can be used to recursively load libraries while
     ;; expanding a client library or program.
     
-    (define (r6rs-load filename)
+    (define (loki-load filename)
       (with-toplevel-parameters
        (lambda ()
          (for-each (lambda (exp)
@@ -2245,44 +2150,14 @@
          (write-file (expand-toplevel-sequence (normalize (read-file filename)))
                      target-filename))))
 
-    (define (expand-sequence forms type)
+    (define (expand-sequence forms)
       (with-toplevel-parameters
        (lambda ()
-         (cond
-           ((eq? type 'program) (expand-r5rs-sequence forms (ex:environment '(rnrs base))))
-           ((eq? type 'library) (expand-toplevel-sequence (normalize forms)))
-           (else (error (string-append "invalid type: " (symbol->string type))))))))
+            (expand-toplevel-sequence (normalize forms)))))
 
-    ;; This approximates the common r5rs behaviour of
-    ;; expanding a toplevel file but treating unbound identifiers
-    ;; as bare symbols that may refer to variables in the built-in toplevel
-    ;; environment.  The environment argument should import at least the
-    ;; macros necessary to expand the file.
-    ;; This is provided mainly to be able to self-expand this expander
-    ;; metacircularly (see the relevant note at the top of this file).
-    ;; In contrast, expand-file strictly isolates a <toplevel program>
-    ;; environment from the builtin environment and strictly disallows
-    ;; unbound identifiers.
-    ;; The resulting file will need the include file runtime.scm
-    ;; and the appropriate libraries that constitute the env argument
-    ;; to be preloaded before it can be run.
+    (define (expand-datum-sequence forms)
+        (expand-sequence (datum->syntax eval-template forms)))
 
-    (define (expand-r5rs-file filename target-filename r6rs-env)
-      (write-file (expand-r5rs-sequence (read-file filename) r6rs-env) target-filename))
-
-    (define (expand-r5rs-sequence forms r6rs-env)
-      (with-toplevel-parameters
-       (lambda ()
-         (fluid-let ((make-free-name (lambda (symbol) symbol))
-                     (*usage-env*    (r6rs-environment-env r6rs-env))
-                     (*macro-table*  *macro-table*))
-           (let ((imported-libraries (r6rs-environment-imported-libraries r6rs-env)))
-             (import-libraries-for-expand (r6rs-environment-imported-libraries r6rs-env) (map not imported-libraries) 0)
-              (cons `(ex:import-libraries-for-run ',(r6rs-environment-imported-libraries r6rs-env)
-                                                             ',(current-builds imported-libraries)
-                                                             0)
-                               (expand-toplevel-sequence forms)))))))
-       
     ;; Keeps (<library> ...) the same.
     ;; Converts (<library> ... . <toplevel program>)
     ;; to (<library> ... (program . <toplevel program>))
@@ -2383,7 +2258,6 @@
               (syntax-case   . ,expand-syntax-case)
               (and           . ,expand-and)
               (or            . ,expand-or)
-              (not           . ,expand-not)
               (define        . ,invalid-form)
               (define-syntax . ,invalid-form)
               (_             . ,invalid-form)
@@ -2438,17 +2312,15 @@
     (set! ex:syntax->datum             syntax->datum)
     (set! ex:environment               environment)
     (set! ex:environment-bindings      environment-bindings)
-    (set! ex:eval                      r6rs-eval)
-    (set! ex:load                      r6rs-load)
+    (set! ex:eval                      loki-eval)
+    (set! ex:load                      loki-load)
     (set! ex:syntax-violation          syntax-violation)
     
     (set! ex:expand-file               expand-file)
     (set! ex:expand-sequence           expand-sequence)
-    (set! ex:repl                      repl)
-    (set! ex:expand-r5rs-file          expand-r5rs-file)
-    (set! ex:expand-r5rs-sequence      expand-r5rs-sequence)
-    (set! ex:run-r6rs-sequence         run-r6rs-sequence)
-    (set! ex:run-r6rs-program          run-r6rs-program)
+    (set! ex:expand-datum-sequence     expand-datum-sequence)
+    (set! ex:run-sequence              run-sequence)
+    (set! ex:run-program               run-program)
 
     (set! ex:uncompress                uncompress)
     (set! ex:invalid-form              invalid-form)

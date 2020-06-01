@@ -23,7 +23,8 @@
         make-anon-id
         make-named-id
         fluid-let
-        assert)
+        assert
+        call-with-string-output-port)
 (begin
 
 (define (map-vector fn vec)
@@ -92,16 +93,11 @@
         step)
         fold-var))
 
-(define-syntax debug
-    (syntax-rules ()
-        ((debug exp)
-            (begin
-                ;(display (show #f (quote exp)))
-                (display (quote exp))
-                (display ": ")
-                ;(display (show #f exp))
-                (display exp)
-                (display "\n")))))
+(define (debug . args)
+    (map (lambda (a)
+        (display a)
+        (display " ")) args)
+    (display "\n\n"))
 
 (define (pretty-print exp)
     (display exp))
@@ -135,4 +131,8 @@
 (define (assert e)
     (if e e (raise e)))
 
+(define (call-with-string-output-port proc)
+    (define port (open-output-string))
+    (proc port)
+    (get-output-string port))
 ))

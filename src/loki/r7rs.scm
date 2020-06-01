@@ -37,7 +37,7 @@
    
    ;; Macros defined in core expander:
    
-   begin if lambda quote set! and or not
+   begin if lambda quote set! and or
    define define-syntax let-syntax letrec-syntax
    _ ... syntax syntax-case
       
@@ -60,7 +60,7 @@
    
    (for (only (core primitive-macros)
      
-     begin if set! and or not lambda quote
+     begin if set! and or lambda quote
      define define-syntax let-syntax letrec-syntax 
      syntax syntax-case _ ...) run expand)
    
@@ -446,24 +446,24 @@
                          ((e* reps) (expand (syntax e) (+ level 1))))
              (syntax ((k e*) reps))))                                  
           ((unsyntax e)
-           (= level (syntax->datum 0))
+           (= level 0)
            (with-syntax (((t) (generate-temporaries '(t))))
              (syntax (t ((t e))))))
           (((unsyntax e ...) . r)
-           (= level (syntax->datum 0))
+           (= level 0)
            (with-syntax (((r* (rep ...)) (expand (syntax r) (syntax->datum 0)))
                          ((t ...)        (generate-temporaries (syntax (e ...)))))
              (syntax ((t ... . r*)
                       ((t e) ... rep ...)))))
           (((unsyntax-splicing e ...) . r)
-           (= level (syntax->datum 0))
+           (= level 0)
            (with-syntax (((r* (rep ...)) (expand (syntax r) 0))
                          ((t ...)        (generate-temporaries (syntax (e ...)))))
              (with-syntax ((((t ...) ...) (syntax ((t (... ...)) ...))))
                (syntax ((t ... ... . r*)
                         (((t ...) e) ... rep ...))))))
           ((k . r)
-           (and (> level (syntax->datum 0))
+           (and (> level 0)
                 (identifier? (syntax k))
                 (or (free-identifier=? (syntax k) (syntax unsyntax))
                     (free-identifier=? (syntax k) (syntax unsyntax-splicing))))
@@ -483,7 +483,7 @@
       
       (syntax-case e ()
         ((_ template)
-         (with-syntax (((template* replacements) (expand (syntax template) (syntax->datum 0))))
+         (with-syntax (((template* replacements) (expand (syntax template) 0)))
            (syntax
             (with-syntax replacements (syntax template*))))))))
   
@@ -629,32 +629,38 @@
           (core let)
           (primitives call-with-values))
   (begin
-  
+
   (define-syntax let-values
     (syntax-rules ()
       ((let-values (?binding ...) ?body0 ?body1 ...)
        (let-values "bind" (?binding ...) () (begin ?body0 ?body1 ...)))
+      
       ((let-values "bind" () ?tmps ?body)
        (let ?tmps ?body))
+      
       ((let-values "bind" ((?b0 ?e0) ?binding ...) ?tmps ?body)
        (let-values "mktmp" ?b0 ?e0 () (?binding ...) ?tmps ?body))
+      
       ((let-values "mktmp" () ?e0 ?args ?bindings ?tmps ?body)
        (call-with-values 
-        (lambda () ?e0)
-        (lambda ?args
-          (let-values "bind" ?bindings ?tmps ?body))))
+         (lambda () ?e0)
+         (lambda ?args
+           (let-values "bind" ?bindings ?tmps ?body))))
+      
       ((let-values "mktmp" (?a . ?b) ?e0 (?arg ...) ?bindings (?tmp ...) ?body)
        (let-values "mktmp" ?b ?e0 (?arg ... x) ?bindings (?tmp ... (?a x)) ?body))
+      
       ((let-values "mktmp" ?a ?e0 (?arg ...) ?bindings (?tmp ...) ?body)
        (call-with-values
-        (lambda () ?e0)
-        (lambda (?arg ... . x)
-          (let-values "bind" ?bindings (?tmp ... (?a x)) ?body))))))
-  
+         (lambda () ?e0)
+         (lambda (?arg ... . x)
+           (let-values "bind" ?bindings (?tmp ... (?a x)) ?body))))))
+
   (define-syntax let*-values
     (syntax-rules ()
       ((let*-values () ?body0 ?body1 ...)
        (begin ?body0 ?body1 ...))
+
       ((let*-values (?binding0 ?binding1 ...) ?body0 ?body1 ...)
        (let-values (?binding0)
          (let*-values (?binding1 ...) ?body0 ?body1 ...)))))
@@ -859,7 +865,7 @@
                         get-output-bytevector guard include inexact input-port-open?
                         integer->char length 
                         list->string list-copy list-set!  list?  make-list make-string map
-                        member memv modulo newline null?  number?  odd?  open-input-string
+                        member memv modulo newline not null? number?  odd?  open-input-string
                         open-output-string output-port-open?  pair?  peek-char port?
                         procedure? raise rational?  read-bytevector read-char read-line
                         read-u8 remainder round set-car!  square string->list string->symbol
