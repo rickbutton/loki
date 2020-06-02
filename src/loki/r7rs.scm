@@ -81,6 +81,17 @@
   
   ) ;; core primitives
 
+(define-library (core util)
+  (export for-all)
+  (import (core primitives))
+  (import (primitives null? apply car cdr map))
+  (begin 
+    (define (for-all proc l . ls)
+      (or (null? l)
+        (and (apply proc (car l) (map car ls))
+             (apply for-all proc (cdr l) (map cdr ls)))))
+))
+
 (define-library (core with-syntax)
   (export with-syntax)
   (import (for (core primitives) run expand)
@@ -100,8 +111,9 @@
 (define-library (core syntax-rules)
   (export syntax-rules)
   (import (for (core primitives)        expand run)
+          (for (core util)              expand run)
           (for (core with-syntax)       expand)
-          (for (primitives for-all map) expand))
+          (for (primitives map) expand))
   (begin
   
   (define-syntax syntax-rules
@@ -124,8 +136,9 @@
 (define-library (core let)
   (export let letrec letrec*)
   (import (for (core primitives)        expand run)
+          (for (core util)              expand run)
           (for (core with-syntax)       expand)
-          (for (primitives for-all)     expand))
+          (for (primitives)             expand))
   (begin
   
  (define-syntax let
@@ -269,9 +282,10 @@
   (export let* cond case else =>)   
   (import (for (core primitives)       expand run)
           (for (core let)              expand run)
+          (for (core util)             expand run)
           (for (core with-syntax)      expand)
           (for (core syntax-rules)     expand)
-          (for (primitives for-all null? memv car cdr) expand run))
+          (for (primitives null? memv car cdr) expand run))
   (begin
   
   (define-syntax let*

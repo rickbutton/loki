@@ -1,6 +1,7 @@
 (define-library (loki runtime)
 (import (scheme r5rs))
 (import (loki compat))
+(import (loki util))
 (export ex:load-hook-set!
         ex:unspecified
         ex:make-library

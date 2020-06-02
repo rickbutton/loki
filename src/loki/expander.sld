@@ -2144,11 +2144,10 @@
     ;; The result is a sequence of vanilla r5rs-like toplevel
     ;; definitions and expressions.
 
-    (define (expand-file filename target-filename)
+    (define (expand-file filename)
       (with-toplevel-parameters
        (lambda ()
-         (write-file (expand-toplevel-sequence (normalize (read-file filename)))
-                     target-filename))))
+         (expand-toplevel-sequence (normalize (read-file filename))))))
 
     (define (expand-sequence forms)
       (with-toplevel-parameters
@@ -2196,16 +2195,6 @@
                      (eof-object? (annotation-expression x)))
                 '()
                 (cons x (f (read-annotated reader)))))))
-
-    (define (write-file exps fn)
-      (if (file-exists? fn)
-          (delete-file fn))
-      (let ((p (open-output-file fn)))
-        (for-each (lambda (exp)
-                    (write exp p)
-                    (newline p))
-                  exps)
-        (close-output-port p)))
 
     ;;==========================================================================
     ;;

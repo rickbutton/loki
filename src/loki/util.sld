@@ -4,11 +4,9 @@
     (import (scheme read))
     (import (scheme eval))
     (import (scheme write))
-    (import (loki compat))
     (export 
         map-vector
         unique
-        find
         filter
         fold-left
         fold-right
@@ -19,12 +17,16 @@
         range
         debug
         pretty-print
-        string-join
         make-anon-id
         make-named-id
         fluid-let
         assert
-        call-with-string-output-port)
+        call-with-string-output-port
+        memp
+        for-all
+        find
+        string-join
+        assertion-violation)
 (begin
 
 (define (map-vector fn vec)
@@ -37,12 +39,6 @@
             a))
         '()
          lst))
-
-(define (find pred list)
-    (if (null? list) #f
-        (if (pred (car list))
-            (car list)
-            (find pred (cdr list)))))
 
 (define (filter p? lst)
   (if (null? lst)
@@ -135,4 +131,38 @@
     (define port (open-output-string))
     (proc port)
     (get-output-string port))
+
+(define (memp proc ls)
+  (cond ((null? ls) #f)
+        ((pair? ls) (if (proc (car ls))
+                        ls
+                        (memp proc (cdr ls))))
+        (else (assertion-violation 'memp "Invalid argument" ls))))
+
+(define (for-all proc l . ls)
+  (or (null? l)
+      (and (apply proc (car l) (map car ls))
+           (apply for-all proc (cdr l) (map cdr ls)))))
+
+(define (find pred list)
+    (if (null? list) #f
+        (if (pred (car list))
+            (car list)
+            (find pred (cdr list)))))
+
+(define (string-join strings delimiter)
+  (if (null? strings)
+      ""
+      (fold-right (lambda (s so-far) (string-append so-far delimiter s))
+            (car strings)
+            (cdr strings))))
+
+(define assertion-violation 
+  (lambda args 
+    (display 'assertion-violation)
+    (newline)
+    (display args)
+    (newline)
+    (error)))
+
 ))

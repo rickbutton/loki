@@ -22,7 +22,7 @@
       (mac (+ a (bar))))))
 
 (with-loki-error-handler (lambda ()
-  (ex:expand-file "src/loki/r7rs.scm" "src/loki/r7rs.exp")
+  (ex:expand-file "src/loki/r7rs.scm")
   (ex:expand-datum-sequence (list form))))
 
 
