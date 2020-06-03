@@ -23,15 +23,6 @@
 ;;;                            toplevel programs before loading into an r5rs-type system
 ;;;                            or feeding result to an r5rs-type compiler.
 ;;;                            Suitable for separate compilation.
-;;;   - ex:run-sequence      : Evaluates a sequence of forms of the format
-;;;                            <library>* | <library>* <toplevel program>.
-;;;                            The <toplevel program> environment is separate from the 
-;;;                            interactive REPL environment and does not persist
-;;;                            between invocations of run-sequence.  
-;;;                            For importing and evaluating stuff in the persistent 
-;;;                            interactive environment, ex:REPL should be used instead.
-;;;   - ex:run-program       : Same as ex:run-sequence, except that it reads the 
-;;;                            input from a file.
 ;;;
 ;;; COMPILATION:
 ;;; ------------
@@ -102,14 +93,12 @@
         ex:eval                     
         ex:load                     
         ex:syntax-violation         
+        ex:visit-library!
     
         ex:expand-file              
         ex:expand-sequence          
         ex:expand-datum-sequence          
-        ex:run-sequence          
-        ex:run-program          
 
-        ex:uncompress
         ex:invalid-form             
         ex:register-macro!          
         ex:syntax-rename            
@@ -135,18 +124,16 @@
 (define ex:eval                      #f)
 (define ex:load                      #f)
 (define ex:syntax-violation          #f)
+(define ex:visit-library!            #f)
 
 ;; System exports:
 
 (define ex:expand-file               #f)
 (define ex:expand-sequence           #f)
 (define ex:expand-datum-sequence     #f)
-(define ex:run-sequence              #f)
-(define ex:run-program               #f)
 
 ;; Indirect exports:
 
-(define ex:uncompress                #f)
 (define ex:invalid-form              #f)
 (define ex:register-macro!           #f)
 (define ex:syntax-rename             #f)
@@ -155,6 +142,10 @@
 (define ex:dotted-butlast            #f)
 (define ex:dotted-last               #f)
 (define ex:free=?                    #f)
+
+;; Single-character symbol prefixes.
+(define ex:guid-prefix "&")
+(define ex:free-prefix "~")
 
 (letrec-syntax
      ;; A trivial but extremely useful s-expression matcher.
@@ -566,50 +557,6 @@
           (cdr (assq key-or-env *env-table*))
           key-or-env))
 
-    ;; This makes a much smaller external representation of an
-    ;; environment table by factoring shared structure.
-
-    (define (compress env-table)
-      (let ((frame-table '())
-            (count 0))
-        (for-each (lambda (entry)
-                    (for-each (lambda (frame)
-                                (if (not (assq frame frame-table))
-                                    (begin
-                                      (set! frame-table (cons (cons frame count) frame-table))
-                                      (set! count (+ 1 count)))))
-                              (cdr entry)))
-                  env-table)
-        (cons (map (lambda (env-entry)
-                     (cons (car env-entry)
-                           (map (lambda (frame)
-                                  (cdr (assq frame frame-table)))
-                                (cdr env-entry))))
-                   env-table)
-              (map (lambda (frame-entry)
-                     (cons (cdr frame-entry)
-                           (list (map (lambda (mapping)
-                                        (cons (car mapping)
-                                              (let ((binding (cdr mapping)))
-                                                (case (binding-type binding)
-                                                  ;; Pattern variable bindings can never be
-                                                  ;; used in client, so don't waste space.
-                                                  ;; Should really do the same with all local
-                                                  ;; bindings, but there are usually much less
-                                                  ;; of them, so don't bother for now.
-                                                  ((pattern-variable) #f) ; +++
-                                                  (else binding)))))
-                                      (caar frame-entry)))))
-                   frame-table))))
-
-    (define (uncompress compressed-env-table)
-      (map (lambda (env-entry)
-           (cons (car env-entry)
-            (map (lambda (frame-abbrev)
-                  (cdr (assv frame-abbrev (cdr compressed-env-table))))
-             (cdr env-entry))))
-      (car compressed-env-table)))
-
     ;;=========================================================================
     ;;
     ;; Syntax-reflect and syntax-rename:
@@ -725,19 +672,25 @@
 
     ;; <type> ::= expander | transformer | variable-transformer
 
-    (define (make-macro type proc)
-      (list type proc))
-    (define macro-type car)
-    (define macro-proc cadr)
+    (define-record-type <macro>
+      (make-macro type proc)
+      macro?
+      (type macro-type)
+      (proc macro-proc))
 
     (define (make-expander proc)             (make-macro 'expander proc))
     (define (make-transformer proc)          (make-macro 'transformer proc))
     (define (make-variable-transformer proc) (make-macro 'variable-transformer proc))
+    
 
     (define (make-user-macro procedure-or-macro)
-      (if (procedure? procedure-or-macro)
-          (make-transformer procedure-or-macro)
-          procedure-or-macro))
+      (cond
+        ((macro? procedure-or-macro)
+          procedure-or-macro)
+        ((procedure? procedure-or-macro)
+          (make-transformer procedure-or-macro))
+        (else
+          (assertion-violation #f "Invalid user macro" procedure-or-macro))))
 
     ;; Returns <macro>.
 
@@ -752,6 +705,16 @@
     (define (register-macro! binding-name procedure-or-macro)
       (set! *macro-table* (cons (cons binding-name (make-user-macro procedure-or-macro))
                                 *macro-table*)))
+
+    ;; Register macros in library
+
+    (define (visit-library! library)
+      (for-all (lambda (def)
+                 (let ((name (car def)) (macro (cdr def)))
+                    (if (macro? macro)
+                      (register-macro! name macro)
+                      (register-macro! name (compat-eval macro)))))
+               (ex:library-syntax-defs library)))
 
     ;; Calls a macro with a new color.
 
@@ -1026,22 +989,6 @@
                     (check-expression-sequence body-type type form)
                     (check-toplevel            body-type type form)
                     (case type
-                      ((import)
-                       (match form
-                         ((- specs ___)
-                          (call-with-values
-                              (lambda () (scan-imports specs '() '()))
-                            (lambda (imported-libraries imports)
-                              (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
-                              (env-import! (car form) imports common-env)
-                              (loop (cdr ws)
-                                    (cons (list #f #f `(ex:import-libraries-for-run
-                                                        ',imported-libraries
-                                                        ',(current-builds imported-libraries)
-                                                        0))
-                                          forms)
-                                    syntax-defs
-                                    bound-variables))))))
                       ((program)
                        (loop (cdr ws)
                              (cons (list #f #f (expand-program form)) forms)
@@ -1507,13 +1454,7 @@
 
     (define (expand-program t)
       (match t
-        ((program import-clause forms ___)
-         (expand-library-or-program
-          `(,program (,(datum->syntax program (generate-guid 'program)))
-                     (,(datum->syntax program 'export))
-                     ,import-clause
-                     ,@forms)
-          'program))))
+        ((program name exps ___) (expand-library-or-program t 'program))))
 
     (define (expand-library t)
       (expand-library-or-program t 'library))
@@ -1551,56 +1492,20 @@
                                                            ;     'library "Attempt to export mutable variable" t (cadr mapping)))
                                                            binding)))
                                                  exports))
-                                           (expanded-library
-                                            (case library-type
-                                              ((program)
-                                               `(begin
-                                                  (ex:import-libraries-for-run ',imported-libraries
-                                                                               ',(current-builds imported-libraries)
-                                                                               0)
-                                                  ,@(emit-body forms 'define)))
-                                              ((library)
-                                               `(begin
-                                                  ,@(map (lambda (var)
-                                                           `(define ,var ex:unspecified))
-                                                         bound-variables)
-                                                  (ex:register-library!
-                                                   (ex:make-library
-                                                    ',name
-                                                    ;; Store as thunk so that it is not unnecesarily
-                                                    ;; uncompressed at runtime
-                                                    (lambda ()
-                                                      ,(if *syntax-reflected*                     ; +++ space
-                                                           `(ex:uncompress                        ; +++ space
-                                                             ',(compress (drop-tail
-                                                                          *env-table*
-                                                                          initial-env-table)))
-                                                           `'()))                                 ; +++ space
-                                                    ',exports
-                                                    ',imported-libraries
-                                                    ',(current-builds imported-libraries)
-                                                    ;; visit
-                                                    (lambda ()
-                                                      ,@(map (lambda (def)
-                                                               `(ex:register-macro! ',(car def) ,(cdr def)))
-                                                             syntax-definitions)
-                                                      (values))
-                                                    ;; invoke
-                                                    (lambda ()
-                                                      ,@(map (lambda (var)
-                                                               `(set! ,var ex:undefined))
-                                                             bound-variables)
-                                                      ,@(emit-body forms ex:undefined-set!)
-                                                      (values))
-                                                    ;; build
-                                                    ',(generate-guid 'build)))
-                                                  (values))))))
-
-                                      ;; Register library for any further expansion.
-                                      (if (eq? library-type 'library)
-                                          (compat-eval expanded-library))
-
-                                      expanded-library)))))))))))
+                                            (library (ex:make-library
+                                                   name
+                                                   (if *syntax-reflected*
+                                                     (drop-tail *env-table* initial-env-table)
+                                                     '())
+                                                   exports
+                                                   imported-libraries
+                                                   (current-builds imported-libraries)
+                                                   syntax-definitions
+                                                   bound-variables
+                                                   (emit-body forms ex:undefined-set!)
+                                                   (generate-guid 'build))))
+                                        (ex:register-library! library)
+                                        `(quote ,name))))))))))))
 
     (define (env-import! keyword imports env)
       (env-extend! (map (lambda (import)
@@ -1624,13 +1529,13 @@
          (if (and (>= phase 0)
                   (not (ex:library-visited? library)))
              (begin
-               (set! *env-table* (append ((ex:library-envs library)) *env-table*))
-               ((ex:library-visiter library))
+               (set! *env-table* (append (ex:library-envs library) *env-table*))
+               (visit-library! library)
                (ex:library-visited?-set! library #t)))
          (if (and (>= phase 1)
                   (not (ex:library-invoked? library)))
              (begin 
-               ((ex:library-invoker library))
+               (ex:invoke-library! library)
                (ex:library-invoked?-set! library #t))))
        'expand))
 
@@ -1895,7 +1800,7 @@
                 (if who (display " - " out))
                 (display message out)
                 (display "\n" out)
-                (display (syntax->datum form) out))))))
+                (display form out))))))
 
     ;;==========================================================================
     ;;
@@ -2085,23 +1990,6 @@
     (define (invalid-form exp)
       (syntax-violation #f "Invalid form" exp))
 
-    ;; Evaluates a sequence of forms of the format
-    ;; <library>* | <library>* <toplevel program>.
-    ;; The <toplevel program> environment is separate from the 
-    ;; interactive REPL environment and does not persist
-    ;; between invocations of run-sequence.  
-    ;; For importing and evaluating stuff in the persistent 
-    ;; interactive environment, see REPL above.
-    
-    (define (run-sequence forms)
-      (with-toplevel-parameters
-       (lambda ()
-         (for-each (lambda (exp) (compat-eval exp))
-                   (expand-toplevel-sequence (normalize forms))))))
-    
-    (define (run-program filename)
-      (run-sequence (read-file filename)))
-
     ;; Puts parameters to a consistent state for the toplevel
     ;; Old state is restored afterwards so that things will be
     ;; reentrant. 
@@ -2172,20 +2060,32 @@
             "    | <library>* <toplevel program>")
            exps)))
       (let loop ((exps exps)
-                 (normalized '()))
+                 (state 'libraries)
+                 (libraries '())
+                 (toplevel '()))
         (if (null? exps)
-            (reverse normalized)
-            (if (pair? (car exps))
-                (case (unwrap-annotation (caar exps))
-                  ((define-library)
-                   (loop (cdr exps)
-                         (cons (car exps) normalized)))
-                  ((import)
-                   (loop '()
-                         (cons (cons 'program exps)
-                               normalized)))
-                  (else (error)))
-                (error)))))
+          (let ((program (if (pair? toplevel)
+                               `(,(datum->syntax toplevel-template 'program)
+                                 (,(datum->syntax toplevel-template (generate-guid 'program)))
+                                 ,@toplevel)
+                               '())))
+            (append (reverse (cons program libraries))))
+          (let ((exp (car exps)))
+            (cond
+              ((eq? state 'libraries)
+                (if (pair? exp)
+                  (case (unwrap-annotation (car exp))
+                    ((define-library) (loop (cdr exps) 
+                                            'libraries
+                                            (cons exp libraries)
+                                            toplevel))
+                    (else (loop (cdr exps)
+                                'program
+                                libraries
+                                (cons exp toplevel))))
+                  (loop (cdr exps) 'program libraries (cons exp toplevel))))
+               ((eq? state 'program)
+                  (loop (cdr exps) 'program libraries (cons exp toplevel))))))))
 
     (define (read-file fn)
         (let* ((p (open-input-file fn))
@@ -2254,7 +2154,7 @@
        (ex:make-library
         '(core primitive-macros)
         ;; envs
-        (lambda () '())
+        '()
         ;; exports
         (map (lambda (mapping)
                (cons (car mapping) (make-binding 'macro (car mapping) '(0) #f '())))
@@ -2263,14 +2163,14 @@
         '()
         ;; builds
         '()
-        ;; visit
-        (lambda ()
-          (for-each (lambda (mapping)
-                      (register-macro! (car mapping) (make-expander (cdr mapping))))
-                    primitive-macro-mapping)
-          (values))
-        ;; invoke
-        (lambda () (values))
+        ;; syntax-defs
+        (map (lambda (mapping)
+               (cons (car mapping) (make-expander (cdr mapping))))
+             primitive-macro-mapping)
+        ;; bound-vars
+        '()
+        ;; forms
+        '()
         ;; build
         'system)))
 
@@ -2304,14 +2204,12 @@
     (set! ex:eval                      loki-eval)
     (set! ex:load                      loki-load)
     (set! ex:syntax-violation          syntax-violation)
+    (set! ex:visit-library!            visit-library!)
     
     (set! ex:expand-file               expand-file)
     (set! ex:expand-sequence           expand-sequence)
     (set! ex:expand-datum-sequence     expand-datum-sequence)
-    (set! ex:run-sequence              run-sequence)
-    (set! ex:run-program               run-program)
 
-    (set! ex:uncompress                uncompress)
     (set! ex:invalid-form              invalid-form)
     (set! ex:register-macro!           register-macro!)
     (set! ex:syntax-rename             syntax-rename)

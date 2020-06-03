@@ -1,7 +1,15 @@
-move code into loki folder
+; TODO - interaction-environment sort of simulates real
+; expected runtime environment
+; current can't resolve ex:undefined, which is inside expander
+; will need to resolve these to expanded code instead of direct emit
+; (including register-macro etc)
 
-expose expander and standard libraries that can be expanded during compile time (and cached, separate compilation) to act as libraries to link against thing being compiled
+; instead of scheme, output record of program vs library
+; all are modules
+; libraries are modules with exported identifiers
+; programs are modules with an exported "main"
+; modules have a "type" export
+; instead of compat-eval, call runtime directly
+; and get rid of all evals except for repl/loki-eval
 
-if program includes ex:repl or ex:expand-file, program will automatically include compiler itself in the result.
-
-this means I need to move the emitted ex:register-macro! and other runtime usages into an expanded version that references the in-memory runtime library
+; expose make-record-type, other primitives

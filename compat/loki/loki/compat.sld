@@ -14,9 +14,7 @@
 (export ex:unique-token
         ex:undefined
         ex:undefined-set!
-        ex:guid-prefix
-        ex:free-prefix
-        library-name->filename
+        ex:library-dirs
         compat-eval
         type-printer-set!
         trace)
@@ -31,23 +29,7 @@
 (define ex:undefined 'undefined)
 (define ex:undefined-set! 'set!)
 
-;; Single-character symbol prefixes.
-;; No builtins may start with one of these.
-;; If they do, select different values here.
-(define ex:guid-prefix "&")
-(define ex:free-prefix "~")
-
-(define (library-name-part->string p)
-    (if (symbol? p) (symbol->string p)
-                    (number->string p)))
-
-(define library-dirs (list "src" "compat/loki"))
-(define (library-name->filename name)
-    (find file-exists?
-        (map (lambda (dir)
-            (string-append 
-                (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
-            library-dirs)))
+(define ex:library-dirs (list "src" "compat/loki"))
 
 (define compat-env #f)
 (define (compat-eval e) 
