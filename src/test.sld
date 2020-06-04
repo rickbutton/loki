@@ -4,4 +4,4 @@
 (import (scheme write))
 (begin
 
-(define (bar) (display "bar!!!"))))
+(define (bar) (display "bar!!!") 1)))

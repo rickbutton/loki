@@ -12,13 +12,11 @@
 (import (scheme process-context))
 (import (scheme write))
 (import (scheme file))
-(import (scheme eval))
 (import (loki util))
 (export ex:unique-token
         ex:undefined
         ex:undefined-set!
         ex:library-dirs
-        compat-eval
         type-printer-set!
         trace)
 (begin
@@ -30,15 +28,8 @@
 (define ex:undefined '(if #f #f))
 (define ex:undefined-set! 'set!)
 
+;; The "search prefixes" when loading a library from disk
 (define ex:library-dirs (list "src" "compat/loki"))
-
-
-(define compat-env #f)
-(define (compat-eval e) 
-    (if (not compat-env)
-        (set! compat-env 
-            (environment '(scheme r5rs) '(loki compat) '(loki runtime) '(loki expander))))
-    (eval e compat-env))
 
 (define (type-printer-set! type printer)
     (chibi-type-printer-set! type 

@@ -23,8 +23,5 @@
 (with-loki-error-handler (lambda ()
   (ex:expand-file "src/loki/r7rs.scm")
   (ex:expand-datum-sequence (list form))
-  (let ((name (car (ex:expand-datum-sequence (list '(import (my)))))))
-    (debug (eval name))
-    (ex:import-main-library (eval name)))))
-
-;(display (show #f (pretty (ex:lookup-library '(my)))))
+  (let ((name (car (ex:expand-datum-sequence (list '(import (my)) '(import (scheme write)) '(begin (display "nice!!")))))))
+    (ex:import-library (eval name)))))

@@ -2,10 +2,10 @@
 (import (scheme base))
 (import (scheme file))
 (import (scheme write))
+(import (scheme eval))
 (import (loki compat))
 (import (loki util))
-(export ex:load-hook-set!
-        ex:unspecified
+(export ex:unspecified
         ex:make-library
         ex:library-name
         ex:library-envs
@@ -20,13 +20,14 @@
         ex:library-invoked?
         ex:library-visited?-set!
         ex:library-invoked?-set!
-        ex:make-program
         ex:import-libraries-for
         ex:import-libraries-for-run
-        ex:import-main-library
+        ex:import-library
         ex:register-library!
         ex:invoke-library!
-        ex:lookup-library)
+        ex:lookup-library
+        ex:lookup-library/false
+        ex:runtime-eval)
 (begin
 ;;; 
 ;;; Runtime include file:
@@ -41,11 +42,6 @@
           (cons (car lst)
                 (util:filter p? (cdr lst)))
           (util:filter p? (cdr lst)))))
-
-; TODO - set this at runtime to something that crashes
-(define load-hook #f)
-(define (ex:load-hook-set! hook)
-  (set! load-hook hook))
 
 (define ex:unspecified (if #f #f))
 
@@ -66,14 +62,6 @@
 
 (define (ex:make-library name envs exports imports builds syntax-defs bound-vars forms build)
   (make-library-record name envs exports imports builds syntax-defs bound-vars forms build #f #f))
-
-(define-record-type <program>
-    (ex:make-program name imports builds phase)
-    program?
-    (name program-name)
-    (imports program-imports)
-    (builds program-builds)
-    (phase program-phase))
 
 (define ex:imported '())
 (define (ex:import-libraries-for imports builds phase importer run-or-expand)
@@ -116,7 +104,7 @@
                                    (ex:library-invoked?-set! library #t))))
                            'run))
 
-(define (ex:import-main-library name)
+(define (ex:import-library name)
     (let ((library (ex:lookup-library name)))
       (ex:import-libraries-for-run (ex:library-imports library) (ex:library-builds library) 0)))
 
@@ -131,32 +119,33 @@
 
 (define ex:invoke-library!
     (lambda (library)
-        (compat-eval `(begin
+        (ex:runtime-eval `(begin
                       ,@(map (lambda (var) `(define ,var ,ex:undefined)) (ex:library-bound-vars library))
                       ,@(ex:library-forms library)))))
 
-(define (library-name-part->string p)
-    (if (symbol? p) (symbol->string p)
-                    (number->string p)))
-
-(define (library-name->filename name)
-    (find file-exists?
-        (map (lambda (dir)
-            (string-append 
-                (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
-            ex:library-dirs)))
-
 (define ex:lookup-library 
+    (lambda (name)
+      (let ((library (ex:lookup-library/false name)))
+        (if library
+            library
+            (assertion-violation 'lookup-library "Library not loaded" name)))))
+
+(define ex:lookup-library/false
     (lambda (name)
       (let ((library (find (lambda (l) (equal? name (ex:library-name l))) table)))
         (if library
             library
-            (let ((filename (library-name->filename name)))
-              (if filename
-                  (begin
-                    (load-hook filename)
-                    (ex:lookup-library name))
-                  (assertion-violation 'lookup-library "Library not loaded" name)))))))
+            #f))))
+
+(define runtime-env #f)
+
+(define (runtime-env-init!)
+  (set! runtime-env 
+    (environment '(scheme r5rs) '(loki compat) '(loki runtime) '(loki expander))))
+
+(define (ex:runtime-eval e) 
+  (if (not runtime-env) (runtime-env-init!))
+  (eval e runtime-env))
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

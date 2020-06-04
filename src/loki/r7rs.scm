@@ -30,7 +30,6 @@
 ;;; porting of legacy macros in some implementations.
 ;;;
 ;;;=====================================================================
-
 (define-library (core primitives)
   
   (export
@@ -81,10 +80,95 @@
   
   ) ;; core primitives
 
+(define-library (core intrinsics)
+    (import (primitives * + - / < <= = > >= abs append apply assoc assq
+                        assv binary-port?  boolean=?  boolean?  bytevector
+                        bytevector-append bytevector-copy bytevector-copy! bytevector-length
+                        bytevector-u8-ref bytevector-u8-set!  bytevector?
+                        call-with-current-continuation call-with-port call-with-values call/cc
+                        car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
+                        char<?  char=?  char>=?  char>?  char?  close-input-port
+                        close-output-port close-port complex?  cons ; TODO cond-expand
+                        current-error-port current-input-port current-output-port
+                        define-values denominator
+                        dynamic-wind eof-object?  equal?  error error-object-message
+                        even?  exact-integer-sqrt exact?
+                        ;TODO features 
+                        floor floor-remainder
+                        flush-output-port gcd get-output-string include-ci inexact?
+                        input-port?  integer?  lcm list
+                        list->vector list-ref list-tail make-bytevector make-parameter
+                        make-vector max memq min negative? number->string numerator
+                        open-input-bytevector open-output-bytevector output-port?
+                        parameterize peek-u8 positive? quotient raise-continuable
+                        rationalize read-bytevector!  read-error?  read-string real?  reverse
+                        set-cdr!  string string->number string->utf8 string-append
+                        eof-object eq?  eqv?  error-object-irritants error-object?  exact
+                        exact-integer?  expt file-error?  floor-quotient floor/ for-each
+                        get-output-bytevector guard include inexact input-port-open?
+                        integer->char length 
+                        list->string list-copy list-set!  list?  make-list make-string map
+                        member memv modulo newline not null? number?  odd?  open-input-string
+                        open-output-string output-port-open?  pair?  peek-char port?
+                        procedure? raise rational?  read-bytevector read-char read-line
+                        read-u8 remainder round set-car!  square string->list string->symbol
+                        string->vector string-copy string-copy!  string-for-each string-map
+                        string-set!  string<?  string>=?  string?  symbol->string symbol?
+                        truncate truncate-remainder u8-ready?
+                        utf8->string vector vector? vector->string vector-copy vector-fill!
+                        vector-length vector-ref with-exception-handler
+                        write-char write-u8 string-fill!  string-length string-ref string<=?
+                        string=?  string>?  substring symbol=?  syntax-error textual-port?
+                        truncate-quotient truncate/ values
+                        vector->list vector-append vector-copy!  vector-for-each vector-map
+                        vector-set!  write-bytevector write-string zero?))
+    (export 
+          * + - / < <= = > >= abs append apply assoc assq
+          assv binary-port?  boolean=?  boolean?  bytevector
+          bytevector-append bytevector-copy bytevector-copy! bytevector-length
+          bytevector-u8-ref bytevector-u8-set!  bytevector?
+          call-with-current-continuation call-with-port call-with-values call/cc
+          car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
+          char<?  char=?  char>=?  char>?  char?  close-input-port
+          close-output-port close-port complex?  cons ; TODO cond-expand
+          current-error-port current-input-port current-output-port
+          define-values denominator
+          dynamic-wind eof-object?  equal?  error error-object-message
+          even?  exact-integer-sqrt exact?
+          ;TODO features 
+          floor floor-remainder
+          flush-output-port gcd get-output-string include-ci inexact?
+          input-port?  integer?  lcm list
+          list->vector list-ref list-tail make-bytevector make-parameter
+          make-vector max memq min negative? number->string numerator
+          open-input-bytevector open-output-bytevector output-port?
+          parameterize peek-u8 positive? quotient raise-continuable
+          rationalize read-bytevector!  read-error?  read-string real?  reverse
+          set-cdr!  string string->number string->utf8 string-append
+          eof-object eq?  eqv?  error-object-irritants error-object?  exact
+          exact-integer?  expt file-error?  floor-quotient floor/ for-each
+          get-output-bytevector guard include inexact input-port-open?
+          integer->char length 
+          list->string list-copy list-set!  list?  make-list make-string map
+          member memv modulo newline not null? number?  odd?  open-input-string
+          open-output-string output-port-open?  pair?  peek-char port?
+          procedure? raise rational?  read-bytevector read-char read-line
+          read-u8 remainder round set-car!  square string->list string->symbol
+          string->vector string-copy string-copy!  string-for-each string-map
+          string-set!  string<?  string>=?  string?  symbol->string symbol?
+          truncate truncate-remainder u8-ready?
+          utf8->string vector vector? vector->string vector-copy vector-fill!
+          vector-length vector-ref with-exception-handler
+          write-char write-u8 string-fill!  string-length string-ref string<=?
+          string=?  string>?  substring symbol=?  syntax-error textual-port?
+          truncate-quotient truncate/ values
+          vector->list vector-append vector-copy!  vector-for-each vector-map
+          vector-set!  write-bytevector write-string zero?))
+
 (define-library (core util)
   (export for-all)
   (import (core primitives))
-  (import (primitives null? apply car cdr map))
+  (import (core intrinsics))
   (begin 
     (define (for-all proc l . ls)
       (or (null? l)
@@ -95,7 +179,7 @@
 (define-library (core with-syntax)
   (export with-syntax)
   (import (for (core primitives) run expand)
-          (primitives list)) 
+          (core intrinsics)) 
   (begin
   
   (define-syntax with-syntax
@@ -113,7 +197,7 @@
   (import (for (core primitives)        expand run)
           (for (core util)              expand run)
           (for (core with-syntax)       expand)
-          (for (primitives map) expand))
+          (for (core intrinsics)        expand))
   (begin
   
   (define-syntax syntax-rules
@@ -137,8 +221,7 @@
   (export let letrec letrec*)
   (import (for (core primitives)        expand run)
           (for (core util)              expand run)
-          (for (core with-syntax)       expand)
-          (for (primitives)             expand))
+          (for (core with-syntax)       expand))
   (begin
   
  (define-syntax let
@@ -177,8 +260,7 @@
           (for (core let)          expand run)
           (for (core with-syntax)  expand)
           (for (core syntax-rules) expand)
-          (for (primitives not map length assertion-violation = >= apply)
-            expand run))
+          (for (core intrinsics) expand run))
   (begin
   
   (define-syntax when
@@ -242,42 +324,6 @@
   
   )) ; core control                                      
 
-(define-library (core records)
-  (import (for (core primitives) run expand)
-          (for (core syntax-rules) run expand)
-          (primitives make-record-type record-constructor record-predicate
-                      record-accessor record-modifier))
-  (export define-record-type)
-  (begin
-
-  (define-syntax define-record-type
-    (syntax-rules ()
-      ((define-record-type type
-         (constructor constructor-tag ...)
-         predicate
-         (field-tag accessor . more) ...)
-       (begin
-         (define type
-           (make-record-type 'type '(field-tag ...)))
-         (define constructor
-           (record-constructor type '(constructor-tag ...)))
-         (define predicate
-           (record-predicate type))
-         (define-record-field type field-tag accessor . more)
-         ...))))
-
-  ; An auxilliary macro for define field accessors and modifiers.
-  ; This is needed only because modifiers are optional.
-
-  (define-syntax define-record-field
-    (syntax-rules ()
-      ((define-record-field type field-tag accessor)
-       (define accessor (record-accessor type 'field-tag)))
-      ((define-record-field type field-tag accessor modifier)
-       (begin
-         (define accessor (record-accessor type 'field-tag))
-         (define modifier (record-modifier type 'field-tag))))))))
-
 (define-library (core derived)
   (export let* cond case else =>)   
   (import (for (core primitives)       expand run)
@@ -285,7 +331,7 @@
           (for (core util)             expand run)
           (for (core with-syntax)      expand)
           (for (core syntax-rules)     expand)
-          (for (primitives null? memv car cdr) expand run))
+          (for (core intrinsics)       expand run))
   (begin
   
   (define-syntax let*
@@ -353,6 +399,200 @@
       (syntax-violation 'else "Invalid expression" x)))
   
   )) ; derived
+
+(define-library (core records)
+  (import (for (core primitives)   expand run)
+          (for (core let)          expand run)
+          (for (core derived)      expand run)
+          (for (core syntax-rules) expand run)
+          (for (core intrinsics)   expand run))
+  (export define-record-type (rename (shim-vector? vector?)))
+  (begin
+
+    ; This implements a record abstraction that is identical to vectors,
+    ; except that they are not vectors (VECTOR? returns false when given a
+    ; record and RECORD? returns false when given a vector).  The following
+    ; procedures are provided:
+    ;   (record? <value>)                -> <boolean>
+    ;   (make-record <size>)             -> <record>
+    ;   (record-ref <record> <index>)    -> <value>
+    ;   (record-set! <record> <index> <value>) -> <unspecific>
+    ;
+    ; These can implemented in R5RS Scheme as vectors with a distinguishing
+    ; value at index zero, providing VECTOR? is redefined to be a procedure
+    ; that returns false if its argument contains the distinguishing record
+    ; value.  EVAL is also redefined to use the new value of VECTOR?.
+    
+    ; Define the marker and redefine VECTOR? and EVAL.
+    
+    (define record-marker (list 'record-marker))
+    
+    (define (shim-vector? x)
+      (and (vector? x)
+           (or (= 0 (vector-length x))
+    	   (not (eq? (vector-ref x 0)
+    		record-marker)))))
+    
+    ; Definitions of the record procedures.
+    
+    (define (record? x)
+      (and (vector? x)
+           (< 0 (vector-length x))
+           (eq? (vector-ref x 0)
+                record-marker)))
+    
+    (define (make-record size)
+      (let ((new (make-vector (+ size 1))))
+        (vector-set! new 0 record-marker)
+        new))
+    
+    (define (record-ref record index)
+      (vector-ref record (+ index 1)))
+    
+    (define (record-set! record index value)
+      (vector-set! record (+ index 1) value))
+
+    ; We define the following procedures:
+    ; 
+    ; (make-record-type <type-name <field-names>)    -> <record-type>
+    ; (record-constructor <record-type<field-names>) -> <constructor>
+    ; (record-predicate <record-type>)               -> <predicate>
+    ; (record-accessor <record-type <field-name>)    -> <accessor>
+    ; (record-modifier <record-type <field-name>)    -> <modifier>
+    ;   where
+    ; (<constructor> <initial-value> ...)         -> <record>
+    ; (<predicate> <value>)                       -> <boolean>
+    ; (<accessor> <record>)                       -> <value>
+    ; (<modifier> <record> <value>)         -> <unspecific>
+    
+    ; Record types are implemented using vector-like records.  The first
+    ; slot of each record contains the record's type, which is itself a
+    ; record.
+    (define (record-type record)
+      (record-ref record 0))
+    
+    ;----------------
+    ; Record types are themselves records, so we first define the type for
+    ; them.  Except for problems with circularities, this could be defined as:
+    ;  (define-record-type :record-type
+    ;    (make-record-type name field-tags)
+    ;    record-type?
+    ;    (name record-type-name)
+    ;    (field-tags record-type-field-tags))
+    ; As it is, we need to define everything by hand.
+    
+    (define :record-type (make-record 3))
+    (record-set! :record-type 0 :record-type)	; Its type is itself.
+    (record-set! :record-type 1 ':record-type)
+    (record-set! :record-type 2 '(name field-tags))
+    
+    ; Now that :record-type exists we can define a procedure for making more
+    ; record types.
+    
+    (define (make-record-type name field-tags)
+      (let ((new (make-record 3)))
+        (record-set! new 0 :record-type)
+        (record-set! new 1 name)
+        (record-set! new 2 field-tags)
+        new))
+    
+    ; Accessors for record types.
+    
+    (define (record-type-name record-type)
+      (record-ref record-type 1))
+    
+    (define (record-type-field-tags record-type)
+      (record-ref record-type 2))
+    
+    ;----------------
+    ; A utility for getting the offset of a field within a record.
+    
+    (define (field-index type tag)
+      (let loop ((i 1) (tags (record-type-field-tags type)))
+        (cond ((null? tags)
+               (error "record type has no such field" type tag))
+              ((eq? tag (car tags))
+               i)
+              (else
+               (loop (+ i 1) (cdr tags))))))
+    
+    ;----------------
+    ; Now we are ready to define RECORD-CONSTRUCTOR and the rest of the
+    ; procedures used by the macro expansion of DEFINE-RECORD-TYPE.
+    
+    (define (record-constructor type tags)
+      (let ((size (length (record-type-field-tags type)))
+            (arg-count (length tags))
+            (indexes (map (lambda (tag)
+                            (field-index type tag))
+                          tags)))
+        (lambda args
+          (if (= (length args)
+                 arg-count)
+              (let ((new (make-record (+ size 1))))
+                (record-set! new 0 type)
+                (for-each (lambda (arg i)
+    			(record-set! new i arg))
+                          args
+                          indexes)
+                new)
+              (error "wrong number of arguments to constructor" type args)))))
+    
+    (define (record-predicate type)
+      (lambda (thing)
+        (and (record? thing)
+             (eq? (record-type thing)
+                  type))))
+    
+    (define (record-accessor type tag)
+      (let ((index (field-index type tag)))
+        (lambda (thing)
+          (if (and (record? thing)
+                   (eq? (record-type thing)
+                        type))
+              (record-ref thing index)
+              (error "accessor applied to bad value" type tag thing)))))
+    
+    (define (record-modifier type tag)
+      (let ((index (field-index type tag)))
+        (lambda (thing value)
+          (if (and (record? thing)
+                   (eq? (record-type thing)
+                        type))
+              (record-set! thing index value)
+              (error "modifier applied to bad value" type tag thing)))))
+    
+    
+
+
+  (define-syntax define-record-type
+    (syntax-rules ()
+      ((define-record-type type
+         (constructor constructor-tag ...)
+         predicate
+         (field-tag accessor . more) ...)
+       (begin
+         (define type
+           (make-record-type 'type '(field-tag ...)))
+         (define constructor
+           (record-constructor type '(constructor-tag ...)))
+         (define predicate
+           (record-predicate type))
+         (define-record-field type field-tag accessor . more)
+         ...))))
+
+  ; An auxilliary macro for define field accessors and modifiers.
+  ; This is needed only because modifiers are optional.
+
+  (define-syntax define-record-field
+    (syntax-rules ()
+      ((define-record-field type field-tag accessor)
+       (define accessor (record-accessor type 'field-tag)))
+      ((define-record-field type field-tag accessor modifier)
+       (begin
+         (define accessor (record-accessor type 'field-tag))
+         (define modifier (record-modifier type 'field-tag))))))))
+
 
 (define-library (core identifier-syntax)
   (export identifier-syntax)
@@ -435,7 +675,7 @@
           (for (core let)         run expand) 
           (for (core derived)     run expand)
           (for (core with-syntax) run expand)
-          (for (primitives = > + - vector->list) run expand)) 
+          (for (core intrinsics)  run expand))
   (begin
   
   (define-syntax quasisyntax
@@ -517,8 +757,7 @@
           (for (core derived)     run expand)
           (for (core with-syntax) expand)
           (for (core quasisyntax) expand)
-          (for (primitives = + - null? cons car cdr append map list vector list->vector) 
-            run expand)) 
+          (for (core intrinsics)  run expand))
   (begin
   
   ;; Optimised version copied from portable syntax-case (Dybvig)
@@ -641,7 +880,7 @@
   (import (for (core primitives)   expand run)
           (for (core syntax-rules) expand)
           (core let)
-          (primitives call-with-values))
+          (for (core intrinsics)  run expand))
   (begin
 
   (define-syntax let-values
@@ -829,6 +1068,7 @@
 
 (define-library (scheme base)
     (import (for (except (core primitives) _ ... environment eval) run expand)
+            (except (core intrinsics) vector?)
             (core let)                          
             (core control)                          
             (core records)                          
@@ -851,48 +1091,7 @@
             (scheme read)
             (scheme repl)
             (scheme time)
-            (scheme write)
-            (primitives * + - / < <= = > >= abs append apply assoc assq
-                        assv binary-port?  boolean=?  boolean?  bytevector
-                        bytevector-append bytevector-copy bytevector-copy! bytevector-length
-                        bytevector-u8-ref bytevector-u8-set!  bytevector?
-                        call-with-current-continuation call-with-port call-with-values call/cc
-                        car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
-                        char<?  char=?  char>=?  char>?  char?  close-input-port
-                        close-output-port close-port complex?  cons ; TODO cond-expand
-                        current-error-port current-input-port current-output-port
-                        define-values denominator
-                        dynamic-wind eof-object?  equal?  error error-object-message
-                        even?  exact-integer-sqrt exact?
-                        ;TODO features 
-                        floor floor-remainder
-                        flush-output-port gcd get-output-string include-ci inexact?
-                        input-port?  integer?  lcm list
-                        list->vector list-ref list-tail make-bytevector make-parameter
-                        make-vector max memq min negative? number->string numerator
-                        open-input-bytevector open-output-bytevector output-port?
-                        parameterize peek-u8 positive? quotient raise-continuable
-                        rationalize read-bytevector!  read-error?  read-string real?  reverse
-                        set-cdr!  string string->number string->utf8 string-append
-                        eof-object eq?  eqv?  error-object-irritants error-object?  exact
-                        exact-integer?  expt file-error?  floor-quotient floor/ for-each
-                        get-output-bytevector guard include inexact input-port-open?
-                        integer->char length 
-                        list->string list-copy list-set!  list?  make-list make-string map
-                        member memv modulo newline not null? number?  odd?  open-input-string
-                        open-output-string output-port-open?  pair?  peek-char port?
-                        procedure? raise rational?  read-bytevector read-char read-line
-                        read-u8 remainder round set-car!  square string->list string->symbol
-                        string->vector string-copy string-copy!  string-for-each string-map
-                        string-set!  string<?  string>=?  string?  symbol->string symbol?
-                        truncate truncate-remainder u8-ready?
-                        utf8->string vector vector->string vector-copy vector-fill!
-                        vector-length vector-ref vector? with-exception-handler
-                        write-char write-u8 string-fill!  string-length string-ref string<=?
-                        string=?  string>?  substring symbol=?  syntax-error textual-port?
-                        truncate-quotient truncate/ values
-                        vector->list vector-append vector-copy!  vector-for-each vector-map
-                        vector-set!  write-bytevector write-string zero?))
+            (scheme write))
     (export 
           * + - ... / < <= = => > >= _ abs and append apply assoc assq
           assv begin binary-port?  boolean=?  boolean?  bytevector

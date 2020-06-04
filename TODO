@@ -4,12 +4,14 @@
 ; will need to resolve these to expanded code instead of direct emit
 ; (including register-macro etc)
 
-; instead of scheme, output record of program vs library
-; all are modules
 ; libraries are modules with exported identifiers
-; programs are modules with an exported "main"
-; modules have a "type" export
 ; instead of compat-eval, call runtime directly
 ; and get rid of all evals except for repl/loki-eval
 
-; expose make-record-type, other primitives
+; support implicit begin in toplevel programs
+; will need to separate "program" normalize stage
+; into "import" and "program", so that we can detect
+; the start of expressions and insert begin before them 
+
+; reduce to core intrinsics, implement things like map
+; in r7rs.scm

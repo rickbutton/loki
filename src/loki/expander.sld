@@ -713,7 +713,7 @@
                  (let ((name (car def)) (macro (cdr def)))
                     (if (macro? macro)
                       (register-macro! name macro)
-                      (register-macro! name (compat-eval macro)))))
+                      (register-macro! name (ex:runtime-eval macro)))))
                (ex:library-syntax-defs library)))
 
     ;; Calls a macro with a new color.
@@ -1021,7 +1021,7 @@
                              (env-extend! (list mapping) common-env)
                              (let ((rhs (fluid-let ((*phase* (+ 1 *phase*)))
                                           (expand rhs))))
-                               (register-macro! (binding-name (cdr mapping)) (make-user-macro (compat-eval rhs)))
+                               (register-macro! (binding-name (cdr mapping)) (make-user-macro (ex:runtime-eval rhs)))
                                (loop (cdr ws)
                                      forms
                                      (cons (cons (binding-name (binding id)) rhs) syntax-defs)
@@ -1052,7 +1052,7 @@
                                                   ((let-syntax)    original-env)
                                                   ((letrec-syntax) extended-env))))
                                      (map expand rhs)))
-                                  (macros (map (lambda (e) (compat-eval e)) rhs-expanded)))
+                                  (macros (map (lambda (e) (ex:runtime-eval e)) rhs-expanded)))
                              (for-each (lambda (mapping macro)
                                          (register-macro! (binding-name (cdr mapping)) (make-user-macro macro)))
                                        usage-diff
@@ -1683,7 +1683,7 @@
               (-
                (let ((library-ref (library-ref import-set)))
                  (if library-ref
-                     (let* ((library (ex:lookup-library (syntax->datum library-ref)))
+                     (let* ((library (load-library (syntax->datum library-ref)))
                             (exports (ex:library-exports library))
                             (imports
                              (map (lambda (mapping)
@@ -1843,7 +1843,7 @@
               (imported-libraries (environment-imported-libraries env)))
           (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
           (ex:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
-          (compat-eval (expand-begin
+          (ex:runtime-eval (expand-begin
                  ;; wrap in expression begin so no definition can occur as required by r6rs
                  `(,(rename 'macro 'begin) ,exp))))))
 
@@ -2016,13 +2016,30 @@
     ;; We take some care to make this reentrant so that 
     ;; it can be used to recursively load libraries while
     ;; expanding a client library or program.
+
+    (define (library-name-part->string p)
+      (if (symbol? p) (symbol->string p)
+                      (number->string p)))
+
+    (define (library-name->filename name)
+      (find file-exists?
+        (map (lambda (dir)
+            (string-append 
+                (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
+            ex:library-dirs)))
+
+    (define (load-library name)
+        (or
+            (ex:lookup-library/false name)
+            (begin (loki-load (library-name->filename name))
+                   (ex:lookup-library name))))
     
     (define (loki-load filename)
       (with-toplevel-parameters
        (lambda ()
          (for-each (lambda (exp)
                      (for-each (lambda (exp)
-                                 (compat-eval exp))
+                                 (ex:runtime-eval exp))
                                (expand-toplevel-sequence (list exp))))
                    (read-file filename)))))
       
@@ -2218,15 +2235,6 @@
     (set! ex:dotted-butlast            dotted-butlast)
     (set! ex:dotted-last               dotted-last)
     (set! ex:free=?                    free=?)
-
-    ;;==========================================================================
-    ;;
-    ;; Runtime Hooks
-    ;; For the compiler runtime (we are re-using the runtime during compiler in
-    ;; order to manage libraries using same interface used during run)
-    ;;
-    ;;==========================================================================
-    (ex:load-hook-set! ex:load)
 
     ) ; let
   ) ; letrec-syntax
