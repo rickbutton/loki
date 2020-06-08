@@ -220,6 +220,7 @@
 
 ;; Register the required runtime primitives
 (ex:runtime-add-primitive 'ex:map-while ex:map-while)
+(ex:runtime-add-primitive 'ex:import-library ex:import-library)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

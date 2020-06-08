@@ -1536,7 +1536,9 @@
                                                    (emit-body forms 'set!)
                                                    (generate-guid 'build))))
                                         (ex:register-library! library)
-                                        `(quote ,name))))))))))))
+                                        (case library-type
+                                          ((library) #f)
+                                          ((program) `(ex:import-library ',name))))))))))))))
 
     (define (env-import! keyword imports env)
       (env-extend! (map (lambda (import)
@@ -2094,30 +2096,51 @@
       (let loop ((exps exps)
                  (state 'libraries)
                  (libraries '())
+                 (imports '())
                  (toplevel '()))
         (if (null? exps)
           (let ((program (if (pair? toplevel)
                                `(,(datum->syntax toplevel-template 'program)
                                  (,(datum->syntax toplevel-template (generate-guid 'program)))
-                                 ,@toplevel)
+                                 ,@imports
+                                 (,(datum->syntax toplevel-template 'begin) ,@toplevel))
                                '())))
             (append (reverse (cons program libraries))))
           (let ((exp (car exps)))
-            (cond
-              ((eq? state 'libraries)
+            (case state
+              ((libraries)
                 (if (pair? exp)
                   (case (unwrap-annotation (car exp))
                     ((define-library) (loop (cdr exps) 
                                             'libraries
                                             (cons exp libraries)
+                                            imports
                                             toplevel))
+                    ((import) (loop (cdr exps) 
+                                    'imports
+                                    libraries
+                                    (cons exp imports)
+                                    toplevel))
                     (else (loop (cdr exps)
                                 'program
                                 libraries
+                                imports
                                 (cons exp toplevel))))
-                  (loop (cdr exps) 'program libraries (cons exp toplevel))))
-               ((eq? state 'program)
-                  (loop (cdr exps) 'program libraries (cons exp toplevel))))))))
+                  (loop (cdr exps) 'program libraries imports (cons exp toplevel))))
+               ((imports)
+                  (case (unwrap-annotation (car exp))
+                    ((import) (loop (cdr exps) 
+                                    'imports
+                                    libraries
+                                    (cons exp imports)
+                                    toplevel))
+                    (else (loop (cdr exps)
+                                'program
+                                libraries
+                                imports
+                                (cons exp toplevel)))))
+               ((program)
+                  (loop (cdr exps) 'program libraries imports (cons exp toplevel))))))))
 
     (define (read-file fn)
         (let* ((p (open-input-file fn))
@@ -2272,6 +2295,9 @@
     (ex:runtime-add-primitive 'ex:dotted-butlast ex:dotted-butlast)
     (ex:runtime-add-primitive 'ex:dotted-last ex:dotted-last)
     (ex:runtime-add-primitive 'ex:free=? ex:free=?)
+
+    ;; Load the r7rs standard library into the expander
+    (ex:expand-file "src/loki/r7rs.scm")
 
     ) ; let
   ) ; letrec-syntax

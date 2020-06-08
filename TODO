@@ -1,9 +1,2 @@
-; support export/import in any order, support no exports?
-
-; support implicit begin in toplevel programs
-; will need to separate "program" normalize stage
-; into "import" and "program", so that we can detect
-; the start of expressions and insert begin before them 
-
 ; reduce to core intrinsics, implement things like map
 ; in r7rs.scm
