@@ -1,12 +1,4 @@
-; TODO - interaction-environment sort of simulates real
-; expected runtime environment
-; current can't resolve ex:undefined, which is inside expander
-; will need to resolve these to expanded code instead of direct emit
-; (including register-macro etc)
-
-; libraries are modules with exported identifiers
-; instead of compat-eval, call runtime directly
-; and get rid of all evals except for repl/loki-eval
+; support export/import in any order, support no exports?
 
 ; support implicit begin in toplevel programs
 ; will need to separate "program" normalize stage

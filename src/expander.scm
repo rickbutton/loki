@@ -6,22 +6,33 @@
 (import (loki shared))
 (import (loki util))
 
-(import (srfi 159))
-(import (chibi show pretty))
-
 (define form 
 '(define-library (my)
     (export a)
     (import (scheme base))
     (import (scheme write))
-    (import (test))
-    (import (loki expander))
     (begin
       (define a 3)
-      (display (+ a (bar))))))
+      (display "abolish the nypd!\nfuck the police.\n"))))
+
+(define form2
+`(define-library (my2)
+    (export c)
+    (import (scheme base))
+    (import (scheme write))
+    (import (loki expander))
+    (import (loki runtime))
+    (begin
+      (define c 10)
+      (display "hello from the second compiler...\n\n")
+      (ex:expand-file "src/loki/r7rs.scm")
+      (ex:expand-datum-sequence ',(list form))
+      (ex:import-library '(my))
+    )))
 
 (with-loki-error-handler (lambda ()
+  (display "hello from the first compiler...\n")
   (ex:expand-file "src/loki/r7rs.scm")
-  (ex:expand-datum-sequence (list form))
-  (let ((name (car (ex:expand-datum-sequence (list '(import (my)) '(import (scheme write)) '(begin (display "nice!!")))))))
-    (ex:import-library (eval name)))))
+  (ex:expand-datum-sequence (list form2))
+  (ex:import-library '(my2))))
+  

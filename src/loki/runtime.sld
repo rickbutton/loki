@@ -1,11 +1,11 @@
 (define-library (loki runtime)
 (import (scheme base))
-(import (scheme file))
 (import (scheme write))
 (import (scheme eval))
 (import (loki compat))
 (import (loki util))
-(export ex:unspecified
+(import (loki shared))
+(export ex:map-while
         ex:make-library
         ex:library-name
         ex:library-envs
@@ -27,6 +27,7 @@
         ex:invoke-library!
         ex:lookup-library
         ex:lookup-library/false
+        ex:runtime-add-primitive
         ex:runtime-eval)
 (begin
 ;;; 
@@ -43,7 +44,18 @@
                 (util:filter p? (cdr lst)))
           (util:filter p? (cdr lst)))))
 
-(define ex:unspecified (if #f #f))
+(define (ex:map-while f lst k)
+  (cond ((null? lst) (k '() '()))
+        ((pair? lst)
+         (let ((head (f (car lst))))
+           (if head
+               (ex:map-while f
+                          (cdr lst)
+                          (lambda (answer rest)
+                            (k (cons head answer)
+                               rest)))
+               (k '() lst))))
+        (else  (k '() lst))))
 
 (define-record-type <library>
     (make-library-record name envs exports imports builds syntax-defs bound-vars forms build visited? invoked?)
@@ -64,49 +76,52 @@
   (make-library-record name envs exports imports builds syntax-defs bound-vars forms build #f #f))
 
 (define ex:imported '())
-(define (ex:import-libraries-for imports builds phase importer run-or-expand)
-  (define (import-libraries imports builds phase)
-    (for-each (lambda (import build)
-                (let ((name   (car import))
-                      (levels (cdr import)))
-                  (for-each (lambda (level)
-                              (import-library name build (+ phase level)))
-                            levels)))
-              imports
-              builds)
-    (values))
-  (define (import-library name build phase)
-    (if (not (member (cons name (cons phase run-or-expand)) ex:imported))
-        (let ((library (ex:lookup-library name)))
-          (or (not build)
-              (eq? build (ex:library-build library))
-              (let () 
-                (display build) (newline)
-                (display (ex:library-build library)) (newline)
-              (assertion-violation 
-               'import "Client was expanded against a different build of this library" name)))
-          (import-libraries (ex:library-imports library) 
-                            (ex:library-builds library)
-                            phase)
-          (importer library phase ex:imported)
-          (set! ex:imported (cons (cons name (cons phase run-or-expand)) ex:imported)))))
-  (import-libraries imports builds phase))
+(define (import-library name build phase importer run-or-expand)
+  (if (not (member (cons name (cons phase run-or-expand)) ex:imported))
+      (let ((library (ex:lookup-library name)))
+        (or (not build)
+            (eq? build (ex:library-build library))
+            (let () 
+              (display build) (newline)
+              (display (ex:library-build library)) (newline)
+            (assertion-violation 
+             'import "Client was expanded against a different build of this library" name)))
+        (ex:import-libraries-for (ex:library-imports library) 
+                          (ex:library-builds library)
+                          phase
+                          importer 
+                          run-or-expand)
+        (importer library phase ex:imported)
+        (set! ex:imported (cons (cons name (cons phase run-or-expand)) ex:imported)))))
 
+(define (importer library phase imported)
+  (if (and (= phase 0)
+    (not (ex:library-invoked? library)))
+    (begin 
+      (ex:invoke-library! library)
+      (ex:library-invoked?-set! library #t))))
+
+(define (ex:import-libraries-for imports builds phase importer run-or-expand)
+  (for-each (lambda (import build)
+              (let ((name   (car import))
+                    (levels (cdr import)))
+                (for-each (lambda (level)
+                            (import-library name build (+ phase level) importer run-or-expand))
+                          levels)))
+            imports
+            builds)
+  (values))
 (define (ex:import-libraries-for-run imports builds phase)
   (ex:import-libraries-for imports 
                            builds
                            phase 
-                           (lambda (library phase imported)
-                             (if (and (= phase 0)
-                                      (not (ex:library-invoked? library)))
-                                 (begin 
-                                   (ex:invoke-library! library)
-                                   (ex:library-invoked?-set! library #t))))
+                           importer
                            'run))
 
 (define (ex:import-library name)
     (let ((library (ex:lookup-library name)))
-      (ex:import-libraries-for-run (ex:library-imports library) (ex:library-builds library) 0)))
+      (ex:import-libraries-for-run (ex:library-imports library) (ex:library-builds library) 0)
+      (import-library (ex:library-name library) (ex:library-build library) 0 importer 'run)))
 
 (define table '())
 (define ex:register-library! 
@@ -120,7 +135,7 @@
 (define ex:invoke-library!
     (lambda (library)
         (ex:runtime-eval `(begin
-                      ,@(map (lambda (var) `(define ,var ,ex:undefined)) (ex:library-bound-vars library))
+                      ,@(map (lambda (var) `(define ,var '(if #f #f))) (ex:library-bound-vars library))
                       ,@(ex:library-forms library)))))
 
 (define ex:lookup-library 
@@ -139,13 +154,72 @@
 
 (define runtime-env #f)
 
+(define runtime-types `(
+  ("<annotation>" . ,|<annotation>|)
+  ("<source>" . ,|<source>|)
+  ("<identifier-context>" . ,|<identifier-context>|)
+  ("<library>" . ,|<library>|)
+))
+
 (define (runtime-env-init!)
   (set! runtime-env 
-    (environment '(scheme r5rs) '(loki compat) '(loki runtime) '(loki expander))))
+    (environment
+     '(scheme case-lambda)
+     '(scheme char)
+     '(scheme complex)
+     '(scheme cxr)
+     '(scheme eval)
+     '(scheme file)
+     '(scheme inexact)
+     '(scheme lazy)
+     '(scheme load)
+     '(scheme process-context)
+     '(scheme read)
+     '(scheme repl)
+     '(scheme time)
+     '(scheme write)
+     '(scheme base)
+     '(prefix (chibi) chibi:)
+     ))
+  (ex:runtime-eval `(begin
+    (define (runtime-type-lookup name)
+      (let ((mapping (assoc name ',runtime-types)))
+        (if mapping (cdr mapping) #f)))
+
+    (define (make-record-type type fields)
+      (let ((name (symbol->string type)))
+        (or (runtime-type-lookup name)
+            (chibi:register-simple-type name #f fields))))
+    (define (record-predicate name type)
+      (chibi:make-type-predicate (symbol->string name) type))
+    (define (record-accessor name type field)
+      (chibi:make-getter (symbol->string name) type (chibi:type-slot-offset type field)))
+    (define (record-modifier name type field)
+      (chibi:make-setter (symbol->string name) type (chibi:type-slot-offset type field)))
+    (define (record-constructor name type fields)
+      (define c (chibi:make-constructor (symbol->string name) type))
+      (define setters 
+        (map (lambda (field) (record-modifier 'internal-setter type field))
+             fields))
+          
+      (lambda args
+        (let ((value (c)))
+          (map (lambda (s v) (s value v)) setters args)
+          value)))
+
+    (define void (if #f #f))
+  ))
+)
+
+(define (ex:runtime-add-primitive name value)
+  (ex:runtime-eval `(define ,name ,value)))
 
 (define (ex:runtime-eval e) 
   (if (not runtime-env) (runtime-env-init!))
   (eval e runtime-env))
+
+;; Register the required runtime primitives
+(ex:runtime-add-primitive 'ex:map-while ex:map-while)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

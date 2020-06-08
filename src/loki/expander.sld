@@ -39,8 +39,7 @@
 ;;; ------------------------
 ;;;
 ;;; We expand internal and library definitions, as well as letrec and letrec*
-;;; completely to lambda and set! (or more accurately, whatever ex:undefined-set!
-;;; is set to).  This seems to be the preferred input format for Larceny.
+;;; completely to lambda and set! 
 ;;; It would be very easy to abstract or change, but we don't bother for now
 ;;; until implementors other than Larceny show a serious interest.
 ;;;
@@ -93,7 +92,6 @@
         ex:eval                     
         ex:load                     
         ex:syntax-violation         
-        ex:visit-library!
     
         ex:expand-file              
         ex:expand-sequence          
@@ -102,7 +100,6 @@
         ex:invalid-form             
         ex:register-macro!          
         ex:syntax-rename            
-        ex:map-while                
         ex:dotted-length            
         ex:dotted-butlast           
         ex:dotted-last              
@@ -124,7 +121,6 @@
 (define ex:eval                      #f)
 (define ex:load                      #f)
 (define ex:syntax-violation          #f)
-(define ex:visit-library!            #f)
 
 ;; System exports:
 
@@ -137,7 +133,6 @@
 (define ex:invalid-form              #f)
 (define ex:register-macro!           #f)
 (define ex:syntax-rename             #f)
-(define ex:map-while                 #f)
 (define ex:dotted-length             #f)
 (define ex:dotted-butlast            #f)
 (define ex:dotted-last               #f)
@@ -146,6 +141,7 @@
 ;; Single-character symbol prefixes.
 (define ex:guid-prefix "&")
 (define ex:free-prefix "~")
+(define ex:library-prefix "#")
 
 (letrec-syntax
      ;; A trivial but extremely useful s-expression matcher.
@@ -458,6 +454,8 @@
                               *current-library*))
           (make-local-mapping type id content)))
 
+    ;; Generates a library export binding at the current meta-level.
+
     ;;=========================================================================
     ;;
     ;; Infrastructure for binding levels:
@@ -556,6 +554,48 @@
       (if (symbol? key-or-env)
           (cdr (assq key-or-env *env-table*))
           key-or-env))
+
+    (define (compress env-table)
+      (let ((frame-table '())
+            (count 0))
+        (for-each (lambda (entry)
+                    (for-each (lambda (frame)
+                                (if (not (assq frame frame-table))
+                                    (begin
+                                      (set! frame-table (cons (cons frame count) frame-table))
+                                      (set! count (+ 1 count)))))
+                              (cdr entry)))
+                  env-table)
+        (cons (map (lambda (env-entry)
+                     (cons (car env-entry)
+                           (map (lambda (frame)
+                                  (cdr (assq frame frame-table)))
+                                (cdr env-entry))))
+                   env-table)
+              (map (lambda (frame-entry)
+                     (cons (cdr frame-entry)
+                           (list (map (lambda (mapping)
+                                        (cons (car mapping)
+                                              (let ((binding (cdr mapping)))
+                                                (case (binding-type binding)
+                                                  ;; Pattern variable bindings can never be
+                                                  ;; used in client, so don't waste space.
+                                                  ;; Should really do the same with all local
+                                                  ;; bindings, but there are usually much less
+                                                  ;; of them, so don't bother for now.
+                                                  ((pattern-variable) #f) ; +++
+                                                  (else binding)))))
+                                      (caar frame-entry)))))
+                   frame-table))))
+
+    (define (uncompress compressed-env-table)
+      (if (null? compressed-env-table) '()
+        (map (lambda (env-entry)
+               (cons (car env-entry)
+                     (map (lambda (frame-abbrev)
+                            (cdr (assv frame-abbrev (cdr compressed-env-table))))
+                          (cdr env-entry))))
+             (car compressed-env-table))))
 
     ;;=========================================================================
     ;;
@@ -672,11 +712,12 @@
 
     ;; <type> ::= expander | transformer | variable-transformer
 
-    (define-record-type <macro>
-      (make-macro type proc)
-      macro?
-      (type macro-type)
-      (proc macro-proc))
+    (define (make-macro type proc) (cons type proc))
+    (define macro-type car)
+    (define macro-proc cdr)
+    (define (macro? m)
+      (and (member (macro-type m) '(expander transformer variable-transformer))
+           (procedure? (macro-proc m))))
 
     (define (make-expander proc)             (make-macro 'expander proc))
     (define (make-transformer proc)          (make-macro 'transformer proc))
@@ -713,7 +754,7 @@
                  (let ((name (car def)) (macro (cdr def)))
                     (if (macro? macro)
                       (register-macro! name macro)
-                      (register-macro! name (ex:runtime-eval macro)))))
+                      (register-macro! name (make-transformer (ex:runtime-eval macro))))))
                (ex:library-syntax-defs library)))
 
     ;; Calls a macro with a new color.
@@ -740,13 +781,13 @@
                                   (else
                                    (expand expanded-once))))))
                            ((variable)
-                            (check-implicit-import-of-mutable binding t)
                             (if (list? t)
                                 (cons (binding-name binding)
                                       (map expand (cdr t)))
                                 (binding-name binding)))
                            ((pattern-variable)
-                            (syntax-violation #f "Pattern variable used outside syntax template" t))))
+                           (begin
+                            (syntax-violation #f "Pattern variable used outside syntax template" t)))))
                 ((list? t)       (map expand t))
                 ((identifier? t) (make-free-name (id-name t)))
                 ((annotation? t) (annotation-expression t))
@@ -782,17 +823,6 @@
                (check-binding-level operator binding)
                (register-use! operator binding)
                binding))))
-
-    ;; We cannot implicitly import a mutable variable.
-
-    (define (check-implicit-import-of-mutable binding t)
-      (or (equal? (binding-library binding) *current-library*)
-          (not (binding-mutable? binding))
-          (syntax-violation
-           #f
-           (string-append "Attempt to implicitly import variable that is mutable in library ("
-                          (list->string (binding-library binding) " ") ")")
-           t)))
 
     ;;=========================================================================
     ;;
@@ -895,10 +925,10 @@
                               (lambda (forms syntax-definitions bound-variables)
                                 `(lambda ,formals
                                    ,@(if (null? bound-variables)                ; +++
-                                         (emit-body forms ex:undefined-set!)    ; +++
+                                         (emit-body forms 'set!)    ; +++
                                          `(((lambda ,bound-variables
-                                              ,@(emit-body forms ex:undefined-set!))
-                                            ,@(map (lambda (ignore) `ex:undefined)
+                                              ,@(emit-body forms 'set!))
+                                            ,@(map (lambda (ignore) 'void)
                                                    bound-variables)))))))))))))
 
     (define (formals? s)
@@ -1021,7 +1051,7 @@
                              (env-extend! (list mapping) common-env)
                              (let ((rhs (fluid-let ((*phase* (+ 1 *phase*)))
                                           (expand rhs))))
-                               (register-macro! (binding-name (cdr mapping)) (make-user-macro (ex:runtime-eval rhs)))
+                               (register-macro! (binding-name (cdr mapping)) (make-transformer (ex:runtime-eval rhs)))
                                (loop (cdr ws)
                                      forms
                                      (cons (cons (binding-name (binding id)) rhs) syntax-defs)
@@ -1054,7 +1084,7 @@
                                      (map expand rhs)))
                                   (macros (map (lambda (e) (ex:runtime-eval e)) rhs-expanded)))
                              (for-each (lambda (mapping macro)
-                                         (register-macro! (binding-name (cdr mapping)) (make-user-macro macro)))
+                                         (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                        usage-diff
                                        macros)
                              (loop (append (map (lambda (form) (make-wrap extended-env form))
@@ -1080,7 +1110,7 @@
     (define (parse-definition exp syntax-def?)
       (match exp
         ((- (? identifier? id))
-         (values id (rename 'variable 'ex:unspecified)))
+         (values id (rename 'variable 'void)))
         ((- (? identifier? id) e)
          (values id e))
         ((- ((? identifier? id) . (? formals? formals)) body ___)
@@ -1272,7 +1302,8 @@
     (define (expand-syntax form)
       (match form
         ((- template)
-         (process-template template 0 #f))))
+         (let ((t (process-template template 0 #f)))
+           t))))
 
     (define (process-template template dim ellipses-quoted?)
       (match template
@@ -1293,7 +1324,7 @@
                              (binding-name binding))
                            (syntax-violation 'syntax "Template dimension error (too few ...'s?)" id))))
                  (else
-                  (syntax-reflect id)))))
+                   (syntax-reflect id)))))
         (((syntax ...) p)
          (process-template p dim #t))
         ((? (lambda (_) (not ellipses-quoted?))
@@ -1495,14 +1526,14 @@
                                             (library (ex:make-library
                                                    name
                                                    (if *syntax-reflected*
-                                                     (drop-tail *env-table* initial-env-table)
+                                                     (compress (drop-tail *env-table* initial-env-table))
                                                      '())
                                                    exports
                                                    imported-libraries
                                                    (current-builds imported-libraries)
                                                    syntax-definitions
                                                    bound-variables
-                                                   (emit-body forms ex:undefined-set!)
+                                                   (emit-body forms 'set!)
                                                    (generate-guid 'build))))
                                         (ex:register-library! library)
                                         `(quote ,name))))))))))))
@@ -1529,7 +1560,7 @@
          (if (and (>= phase 0)
                   (not (ex:library-visited? library)))
              (begin
-               (set! *env-table* (append (ex:library-envs library) *env-table*))
+               (set! *env-table* (append (uncompress (ex:library-envs library)) *env-table*))
                (visit-library! library)
                (ex:library-visited?-set! library #t)))
          (if (and (>= phase 1)
@@ -1558,7 +1589,7 @@
                     (call-with-values
                         (lambda () (scan-imports specs imported-libraries imports))
                         (lambda (imported-libraries imports)
-                            (loop (cdr declarations) imported-libraries imports exports body-forms))))
+                          (loop (cdr declarations) imported-libraries imports exports body-forms))))
                 (((syntax export) sets ___)
                     (loop (cdr declarations)
                           imported-libraries
@@ -1923,19 +1954,6 @@
                (recurse (cdr ls)
                         (- length-left 1))))))
 
-    (define (map-while f lst k)
-      (cond ((null? lst) (k '() '()))
-            ((pair? lst)
-             (let ((head (f (car lst))))
-               (if head
-                   (map-while f
-                              (cdr lst)
-                              (lambda (answer rest)
-                                (k (cons head answer)
-                                   rest)))
-                   (k '() lst))))
-            (else  (k '() lst))))
-
     (define (check-set? ls = fail)
       (or (null? ls)
           (if (memp (lambda (x)
@@ -2012,21 +2030,18 @@
                      (lambda (forms syntax-definitions bound-variables)
                        (emit-body forms 'define))))
 
-    ;; ERR5RS load:
-    ;; We take some care to make this reentrant so that 
-    ;; it can be used to recursively load libraries while
-    ;; expanding a client library or program.
-
     (define (library-name-part->string p)
       (if (symbol? p) (symbol->string p)
                       (number->string p)))
 
     (define (library-name->filename name)
-      (find file-exists?
-        (map (lambda (dir)
-            (string-append 
-                (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
-            ex:library-dirs)))
+      (or (find file-exists?
+            (map (lambda (dir)
+                (string-append 
+                    (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
+                ex:library-dirs))
+          (syntax-violation #f (string-join (cons "File not found for library: "
+                                              (reverse (map library-name-part->string name))) " ") name)))
 
     (define (load-library name)
         (or
@@ -2221,8 +2236,6 @@
     (set! ex:eval                      loki-eval)
     (set! ex:load                      loki-load)
     (set! ex:syntax-violation          syntax-violation)
-    (set! ex:visit-library!            visit-library!)
-    
     (set! ex:expand-file               expand-file)
     (set! ex:expand-sequence           expand-sequence)
     (set! ex:expand-datum-sequence     expand-datum-sequence)
@@ -2230,11 +2243,35 @@
     (set! ex:invalid-form              invalid-form)
     (set! ex:register-macro!           register-macro!)
     (set! ex:syntax-rename             syntax-rename)
-    (set! ex:map-while                 map-while)
     (set! ex:dotted-length             dotted-length)
     (set! ex:dotted-butlast            dotted-butlast)
     (set! ex:dotted-last               dotted-last)
     (set! ex:free=?                    free=?)
+
+    ;; Register the expander's primitive API surface with the runtime
+    (ex:runtime-add-primitive 'ex:make-variable-transformer ex:make-variable-transformer)
+    (ex:runtime-add-primitive 'ex:identifier? ex:identifier?)
+    (ex:runtime-add-primitive 'ex:bound-identifier=? ex:bound-identifier=?)
+    (ex:runtime-add-primitive 'ex:free-identifier=? ex:free-identifier=?)
+    (ex:runtime-add-primitive 'ex:generate-temporaries ex:generate-temporaries)
+    (ex:runtime-add-primitive 'ex:datum->syntax ex:datum->syntax)
+    (ex:runtime-add-primitive 'ex:syntax->datum ex:syntax->datum)
+    (ex:runtime-add-primitive 'ex:environment ex:environment)
+    (ex:runtime-add-primitive 'ex:environment-bindings ex:environment-bindings)
+    (ex:runtime-add-primitive 'ex:eval ex:eval)
+    (ex:runtime-add-primitive 'ex:load ex:load)
+    (ex:runtime-add-primitive 'ex:syntax-violation ex:syntax-violation)
+    (ex:runtime-add-primitive 'ex:expand-file ex:expand-file)
+    (ex:runtime-add-primitive 'ex:expand-sequence ex:expand-sequence)
+    (ex:runtime-add-primitive 'ex:expand-datum-sequence ex:expand-datum-sequence)
+
+    (ex:runtime-add-primitive 'ex:invalid-form ex:invalid-form)
+    (ex:runtime-add-primitive 'ex:register-macro! ex:register-macro!)
+    (ex:runtime-add-primitive 'ex:syntax-rename ex:syntax-rename)
+    (ex:runtime-add-primitive 'ex:dotted-length ex:dotted-length)
+    (ex:runtime-add-primitive 'ex:dotted-butlast ex:dotted-butlast)
+    (ex:runtime-add-primitive 'ex:dotted-last ex:dotted-last)
+    (ex:runtime-add-primitive 'ex:free=? ex:free=?)
 
     ) ; let
   ) ; letrec-syntax

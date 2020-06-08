@@ -11,6 +11,7 @@
         comment?
         comment->text
 
+        <source>
         make-source
         source?
         source-filename
@@ -18,6 +19,7 @@
         source-column
         source->string
 
+        <annotation>
         annotate
         annotation?
         annotation-type?
@@ -26,6 +28,7 @@
         unwrap-annotation
         syntax->closest-source
 
+        <identifier-context>
         identifier?
         make-identifier
         id-source
@@ -207,6 +210,7 @@
         (if (loki-message? e)
             (handle-loki-message e)
             (handle-unexpected-error e)))
+
 
 (define (with-loki-error-handler proc)
     (with-exception-handler handle-error proc))

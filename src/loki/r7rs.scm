@@ -52,8 +52,8 @@
            (ex:syntax-violation          syntax-violation)
            (ex:environment               environment)
            (ex:environment-bindings      environment-bindings)
-           (ex:eval                      eval)
-           (ex:undefined                 undefined)))
+           (ex:eval                      eval))
+   void)
   
   (import
    
@@ -75,9 +75,10 @@
     ex:make-variable-transformer ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
     ex:syntax-violation ex:environment ex:environment-bindings ex:eval
-    ex:undefined
     ))
-  
+  (begin
+    (define void (if #f #f))
+    )
   ) ;; core primitives
 
 (define-library (core intrinsics)
@@ -89,8 +90,7 @@
                         car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
                         char<?  char=?  char>=?  char>?  char?  close-input-port
                         close-output-port close-port complex?  cons ; TODO cond-expand
-                        current-error-port current-input-port current-output-port
-                        define-values denominator
+                        current-error-port current-input-port current-output-port denominator
                         dynamic-wind eof-object?  equal?  error error-object-message
                         even?  exact-integer-sqrt exact?
                         ;TODO features 
@@ -131,8 +131,7 @@
           car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
           char<?  char=?  char>=?  char>?  char?  close-input-port
           close-output-port close-port complex?  cons ; TODO cond-expand
-          current-error-port current-input-port current-output-port
-          define-values denominator
+          current-error-port current-input-port current-output-port denominator
           dynamic-wind eof-object?  equal?  error error-object-message
           even?  exact-integer-sqrt exact?
           ;TODO features 
@@ -170,7 +169,8 @@
   (import (core primitives))
   (import (core intrinsics))
   (begin 
-    (define (for-all proc l . ls)
+
+  (define (for-all proc l . ls)
       (or (null? l)
         (and (apply proc (car l) (map car ls))
              (apply for-all proc (cdr l) (map cdr ls)))))
@@ -179,78 +179,90 @@
 (define-library (core with-syntax)
   (export with-syntax)
   (import (for (core primitives) run expand)
-          (core intrinsics)) 
+          (for (core intrinsics) run expand))
   (begin
   
   (define-syntax with-syntax
     (lambda (x)
       (syntax-case x ()
-        ((_ () e1 e2 ...)             (syntax (begin e1 e2 ...)))
-        ((_ ((out in)) e1 e2 ...)     (syntax (syntax-case in ()
-                                                (out (begin e1 e2 ...)))))
-        ((_ ((out in) ...) e1 e2 ...) (syntax (syntax-case (list in ...) ()
-                                                ((out ...) (begin e1 e2 ...))))))))
+        ((_ ((p e0) ...) e1 e2 ...)
+         (syntax (syntax-case (list e0 ...) ()
+                   ((p ...) (begin e1 e2 ...)))))))) 
   ))
 
 (define-library (core syntax-rules)
   (export syntax-rules)
   (import (for (core primitives)        expand run)
           (for (core util)              expand run)
-          (for (core with-syntax)       expand)
+          (for (core with-syntax)       expand run)
           (for (core intrinsics)        expand))
   (begin
+
+    (define-syntax syntax-rules
+      (lambda (x)
+        (syntax-case x ()
+          ((_ (k ...) (pattern template) ...)
+           (syntax (lambda (x)
+                    (syntax-case x (k ...)
+                      (pattern (syntax template))
+                      ...)))))))
   
-  (define-syntax syntax-rules
-    (lambda (x)
-      (define clause
-        (lambda (y)
-          (syntax-case y ()
-            (((keyword . pattern) template)
-             (syntax ((dummy . pattern) (syntax template))))
-            (_
-             (syntax-violation 'syntax-rules "Invalid expression" x)))))
-      (syntax-case x ()
-        ((_ (k ...) cl ...)
-         (for-all identifier? (syntax (k ...)))
-         (with-syntax (((cl ...) (map clause (syntax (cl ...)))))
-           (syntax
-            (lambda (x) (syntax-case x (k ...) cl ...))))))))
   ))
 
 (define-library (core let)
   (export let letrec letrec*)
   (import (for (core primitives)        expand run)
           (for (core util)              expand run)
-          (for (core with-syntax)       expand))
+          (for (core syntax-rules)      expand run))
   (begin
   
- (define-syntax let
-    (lambda (x)
-      (syntax-case x ()
-        ((_ ((x v) ...) e1 e2 ...)
-         (for-all identifier? (syntax (x ...)))
-         (syntax ((lambda (x ...) e1 e2 ...) v ...)))
-        ((_ f ((x v) ...) e1 e2 ...)
-         (for-all identifier? (syntax (f x ...)))
-         (syntax ((letrec ((f (lambda (x ...) e1 e2 ...))) f) v ...))))))
+  (define-syntax let
+    (syntax-rules ()
+      ((let ((name val) ...) body1 body2 ...)
+       ((lambda (name ...) body1 body2 ...)
+        val ...))
+      ((let tag ((name val) ...) body1 body2 ...)
+       ((letrec ((tag (lambda (name ...)
+                        body1 body2 ...)))
+          tag)
+        val ...))))
   
   (define-syntax letrec
-    (lambda (x)
-      (syntax-case x ()
-        ((_ ((i v) ...) e1 e2 ...)
-         (with-syntax (((t ...) (generate-temporaries (syntax (i ...)))))
-           (syntax (let ((i undefined) ...)
-                     (let ((t v) ...)
-                       (set! i t) ...
-                       (let () e1 e2 ...)))))))))
+    (syntax-rules ()
+      ((letrec ((var1 init1) ...) body ...)
+       (letrec "generate_temp_names"
+         (var1 ...)
+         ()
+         ((var1 init1) ...)
+         body ...))
+      ((letrec "generate_temp_names"
+         ()
+         (temp1 ...)
+         ((var1 init1) ...)
+         body ...)
+       (let ((var1 void) ...)
+         (let ((temp1 init1) ...)
+           (set! var1 temp1)
+           ...
+           body ...)))
+      ((letrec "generate_temp_names"
+         (x y ...)
+         (temp ...)
+         ((var1 init1) ...)
+         body ...)
+       (letrec "generate_temp_names"
+         (y ...)
+         (newtemp temp ...)
+         ((var1 init1) ...)
+         body ...))))
   
   (define-syntax letrec*
-    (lambda (x)
-      (syntax-case x ()
-        ((_ ((i v) ...) e1 e2 ...)
-         (syntax (let ()
-                   (define i v) ...
-                   (let () e1 e2 ...)))))))
+    (syntax-rules ()
+      ((letrec* ((var1 init1) ...) body1 body2 ...)
+       (let ((var1 void) ...)
+         (set! var1 init1)
+         ...
+         (let () body1 body2 ...)))))
   
   )) ; let
 
@@ -334,62 +346,77 @@
           (for (core intrinsics)       expand run))
   (begin
   
+  
   (define-syntax let*
-    (lambda (x)
-      (syntax-case x ()
-        ((_ () e1 e2 ...)
-         (syntax (let () e1 e2 ...)))
-        ((_ ((x v) ...) e1 e2 ...)
-        (for-all identifier? (syntax (x ...)))
-         (let f ((bindings (syntax ((x v) ...))))
-           (syntax-case bindings ()
-             (((x v))        (syntax (let ((x v)) e1 e2 ...)))
-             (((x v) . rest) (with-syntax ((body (f (syntax rest))))
-                               (syntax (let ((x v)) body))))))))))
+    (syntax-rules ()
+      ((let* () body1 body2 ...)
+       (let () body1 body2 ...))
+      ((let* ((name1 val1) (name2 val2) ...)
+         body1 body2 ...)
+       (let ((name1 val1))
+         (let* ((name2 val2) ...)
+           body1 body2 ...)))))
+
   
   (define-syntax cond
-    (lambda (x)
-      (syntax-case x ()
-        ((_ c1 c2 ...)
-         (let f ((c1  (syntax c1))
-                 (c2* (syntax (c2 ...))))
-           (syntax-case c2* ()
-             (()
-              (syntax-case c1 (else =>)
-                ((else e1 e2 ...) (syntax (begin e1 e2 ...)))
-                ((e0)             (syntax (let ((t e0)) (if t t))))
-                ((e0 => e1)       (syntax (let ((t e0)) (if t (e1 t)))))
-                ((e0 e1 e2 ...)   (syntax (if e0 (begin e1 e2 ...))))
-                (_                (syntax-violation 'cond "Invalid expression" x))))
-             ((c2 c3 ...)
-              (with-syntax ((rest (f (syntax c2)
-                                     (syntax (c3 ...)))))
-                (syntax-case c1 (else =>)
-                  ((e0)           (syntax (let ((t e0)) (if t t rest))))
-                  ((e0 => e1)     (syntax (let ((t e0)) (if t (e1 t) rest))))
-                  ((e0 e1 e2 ...) (syntax (if e0 (begin e1 e2 ...) rest)))
-                  (_              (syntax-violation 'cond "Invalid expression" x)))))))))))
+    (syntax-rules (else =>)
+      ((cond (else result1 result2 ...))
+       (begin result1 result2 ...))
+      ((cond (test => result))
+       (let ((temp test))
+         (if temp (result temp))))
+      ((cond (test => result) clause1 clause2 ...)
+       (let ((temp test))
+         (if temp
+             (result temp)
+             (cond clause1 clause2 ...))))
+      ((cond (test)) test)
+      ((cond (test) clause1 clause2 ...)
+       (let ((temp test))
+         (if temp
+             temp
+             (cond clause1 clause2 ...))))
+      ((cond (test result1 result2 ...))
+       (if test (begin result1 result2 ...)))
+      ((cond (test result1 result2 ...)
+             clause1 clause2 ...)
+       (if test
+           (begin result1 result2 ...)
+           (cond clause1 clause2 ...)))))
 
   (define-syntax case
-    (lambda (x)
-      (syntax-case x ()
-        ((_ e c1 c2 ...)
-         (with-syntax ((body
-                        (let f ((c1 (syntax c1))
-                                (cmore (syntax (c2 ...))))
-                          (if (null? cmore)
-                              (syntax-case c1 (else)
-                                ((else e1 e2 ...)    (syntax (begin e1 e2 ...)))
-                                (((k ...) e1 e2 ...) (syntax (if (memv t '(k ...))
-                                                                 (begin e1 e2 ...)))))
-                              (with-syntax ((rest (f (car cmore) (cdr cmore))))
-                                (syntax-case c1 ()
-                                  (((k ...) e1 e2 ...)
-                                   (syntax (if (memv t '(k ...))
-                                               (begin e1 e2 ...)
-                                               rest)))))))))
-           (syntax (let ((t e)) body)))))))
-  
+    (syntax-rules (else =>)
+      ((case (key ...)
+         clauses ...)
+       (let ((atom-key (key ...)))
+         (case atom-key clauses ...)))
+      ((case key
+         (else => result))
+       (result key))
+      ((case key
+         (else result1 result2 ...))
+       (begin result1 result2 ...))
+      ((case key
+         ((atoms ...) result1 result2 ...))
+       (if (memv key '(atoms ...))
+           (begin result1 result2 ...)))
+      ((case key
+         ((atoms ...) => result))
+       (if (memv key '(atoms ...))
+           (result key)))
+      ((case key
+         ((atoms ...) => result)
+         clause clauses ...)
+       (if (memv key '(atoms ...))
+           (result key)
+           (case key clause clauses ...)))
+      ((case key
+         ((atoms ...) result1 result2 ...)
+         clause clauses ...)
+       (if (memv key '(atoms ...))
+           (begin result1 result2 ...)
+           (case key clause clauses ...)))))  
+
   (define-syntax =>
     (lambda (x)
       (syntax-violation '=> "Invalid expression" x)))
@@ -405,165 +432,12 @@
           (for (core let)          expand run)
           (for (core derived)      expand run)
           (for (core syntax-rules) expand run)
-          (for (core intrinsics)   expand run))
-  (export define-record-type (rename (shim-vector? vector?)))
+          (for (core intrinsics)   expand run)
+          (primitives make-record-type record-constructor
+                      record-predicate record-accessor
+                      record-modifier))
+  (export define-record-type)
   (begin
-
-    ; This implements a record abstraction that is identical to vectors,
-    ; except that they are not vectors (VECTOR? returns false when given a
-    ; record and RECORD? returns false when given a vector).  The following
-    ; procedures are provided:
-    ;   (record? <value>)                -> <boolean>
-    ;   (make-record <size>)             -> <record>
-    ;   (record-ref <record> <index>)    -> <value>
-    ;   (record-set! <record> <index> <value>) -> <unspecific>
-    ;
-    ; These can implemented in R5RS Scheme as vectors with a distinguishing
-    ; value at index zero, providing VECTOR? is redefined to be a procedure
-    ; that returns false if its argument contains the distinguishing record
-    ; value.  EVAL is also redefined to use the new value of VECTOR?.
-    
-    ; Define the marker and redefine VECTOR? and EVAL.
-    
-    (define record-marker (list 'record-marker))
-    
-    (define (shim-vector? x)
-      (and (vector? x)
-           (or (= 0 (vector-length x))
-    	   (not (eq? (vector-ref x 0)
-    		record-marker)))))
-    
-    ; Definitions of the record procedures.
-    
-    (define (record? x)
-      (and (vector? x)
-           (< 0 (vector-length x))
-           (eq? (vector-ref x 0)
-                record-marker)))
-    
-    (define (make-record size)
-      (let ((new (make-vector (+ size 1))))
-        (vector-set! new 0 record-marker)
-        new))
-    
-    (define (record-ref record index)
-      (vector-ref record (+ index 1)))
-    
-    (define (record-set! record index value)
-      (vector-set! record (+ index 1) value))
-
-    ; We define the following procedures:
-    ; 
-    ; (make-record-type <type-name <field-names>)    -> <record-type>
-    ; (record-constructor <record-type<field-names>) -> <constructor>
-    ; (record-predicate <record-type>)               -> <predicate>
-    ; (record-accessor <record-type <field-name>)    -> <accessor>
-    ; (record-modifier <record-type <field-name>)    -> <modifier>
-    ;   where
-    ; (<constructor> <initial-value> ...)         -> <record>
-    ; (<predicate> <value>)                       -> <boolean>
-    ; (<accessor> <record>)                       -> <value>
-    ; (<modifier> <record> <value>)         -> <unspecific>
-    
-    ; Record types are implemented using vector-like records.  The first
-    ; slot of each record contains the record's type, which is itself a
-    ; record.
-    (define (record-type record)
-      (record-ref record 0))
-    
-    ;----------------
-    ; Record types are themselves records, so we first define the type for
-    ; them.  Except for problems with circularities, this could be defined as:
-    ;  (define-record-type :record-type
-    ;    (make-record-type name field-tags)
-    ;    record-type?
-    ;    (name record-type-name)
-    ;    (field-tags record-type-field-tags))
-    ; As it is, we need to define everything by hand.
-    
-    (define :record-type (make-record 3))
-    (record-set! :record-type 0 :record-type)	; Its type is itself.
-    (record-set! :record-type 1 ':record-type)
-    (record-set! :record-type 2 '(name field-tags))
-    
-    ; Now that :record-type exists we can define a procedure for making more
-    ; record types.
-    
-    (define (make-record-type name field-tags)
-      (let ((new (make-record 3)))
-        (record-set! new 0 :record-type)
-        (record-set! new 1 name)
-        (record-set! new 2 field-tags)
-        new))
-    
-    ; Accessors for record types.
-    
-    (define (record-type-name record-type)
-      (record-ref record-type 1))
-    
-    (define (record-type-field-tags record-type)
-      (record-ref record-type 2))
-    
-    ;----------------
-    ; A utility for getting the offset of a field within a record.
-    
-    (define (field-index type tag)
-      (let loop ((i 1) (tags (record-type-field-tags type)))
-        (cond ((null? tags)
-               (error "record type has no such field" type tag))
-              ((eq? tag (car tags))
-               i)
-              (else
-               (loop (+ i 1) (cdr tags))))))
-    
-    ;----------------
-    ; Now we are ready to define RECORD-CONSTRUCTOR and the rest of the
-    ; procedures used by the macro expansion of DEFINE-RECORD-TYPE.
-    
-    (define (record-constructor type tags)
-      (let ((size (length (record-type-field-tags type)))
-            (arg-count (length tags))
-            (indexes (map (lambda (tag)
-                            (field-index type tag))
-                          tags)))
-        (lambda args
-          (if (= (length args)
-                 arg-count)
-              (let ((new (make-record (+ size 1))))
-                (record-set! new 0 type)
-                (for-each (lambda (arg i)
-    			(record-set! new i arg))
-                          args
-                          indexes)
-                new)
-              (error "wrong number of arguments to constructor" type args)))))
-    
-    (define (record-predicate type)
-      (lambda (thing)
-        (and (record? thing)
-             (eq? (record-type thing)
-                  type))))
-    
-    (define (record-accessor type tag)
-      (let ((index (field-index type tag)))
-        (lambda (thing)
-          (if (and (record? thing)
-                   (eq? (record-type thing)
-                        type))
-              (record-ref thing index)
-              (error "accessor applied to bad value" type tag thing)))))
-    
-    (define (record-modifier type tag)
-      (let ((index (field-index type tag)))
-        (lambda (thing value)
-          (if (and (record? thing)
-                   (eq? (record-type thing)
-                        type))
-              (record-set! thing index value)
-              (error "modifier applied to bad value" type tag thing)))))
-    
-    
-
 
   (define-syntax define-record-type
     (syntax-rules ()
@@ -575,9 +449,9 @@
          (define type
            (make-record-type 'type '(field-tag ...)))
          (define constructor
-           (record-constructor type '(constructor-tag ...)))
+           (record-constructor 'constructor type '(constructor-tag ...)))
          (define predicate
-           (record-predicate type))
+           (record-predicate 'predicate type))
          (define-record-field type field-tag accessor . more)
          ...))))
 
@@ -587,42 +461,11 @@
   (define-syntax define-record-field
     (syntax-rules ()
       ((define-record-field type field-tag accessor)
-       (define accessor (record-accessor type 'field-tag)))
+       (define accessor (record-accessor 'accessor type 'field-tag)))
       ((define-record-field type field-tag accessor modifier)
        (begin
-         (define accessor (record-accessor type 'field-tag))
-         (define modifier (record-modifier type 'field-tag))))))))
-
-
-(define-library (core identifier-syntax)
-  (export identifier-syntax)
-  (import (for (core primitives) 
-            expand 
-            run
-            ;; since generated macro contains (syntax set!) at level 0
-            (meta -1))) 
-  (begin
-  
-  (define-syntax identifier-syntax
-    (lambda (x)
-      (syntax-case x (set!)
-        ((_ e)
-         (syntax (lambda (x)
-                   (syntax-case x ()
-                     (id (identifier? (syntax id)) (syntax e))
-                     ((_ x (... ...))              (syntax (e x (... ...))))))))
-        ((_ (id exp1) 
-            ((set! var val) exp2))
-         (and (identifier? (syntax id)) 
-              (identifier? (syntax var)))
-         (syntax 
-          (make-variable-transformer
-           (lambda (x)
-             (syntax-case x (set!)
-               ((set! var val)               (syntax exp2))
-               ((id x (... ...))             (syntax (exp1 x (... ...))))
-               (id (identifier? (syntax id)) (syntax exp1))))))))))
-  ))
+         (define accessor (record-accessor 'accessor type 'field-tag))
+         (define modifier (record-modifier 'modifier type 'field-tag))))))))
 
 ;;;=========================================================
 ;;;
@@ -876,11 +719,11 @@
   ))
 
 (define-library (core let-values)
-  (export let-values let*-values)
+  (export let-values let*-values define-values)
   (import (for (core primitives)   expand run)
-          (for (core syntax-rules) expand)
-          (core let)
-          (for (core intrinsics)  run expand))
+          (for (core syntax-rules) expand run)
+          (for (core let)          expand run)
+          (for (core intrinsics)   expand run))
   (begin
 
   (define-syntax let-values
@@ -917,6 +760,46 @@
       ((let*-values (?binding0 ?binding1 ...) ?body0 ?body1 ...)
        (let-values (?binding0)
          (let*-values (?binding1 ...) ?body0 ?body1 ...)))))
+
+
+  (define-syntax define-values
+    (syntax-rules ()
+      ((define-values () expr)
+       (define dummy
+         (call-with-values (lambda () expr)
+                           (lambda args #f))))
+      ((define-values (var) expr)
+       (define var expr))
+      ((define-values (var0 var1 ... varn) expr)
+       (begin
+         (define var0
+           (call-with-values (lambda () expr)
+                             list))
+         (define var1
+           (let ((v (cadr var0)))
+             (set-cdr! var0 (cddr var0))
+             v)) ...
+         (define varn
+           (let ((v (cadr var0)))
+             (set! var0 (car var0))
+             v))))
+      ((define-values (var0 var1 ... . varn) expr)
+       (begin
+         (define var0
+           (call-with-values (lambda () expr)
+                             list))
+         (define var1
+           (let ((v (cadr var0)))
+             (set-cdr! var0 (cddr var0))
+             v)) ...
+         (define varn
+           (let ((v (cdr var0)))
+             (set! var0 (car var0))
+             v))))
+      ((define-values var expr)
+       (define var
+         (call-with-values (lambda () expr)
+                           list)))))
   
   )) ; core let-values
 
@@ -1068,15 +951,14 @@
 
 (define-library (scheme base)
     (import (for (except (core primitives) _ ... environment eval) run expand)
-            (except (core intrinsics) vector?)
-            (core let)                          
-            (core control)                          
-            (core records)                          
-            (core derived)             
-            (core quasiquote)        
-            (core let-values)
-            (for (core syntax-rules)      expand)   
-            (for (core identifier-syntax) expand)
+            (for (core intrinsics) expand run)
+            (for (core let) expand run)
+            (for (core control)                 expand run)
+            (for (core records)                 expand run)
+            (for (core derived)                 expand run)
+            (for (core quasiquote)              expand run)
+            (for (core let-values)              expand run)
+            (for (core syntax-rules)            expand run) 
             (for (only (core primitives) _ ... set!) expand)
             (scheme case-lambda)
             (scheme char)

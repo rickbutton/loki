@@ -90,9 +90,9 @@
         fold-var))
 
 (define (debug . args)
-    (map (lambda (a)
+    (for-all (lambda (a)
         (display a)
-        (display " ")) args)
+       (display " ")) args)
     (display "\n\n"))
 
 (define (pretty-print exp)
