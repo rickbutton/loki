@@ -2297,7 +2297,8 @@
     (ex:runtime-add-primitive 'ex:free=? ex:free=?)
 
     ;; Load the r7rs standard library into the expander
-    (ex:expand-file "src/loki/r7rs.scm")
+    (with-loki-error-handler (lambda ()
+      (ex:expand-file "src/loki/r7rs.scm")))
 
     ) ; let
   ) ; letrec-syntax

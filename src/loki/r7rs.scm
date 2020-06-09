@@ -52,7 +52,8 @@
            (ex:syntax-violation          syntax-violation)
            (ex:environment               environment)
            (ex:environment-bindings      environment-bindings)
-           (ex:eval                      eval))
+           (ex:eval                      eval)
+           (ex:load                      load))
    void)
   
   (import
@@ -74,7 +75,7 @@
     
     ex:make-variable-transformer ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
-    ex:syntax-violation ex:environment ex:environment-bindings ex:eval
+    ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load
     ))
   (begin
     (define void (if #f #f))
@@ -921,16 +922,51 @@
             tan))
 
 (define-library (scheme lazy)
-    (import (primitives delay
-                        force
-                        promise?
-                        delay-force
-                        make-promise))
+    (import (core primitives))
+    (import (core let))
+    (import (core control))
+    (import (core intrinsics))
+    (import (for (core syntax-rules) expand))
     (export delay
             force
-            promise?
+            ; TODO - promise?
             delay-force
-            make-promise))
+            make-promise)
+    (begin 
+
+      (define promise-done?
+        (lambda (x) (car (car x))))
+      (define promise-value
+        (lambda (x) (cdr (car x))))
+      (define promise-update!
+        (lambda (new old)
+          (set-car! (car old) (promise-done? new))
+          (set-cdr! (car old) (promise-value new))
+          (set-car! new (car old))))
+      
+      (define (force promise)
+        (if (promise-done? promise)
+            (promise-value promise)
+            (let ((promise* ((promise-value promise))))
+              (unless (promise-done? promise)
+                (promise-update! promise* promise))
+              (force promise))))
+      
+      (define make-promise
+        (lambda (done? proc)
+          (list (cons done? proc))))
+      
+      (define-syntax delay
+        (syntax-rules ()
+          ((delay expression)
+           (delay-force (make-promise #t expression)))))
+      
+      (define-syntax delay-force
+        (syntax-rules ()
+          ((delay-force expression)
+           (make-promise #f (lambda () expression)))))
+
+))
 
 (define-library (scheme load)
     (import (primitives load))
@@ -953,8 +989,12 @@
     (export read))
 
 (define-library (scheme repl)
-    (import (primitives interaction-environment))
-    (export interaction-environment))
+    (import (except (core primitives) eval environment))
+    (import (scheme eval))
+    (export interaction-environment)
+    (begin
+      (define (interaction-environment)
+        (environment '(scheme base)))))
 
 (define-library (scheme time)
     (import (primitives current-jiffy
@@ -975,7 +1015,7 @@
             write-simple))
 
 (define-library (scheme base)
-    (import (for (except (core primitives) _ ... environment eval) run expand)
+    (import (for (except (core primitives) _ ... environment eval load) run expand)
             (for (core intrinsics) expand run)
             (for (core let) expand run)
             (for (core control)                 expand run)
