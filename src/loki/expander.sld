@@ -1876,9 +1876,8 @@
               (imported-libraries (environment-imported-libraries env)))
           (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
           (ex:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
-          (ex:runtime-eval (expand-begin
-                 ;; wrap in expression begin so no definition can occur as required by r6rs
-                 `(,(rename 'macro 'begin) ,exp))))))
+          (let ((result (map ex:runtime-eval (expand-toplevel-sequence (list exp)))))
+            (if (null? result) result (car result))))))
 
     ;;==========================================================================
     ;;

@@ -19,7 +19,7 @@ parse-repl:
 	chibi-scheme -I src -I compat/chibi src/parse-repl.scm
 
 expander:
-	chibi-scheme -A src -A compat/chibi src/expander.scm
+	chibi-scheme -T -A src -A compat/chibi src/expander.scm
 
 %.wat: %.scm compiler/src/**
 	chibi-scheme -I src -I compat/chibi src/loki.scm $< $@
