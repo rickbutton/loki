@@ -88,7 +88,8 @@
                         %lt %lte %number-eq %gt %gte
                         %cons %car %cdr
                         %set-car! %set-cdr!
-                        %vector? %vector-set! %vector-ref %vector-length
+                        %vector? %vector-set! %vector-ref
+                        %vector-length %make-vector
 
                         apply
                         binary-port?
@@ -160,7 +161,6 @@
                         make-bytevector
                         make-parameter
                       
-                        make-vector
                         max
                         min
                         number->string
@@ -285,7 +285,8 @@
           %lt %lte %number-eq %gt %gte
           %cons %car %cdr
           %set-car! %set-cdr!
-          %vector? %vector-set! %vector-ref %vector-length
+          %vector? %vector-set! %vector-ref
+          %vector-length %make-vector
 
           apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
@@ -302,7 +303,7 @@
           flush-output-port gcd get-output-string include-ci inexact?
           input-port?  integer?  lcm
           make-bytevector make-parameter
-          make-vector max min number->string numerator
+          max min number->string numerator
           open-input-bytevector open-output-bytevector output-port?
           parameterize peek-u8 quotient raise-continuable
           rationalize read-bytevector!  read-error?  read-string real?

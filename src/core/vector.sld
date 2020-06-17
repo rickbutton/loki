@@ -8,11 +8,12 @@
 (import (core intrinsics))
 (import (rename (core intrinsics) (%vector-set!   vector-set!)
                                   (%vector-ref    vector-ref)
+                                  (%make-vector   make-vector)
                                   (%vector-length vector-length)))
 (export vector list->vector vector->list
         vector-fill! vector-append vector-map
         vector-for-each vector-copy vector-copy!
-        vector-set! vector-ref vector-length)
+        vector-set! vector-ref vector-length make-vector)
 (begin
 
 (define (vector . args) (list->vector args))
