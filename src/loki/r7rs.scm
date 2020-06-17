@@ -88,7 +88,6 @@
                         %lt %lte %number-eq %gt %gte
                         %cons %car %cdr
 
-                        append
                         apply
                         binary-port?
                         boolean=?
@@ -155,11 +154,8 @@
                         input-port? 
                         integer?
                         lcm
-                        list
                       
                         list->vector
-                        list-ref
-                        list-tail
                         make-bytevector
                         make-parameter
                       
@@ -183,7 +179,6 @@
                         read-error? 
                         read-string
                         real?
-                        reverse
                       
                         set-cdr!
                         string
@@ -212,13 +207,11 @@
                         input-port-open?
                       
                         integer->char
-                        length 
                       
                         list->string
                         list-set!
                         list?
                         make-string
-                        map
                       
                         modulo
                         newline
@@ -307,7 +300,7 @@
           %lt %lte %number-eq %gt %gte
           %cons %car %cdr
 
-          append apply binary-port?  boolean=?  boolean?  bytevector
+          apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
           bytevector-u8-ref bytevector-u8-set!  bytevector?
           call-with-current-continuation call-with-port call-with-values call/cc
@@ -320,18 +313,18 @@
           ;TODO features 
           floor floor-remainder
           flush-output-port gcd get-output-string include-ci inexact?
-          input-port?  integer?  lcm list
-          list->vector list-ref list-tail make-bytevector make-parameter
+          input-port?  integer?  lcm
+          list->vector make-bytevector make-parameter
           make-vector max min number->string numerator
           open-input-bytevector open-output-bytevector output-port?
           parameterize peek-u8 quotient raise-continuable
-          rationalize read-bytevector!  read-error?  read-string real?  reverse
+          rationalize read-bytevector!  read-error?  read-string real?
           set-cdr!  string string->number string->utf8 string-append
           eof-object eq?  eqv?  error-object-irritants error-object?  exact
           exact-integer?  expt file-error?  floor-quotient floor/ for-each
           get-output-bytevector guard include inexact input-port-open?
-          integer->char length 
-          list->string list-set!  list?  make-string map
+          integer->char
+          list->string list-set!  list?  make-string
           modulo newline not null? number?  odd?  open-input-string
           open-output-string output-port-open?  pair?  peek-char port?
           procedure? raise rational?  read-bytevector read-char read-line
@@ -353,6 +346,7 @@
           (for (core intrinsics) run expand))
   (begin
   
+  (define (list . args) args)
   (define-syntax with-syntax
     (lambda (x)
       (syntax-case x ()
@@ -435,12 +429,49 @@
   
   )) ; let
 
+(define-library (core case-lambda)
+  (export case-lambda)
+  (import (for (core primitives)   expand run)
+          (for (core let)          expand run)
+          (for (core syntax-rules) expand)
+          (for (core list)         expand run)
+          (for (core intrinsics)   expand run))
+  (begin
+
+  (define-syntax case-lambda
+    (syntax-rules ()
+      ((_ (fmls b1 b2 ...))
+       (lambda fmls b1 b2 ...))
+      ((_ (fmls b1 b2 ...) ...)
+       (lambda args
+         (let ((n (length args)))
+           (case-lambda-help args n
+                             (fmls b1 b2 ...) ...))))))
+  
+  (define-syntax case-lambda-help
+    (syntax-rules ()
+      ((_ args n)
+       (error "unexpected number of arguments"))
+      ((_ args n ((x ...) b1 b2 ...) more ...)
+       (if (%number-eq n (length '(x ...)))
+           (apply (lambda (x ...) b1 b2 ...) args)
+           (case-lambda-help args n more ...)))
+      ((_ args n ((x1 x2 ... . r) b1 b2 ...) more ...)
+       (if (%gte n (length '(x1 x2 ...)))
+           (apply (lambda (x1 x2 ... . r) b1 b2 ...)
+                  args)
+           (case-lambda-help args n more ...)))
+      ((_ args n (r b1 b2 ...) more ...)
+       (apply (lambda r b1 b2 ...) args))))                                      
+))
+
 (define-library (core control)
-  (export when unless do case-lambda)
+  (export when unless do)
   (import (for (core primitives)   expand run)
           (for (core let)          expand run)
           (for (core with-syntax)  expand)
           (for (core syntax-rules) expand)
+          (for (core list)         expand run)
           (for (core intrinsics) expand run))
   (begin
   
@@ -477,31 +508,7 @@
                                         (begin e1 e2 ...)
                                         (begin c ... (do step ...))))))))))))                         
 
-  (define-syntax case-lambda
-    (syntax-rules ()
-      ((_ (fmls b1 b2 ...))
-       (lambda fmls b1 b2 ...))
-      ((_ (fmls b1 b2 ...) ...)
-       (lambda args
-         (let ((n (length args)))
-           (case-lambda-help args n
-                             (fmls b1 b2 ...) ...))))))
   
-  (define-syntax case-lambda-help
-    (syntax-rules ()
-      ((_ args n)
-       (error "unexpected number of arguments"))
-      ((_ args n ((x ...) b1 b2 ...) more ...)
-       (if (%number-eq n (length '(x ...)))
-           (apply (lambda (x ...) b1 b2 ...) args)
-           (case-lambda-help args n more ...)))
-      ((_ args n ((x1 x2 ... . r) b1 b2 ...) more ...)
-       (if (%gte n (length '(x1 x2 ...)))
-           (apply (lambda (x1 x2 ... . r) b1 b2 ...)
-                  args)
-           (case-lambda-help args n more ...)))
-      ((_ args n (r b1 b2 ...) more ...)
-       (apply (lambda r b1 b2 ...) args))))                                      
   
   )) ; core control                                      
 
@@ -1222,7 +1229,7 @@
 
 (define-library (scheme case-lambda)
   (export case-lambda)
-  (import (for (core control) expand run)))
+  (import (for (core case-lambda) expand run)))
 
 (define-library (scheme char)
     (import (core string)) 

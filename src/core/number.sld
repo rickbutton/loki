@@ -1,7 +1,7 @@
 (define-library (core number)
 (import (core primitives))
-(import (core control))
 (import (core intrinsics))
+(import (core case-lambda))
 (export + * - / < <= = > >=
         zero? positive? negative?
         abs)

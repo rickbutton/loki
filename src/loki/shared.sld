@@ -199,7 +199,7 @@
     (display ": ")
     (display message)
     (display "\n")
-    (if (eq? type 'error) (exit 1))))
+    (if (eq? type 'error) (raise "error") (exit 1))))
 
 (define (handle-unexpected-error e)
   (display "unexpected error: ")
