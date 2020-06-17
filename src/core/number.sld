@@ -2,9 +2,9 @@
 (import (core primitives))
 (import (core control))
 (import (core intrinsics))
-(import (primitives %add %sub %mul %div
-                    %lt %lte %number-eq %gt %gte))
-(export + * - / < <= = > >=)
+(export + * - / < <= = > >=
+        zero? positive? negative?
+        abs)
 (begin
 
 (define +
@@ -57,4 +57,11 @@
   (case-lambda
     ((a b) (%gte a b))
     ((a b . rest) (and (%gte a b) (apply >= b rest)))))
+
+
+(define (zero? x) (= x 0))
+(define (positive? x) (> x 0))
+(define (negative? x) (< x 0))
+
+(define (abs x) (if (< x 0) (- x) x))
 ))

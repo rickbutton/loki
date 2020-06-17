@@ -87,8 +87,7 @@
                         %add %sub %mul %div
                         %lt %lte %number-eq %gt %gte
 
-                        abs append apply assoc assq
-                        assv binary-port?  boolean=?  boolean?  bytevector
+                        append apply binary-port?  boolean=?  boolean?  bytevector
                         bytevector-append bytevector-copy bytevector-copy! bytevector-length
                         bytevector-u8-ref bytevector-u8-set!  bytevector?
                         call-with-current-continuation call-with-port call-with-values call/cc
@@ -103,17 +102,17 @@
                         flush-output-port gcd get-output-string include-ci inexact?
                         input-port?  integer?  lcm list
                         list->vector list-ref list-tail make-bytevector make-parameter
-                        make-vector max memq min negative? number->string numerator
+                        make-vector max min number->string numerator
                         open-input-bytevector open-output-bytevector output-port?
-                        parameterize peek-u8 positive? quotient raise-continuable
+                        parameterize peek-u8 quotient raise-continuable
                         rationalize read-bytevector!  read-error?  read-string real?  reverse
                         set-cdr!  string string->number string->utf8 string-append
                         eof-object eq?  eqv?  error-object-irritants error-object?  exact
                         exact-integer?  expt file-error?  floor-quotient floor/ for-each
                         get-output-bytevector guard include inexact input-port-open?
                         integer->char length 
-                        list->string list-copy list-set!  list?  make-list make-string map
-                        member memv modulo newline not null? number?  odd?  open-input-string
+                        list->string list-set!  list?  make-string map
+                        modulo newline not null? number?  odd?  open-input-string
                         open-output-string output-port-open?  pair?  peek-char port?
                         procedure? raise rational?  read-bytevector read-char read-line
                         read-u8 remainder round set-car!  square string->list string->symbol
@@ -126,13 +125,12 @@
                         string=?  string>?  substring symbol=? syntax-error textual-port?
                         truncate-quotient truncate/ values
                         vector->list vector-append vector-copy!  vector-for-each vector-map
-                        vector-set!  write-bytevector write-string zero?))
+                        vector-set!  write-bytevector write-string))
     (export 
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
 
-          abs append apply assoc assq
-          assv binary-port?  boolean=?  boolean?  bytevector
+          append apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
           bytevector-u8-ref bytevector-u8-set!  bytevector?
           call-with-current-continuation call-with-port call-with-values call/cc
@@ -147,17 +145,17 @@
           flush-output-port gcd get-output-string include-ci inexact?
           input-port?  integer?  lcm list
           list->vector list-ref list-tail make-bytevector make-parameter
-          make-vector max memq min negative? number->string numerator
+          make-vector max min number->string numerator
           open-input-bytevector open-output-bytevector output-port?
-          parameterize peek-u8 positive? quotient raise-continuable
+          parameterize peek-u8 quotient raise-continuable
           rationalize read-bytevector!  read-error?  read-string real?  reverse
           set-cdr!  string string->number string->utf8 string-append
           eof-object eq?  eqv?  error-object-irritants error-object?  exact
           exact-integer?  expt file-error?  floor-quotient floor/ for-each
           get-output-bytevector guard include inexact input-port-open?
           integer->char length 
-          list->string list-copy list-set!  list?  make-list make-string map
-          member memv modulo newline not null? number?  odd?  open-input-string
+          list->string list-set!  list?  make-string map
+          modulo newline not null? number?  odd?  open-input-string
           open-output-string output-port-open?  pair?  peek-char port?
           procedure? raise rational?  read-bytevector read-char read-line
           read-u8 remainder round set-car!  square string->list string->symbol
@@ -170,7 +168,7 @@
           string=?  string>?  substring symbol=?  syntax-error textual-port?
           truncate-quotient truncate/ values
           vector->list vector-append vector-copy!  vector-for-each vector-map
-          vector-set!  write-bytevector write-string zero?))
+          vector-set!  write-bytevector write-string))
 
 (define-library (core util)
   (export for-all)
@@ -351,6 +349,7 @@
           (for (core util)             expand run)
           (for (core with-syntax)      expand)
           (for (core syntax-rules)     expand)
+          (for (core list)             expand run)
           (for (core intrinsics)       expand run))
   (begin
   
@@ -1247,6 +1246,7 @@
             (for (core syntax-rules)            expand run) 
             (for (only (core primitives) _ ... set!) expand)
             (for (core number)                  expand run)
+            (for (core list)                    expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)
