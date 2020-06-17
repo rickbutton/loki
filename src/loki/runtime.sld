@@ -187,6 +187,17 @@
 (ex:runtime-add-primitive 'ex:import-library ex:import-library)
 (ex:runtime-add-primitive 'real-vector? vector?)
 
+
+(ex:runtime-add-primitive '%add        +)
+(ex:runtime-add-primitive '%sub        -)
+(ex:runtime-add-primitive '%mul        *)
+(ex:runtime-add-primitive '%div        /)
+(ex:runtime-add-primitive '%lt         <)
+(ex:runtime-add-primitive '%lte       <=)
+(ex:runtime-add-primitive '%number-eq  =)
+(ex:runtime-add-primitive '%gt         >)
+(ex:runtime-add-primitive '%gte       >=)
+
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 

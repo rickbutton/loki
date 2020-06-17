@@ -199,7 +199,7 @@
     (display ": ")
     (display message)
     (display "\n")
-    (if (eq? type 'error) (error "loki error"))))
+    (if (eq? type 'error) (exit 1))))
 
 (define (handle-unexpected-error e)
   (display "unexpected error: ")

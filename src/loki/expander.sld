@@ -1517,7 +1517,7 @@
                                                          (let ((binding (binding (cadr mapping))))
                                                            (or binding
                                                                (syntax-violation
-                                                                'library "Unbound export" t (cadr mapping)))
+                                                                'library "Unbound export" (cadr mapping) t))
                                                            ;(if (binding-mutable? binding)
                                                            ;    (syntax-violation
                                                            ;     'library "Attempt to export mutable variable" t (cadr mapping)))

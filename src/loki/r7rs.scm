@@ -83,7 +83,11 @@
   ) ;; core primitives
 
 (define-library (core intrinsics)
-    (import (primitives * + - / < <= = > >= abs append apply assoc assq
+    (import (primitives 
+                        %add %sub %mul %div
+                        %lt %lte %number-eq %gt %gte
+
+                        abs append apply assoc assq
                         assv binary-port?  boolean=?  boolean?  bytevector
                         bytevector-append bytevector-copy bytevector-copy! bytevector-length
                         bytevector-u8-ref bytevector-u8-set!  bytevector?
@@ -124,7 +128,10 @@
                         vector->list vector-append vector-copy!  vector-for-each vector-map
                         vector-set!  write-bytevector write-string zero?))
     (export 
-          * + - / < <= = > >= abs append apply assoc assq
+          %add %sub %mul %div
+          %lt %lte %number-eq %gt %gte
+
+          abs append apply assoc assq
           assv binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
           bytevector-u8-ref bytevector-u8-set!  bytevector?
@@ -322,13 +329,13 @@
   (define-syntax case-lambda-help
     (syntax-rules ()
       ((_ args n)
-       (assertion-violation #f "unexpected number of arguments"))
+       (error "unexpected number of arguments"))
       ((_ args n ((x ...) b1 b2 ...) more ...)
-       (if (= n (length '(x ...)))
+       (if (%number-eq n (length '(x ...)))
            (apply (lambda (x ...) b1 b2 ...) args)
            (case-lambda-help args n more ...)))
       ((_ args n ((x1 x2 ... . r) b1 b2 ...) more ...)
-       (if (>= n (length '(x1 x2 ...)))
+       (if (%gte n (length '(x1 x2 ...)))
            (apply (lambda (x1 x2 ... . r) b1 b2 ...)
                   args)
            (case-lambda-help args n more ...)))
@@ -433,6 +440,7 @@
           (for (core let)          expand run)
           (for (core derived)      expand run)
           (for (core syntax-rules) expand run)
+          (for (core number)       expand run)
           (for (core intrinsics)   expand run))
   (export define-record-type vector?)
   (begin
@@ -675,6 +683,7 @@
           (for (core let)         run expand) 
           (for (core derived)     run expand)
           (for (core with-syntax) run expand)
+          (for (core number)      run expand) 
           (for (core intrinsics)  run expand))
   (begin
   
@@ -757,6 +766,7 @@
           (for (core derived)     run expand)
           (for (core with-syntax) expand)
           (for (core quasisyntax) expand)
+          (for (core number)      run expand) 
           (for (core intrinsics)  run expand))
   (begin
   
@@ -960,22 +970,99 @@
   
   )) ; core let-values
 
+(define-library (core define-missing)
+  (import (core primitives))
+  (import (core intrinsics))
+  (import (for (core syntax-rules) expand))
+  (export define-missing)
+  (begin
+    (define-syntax define-missing
+      (syntax-rules ()
+        ((_ name)
+          (define (name . args)
+              (raise (string-append "not implemented: "
+                                    (symbol->string 'name)))))
+        ((_ name names ...)
+          (begin
+            (define-missing name)
+            (define-missing names ...)))))))
+
+
+(define-library (core math)
+  (import (core primitives))
+  (import (core define-missing))
+  (export           ; (scheme complex)
+                    angle
+                    imag-part
+                    magnitude
+                    make-polar
+                    make-rectangular
+                    real-part
+                    ; (scheme inexact)
+                    acos
+                    asin
+                    atan
+                    cos
+                    exp
+                    finite?
+                    infinite?
+                    log
+                    nan?
+                    sin
+                    sqrt
+                    tan)
+
+  (begin            ; (scheme complex)
+    (define-missing angle
+                    imag-part
+                    magnitude
+                    make-polar
+                    make-rectangular
+                    real-part
+                    ; (scheme inexact)
+                    acos
+                    asin
+                    atan
+                    cos
+                    exp
+                    finite?
+                    infinite?
+                    log
+                    nan?
+                    sin
+                    sqrt
+                    tan)))
+
+(define-library (core string)
+  (import (core primitives))
+  (import (primitives
+          char-alphabetic? char-ci<=? char-ci<?
+          char-ci=? char-ci>=? char-ci>?
+          char-downcase char-foldcase
+          char-lower-case? char-numeric?
+          char-upcase char-upper-case?
+          char-whitespace? digit-value
+          string-ci<=? string-ci<?
+          string-ci=? string-ci>=?
+          string-ci>? string-downcase
+          string-foldcase string-upcase))
+  (export char-alphabetic? char-ci<=? char-ci<?
+          char-ci=? char-ci>=? char-ci>?
+          char-downcase char-foldcase
+          char-lower-case? char-numeric?
+          char-upcase char-upper-case?
+          char-whitespace? digit-value
+          string-ci<=? string-ci<?
+          string-ci=? string-ci>=?
+          string-ci>? string-downcase
+          string-foldcase string-upcase))
+
 (define-library (scheme case-lambda)
   (export case-lambda)
   (import (for (core control) expand run)))
 
 (define-library (scheme char)
-    (import (primitives 
-        char-alphabetic? char-ci<=? char-ci<?
-        char-ci=? char-ci>=? char-ci>?
-        char-downcase char-foldcase
-        char-lower-case? char-numeric?
-        char-upcase char-upper-case?
-        char-whitespace? digit-value
-        string-ci<=? string-ci<?
-        string-ci=? string-ci>=?
-        string-ci>? string-downcase
-        string-foldcase string-upcase))
+    (import (core string)) 
     (export 
         char-alphabetic? char-ci<=? char-ci<?
         char-ci=? char-ci>=? char-ci>?
@@ -989,7 +1076,7 @@
         string-foldcase string-upcase))
 
 (define-library (scheme complex)
-    (import (primitives angle imag-part magnitude make-polar make-rectangular real-part))
+    (import (core math))
     (export angle imag-part magnitude make-polar make-rectangular real-part))
 
 (define-library (scheme cxr)
@@ -1052,30 +1139,8 @@
             with-output-to-file))
 
 (define-library (scheme inexact)
-    (import (primitives acos
-                        asin
-                        atan
-                        cos
-                        exp
-                        finite?
-                        infinite?
-                        log
-                        nan?
-                        sin
-                        sqrt
-                        tan))
-    (export acos
-            asin
-            atan
-            cos
-            exp
-            finite?
-            infinite?
-            log
-            nan?
-            sin
-            sqrt
-            tan))
+    (import (core math))
+    (export acos asin atan cos exp finite? infinite? log nan? sin sqrt tan))
 
 (define-library (scheme lazy)
     (import (core primitives))
@@ -1181,6 +1246,7 @@
             (for (core let-values)              expand run)
             (for (core syntax-rules)            expand run) 
             (for (only (core primitives) _ ... set!) expand)
+            (for (core number)                  expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)
@@ -1293,69 +1359,3 @@
    syntax-rules tan truncate values vector vector->list vector-fill!
    vector-length vector-ref vector-set! vector? with-input-from-file
    with-output-to-file write write-char zero?))
-
-;; Nonstandard explicit renaming library: 
-;; See also examples and discussion in file examples.scm.
-;;
-;; Exports:
-;;
-;;    er-transformer     (syntax)
-;;    bound-identifier=? (procedure)
-;;    datum->syntax      (procedure)
-;;
-;; Differences with traditional explicit renaming:
-;;
-;; - The renaming procedure has signature <symbol> -> <identifier>,
-;;   where the <identifier> type is disjoint from the <symbol> type.
-;;
-;; - The renaming procedure acts as a mathematical function in the sense that
-;;   the identifiers obtained from any two calls with the same argument will
-;;   be the same in the sense of bound-identifier=?, not eqv?
-;;
-;; - The output may not contain raw symbols, so implicit identifiers must
-;;   be introduced using datum->syntax.
-;;
-;; - Breaking hygiene with datum->syntax allows more modular macro
-;;   programming than traditional explicit renaming.
-;;   See in particular the example of while in terms of loop below.
-;;
-;; - The renaming procedure is aware of the transformer environment,
-;;   so that identifiers not bound at the usage site will resolve to
-;;   the r6rs library-local bindings at the transformer site.
-;;   More precisely, they will be resolved in the lexical environment
-;;   of the er-transformer keyword.
-;;
-;; - Fully compatible with my r6rs syntax-case macro system.
-;;
-;; Portability and complexity note:
-;;
-;;   This library is not r6rs-portable, since it assumes that the input
-;;   to a transformer is always an unwrapped syntax object, which is
-;;   allowed but not required by r6rs, and is currently only true for my
-;;   implementation.  The library could be ported to other implementations
-;;   by inserting a step that unwrapped the input to the transformer.
-;;   However, that would adversely modify the complexity class of
-;;   er-transformer macros in those implementations.
-
-(define-library (explicit-renaming helper)
-  (export er-transformer)
-  (import (only (core primitives) 
-            define-syntax lambda syntax-case syntax datum->syntax free-identifier=?))
-  (begin
-  
-  (define-syntax er-transformer
-    (lambda (exp)
-      (syntax-case exp ()
-        ((k proc)
-         (syntax
-          (lambda (form)
-            (proc form
-                  (lambda (symbol) (datum->syntax (syntax k) symbol))
-                  free-identifier=?)))))))))
-
-(define-library (explicit-renaming)
-  (export er-transformer identifier? bound-identifier=? datum->syntax)
-  (import (explicit-renaming helper)
-          (core primitives)))
-
-
