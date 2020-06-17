@@ -87,6 +87,7 @@
                         %add %sub %mul %div
                         %lt %lte %number-eq %gt %gte
                         %cons %car %cdr
+                        %set-car! %set-cdr!
 
                         apply
                         binary-port?
@@ -180,7 +181,6 @@
                         read-string
                         real?
                       
-                        set-cdr!
                         string
                         string->number
                         string->utf8
@@ -237,7 +237,6 @@
                         read-u8
                         remainder
                         round
-                        set-car!
                         square
                         string->list
                         string->symbol
@@ -299,6 +298,7 @@
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
           %cons %car %cdr
+          %set-car! %set-cdr!
 
           apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
@@ -319,7 +319,7 @@
           open-input-bytevector open-output-bytevector output-port?
           parameterize peek-u8 quotient raise-continuable
           rationalize read-bytevector!  read-error?  read-string real?
-          set-cdr!  string string->number string->utf8 string-append
+          string string->number string->utf8 string-append
           eof-object eq?  eqv?  error-object-irritants error-object?  exact
           exact-integer?  expt file-error?  floor-quotient floor/ for-each
           get-output-bytevector guard include inexact input-port-open?
@@ -328,7 +328,7 @@
           modulo newline not null? number?  odd?  open-input-string
           open-output-string output-port-open?  pair?  peek-char port?
           procedure? raise rational?  read-bytevector read-char read-line
-          read-u8 remainder round set-car!  square string->list string->symbol
+          read-u8 remainder round square string->list string->symbol
           string->vector string-copy string-copy!  string-for-each string-map
           string-set!  string<?  string>=?  string?  symbol->string symbol?
           truncate truncate-remainder u8-ready?

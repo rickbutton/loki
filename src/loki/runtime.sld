@@ -201,6 +201,8 @@
 (ex:runtime-add-primitive '%cons      cons)
 (ex:runtime-add-primitive '%car       car)
 (ex:runtime-add-primitive '%cdr       cdr)
+(ex:runtime-add-primitive '%set-car!  set-car!)
+(ex:runtime-add-primitive '%set-cdr!  set-cdr!)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

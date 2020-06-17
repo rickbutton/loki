@@ -4,10 +4,13 @@
 (import (core intrinsics))
 (import (rename (core intrinsics) (%cons cons)
                                   (%car  car)
-                                  (%cdr  cdr)))
+                                  (%cdr  cdr)
+                                  (%set-car! set-car!)
+                                  (%set-cdr! set-cdr!)))
 (export 
         cons car cdr
         caar cadr cdar cddr
+        set-car! set-cdr!
         make-list list-copy
         member memv memq
         assoc assv assq
