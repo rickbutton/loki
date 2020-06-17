@@ -90,6 +90,8 @@
                         %set-car! %set-cdr!
                         %vector? %vector-set! %vector-ref
                         %vector-length %make-vector
+                        %char->integer %char-foldcase
+                        %char-upcase %char-downcase
 
                         apply
                         binary-port?
@@ -112,14 +114,7 @@
                         call/cc
                       
                         ceiling
-                        char->integer
                         char-ready? 
-                        char<=?
-                      
-                        char<?
-                        char=?
-                        char>=? 
-                        char>?
                         char?
                         close-input-port
                       
@@ -287,13 +282,15 @@
           %set-car! %set-cdr!
           %vector? %vector-set! %vector-ref
           %vector-length %make-vector
+          %char->integer %char-foldcase
+          %char-upcase %char-downcase
 
           apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
           bytevector-u8-ref bytevector-u8-set!  bytevector?
           call-with-current-continuation call-with-port call-with-values call/cc
-          ceiling char->integer char-ready?  char<=?
-          char<?  char=?  char>=?  char>?  char?  close-input-port
+          ceiling char-ready?
+          char?  close-input-port
           close-output-port close-port complex?  ; TODO cond-expand
           current-error-port current-input-port current-output-port denominator
           dynamic-wind eof-object?  equal?  error error-object-message
@@ -1194,19 +1191,14 @@
 
 (define-library (core string)
   (import (core primitives))
+  (import (core char))
   (import (primitives
-          char-alphabetic? char-ci<=? char-ci<?
-          char-ci=? char-ci>=? char-ci>?
-          char-downcase char-foldcase
-          char-lower-case? char-numeric?
-          char-upcase char-upper-case?
-          char-whitespace? digit-value
+          digit-value
           string-ci<=? string-ci<?
           string-ci=? string-ci>=?
           string-ci>? string-downcase
           string-foldcase string-upcase))
-  (export char-alphabetic? char-ci<=? char-ci<?
-          char-ci=? char-ci>=? char-ci>?
+  (export 
           char-downcase char-foldcase
           char-lower-case? char-numeric?
           char-upcase char-upper-case?
@@ -1222,6 +1214,7 @@
 
 (define-library (scheme char)
     (import (core string)) 
+    (import (core char))
     (export 
         char-alphabetic? char-ci<=? char-ci<?
         char-ci=? char-ci>=? char-ci>?
@@ -1409,6 +1402,7 @@
             (for (core number)                  expand run)
             (for (core list)                    expand run)
             (for (core vector)                  expand run)
+            (for (core char)                    expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)

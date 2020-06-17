@@ -2,6 +2,7 @@
 (import (scheme base))
 (import (scheme write))
 (import (scheme eval))
+(import (scheme char))
 (import (loki compat))
 (import (loki util))
 (import (loki shared))
@@ -209,6 +210,11 @@
 (ex:runtime-add-primitive '%vector-ref     vector-ref)
 (ex:runtime-add-primitive '%vector-length  vector-length)
 (ex:runtime-add-primitive '%make-vector    make-vector)
+
+(ex:runtime-add-primitive '%char->integer char->integer)
+(ex:runtime-add-primitive '%char-foldcase char-foldcase)
+(ex:runtime-add-primitive '%char-upcase   char-upcase)
+(ex:runtime-add-primitive '%char-downcase char-downcase)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
