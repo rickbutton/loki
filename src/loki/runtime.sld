@@ -204,6 +204,11 @@
 (ex:runtime-add-primitive '%set-car!  set-car!)
 (ex:runtime-add-primitive '%set-cdr!  set-cdr!)
 
+(ex:runtime-add-primitive '%vector?        vector?)
+(ex:runtime-add-primitive '%vector-set!    vector-set!)
+(ex:runtime-add-primitive '%vector-ref     vector-ref)
+(ex:runtime-add-primitive '%vector-length  vector-length)
+
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 

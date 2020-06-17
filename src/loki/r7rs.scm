@@ -88,6 +88,7 @@
                         %lt %lte %number-eq %gt %gte
                         %cons %car %cdr
                         %set-car! %set-cdr!
+                        %vector? %vector-set! %vector-ref %vector-length
 
                         apply
                         binary-port?
@@ -156,7 +157,6 @@
                         integer?
                         lcm
                       
-                        list->vector
                         make-bytevector
                         make-parameter
                       
@@ -258,14 +258,8 @@
                         truncate-remainder
                         u8-ready?
                         utf8->string
-                        vector
-                        real-vector?
                         vector->string
-                        vector-copy
-                        vector-fill!
                       
-                        vector-length
-                        vector-ref
                         with-exception-handler
                       
                         write-char
@@ -284,14 +278,6 @@
                         truncate-quotient
                         truncate/
                         values
-                      
-                        vector->list
-                        vector-append
-                        vector-copy!
-                        vector-for-each
-                        vector-map
-                      
-                        vector-set! 
                         write-bytevector
                         write-string))
     (export 
@@ -299,6 +285,7 @@
           %lt %lte %number-eq %gt %gte
           %cons %car %cdr
           %set-car! %set-cdr!
+          %vector? %vector-set! %vector-ref %vector-length
 
           apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
@@ -314,7 +301,7 @@
           floor floor-remainder
           flush-output-port gcd get-output-string include-ci inexact?
           input-port?  integer?  lcm
-          list->vector make-bytevector make-parameter
+          make-bytevector make-parameter
           make-vector max min number->string numerator
           open-input-bytevector open-output-bytevector output-port?
           parameterize peek-u8 quotient raise-continuable
@@ -332,13 +319,12 @@
           string->vector string-copy string-copy!  string-for-each string-map
           string-set!  string<?  string>=?  string?  symbol->string symbol?
           truncate truncate-remainder u8-ready?
-          utf8->string vector real-vector? vector->string vector-copy vector-fill!
-          vector-length vector-ref with-exception-handler
+          utf8->string vector->string 
+          with-exception-handler
           write-char write-u8 string-fill!  string-length string-ref string<=?
           string=?  string>?  substring symbol=?  syntax-error textual-port?
           truncate-quotient truncate/ values
-          vector->list vector-append vector-copy!  vector-for-each vector-map
-          vector-set!  write-bytevector write-string))
+          write-bytevector write-string))
 
 (define-library (core with-syntax)
   (export with-syntax)
@@ -610,6 +596,7 @@
           (for (core syntax-rules) expand run)
           (for (core number)       expand run)
           (for (core list)         expand run)
+          (for (core vector)       expand run)
           (for (core intrinsics)   expand run))
   (export define-record-type vector?)
   (begin
@@ -633,7 +620,7 @@
     (define record-marker (list 'record-marker))
     
     (define (vector? x)
-      (and (real-vector? x)
+      (and (%vector? x)
            (or (= 0 (vector-length x))
     	   (not (eq? (vector-ref x 0)
     		record-marker)))))
@@ -641,7 +628,7 @@
     ; Definitions of the record procedures.
     
     (define (record? x)
-      (and (real-vector? x)
+      (and (%vector? x)
            (< 0 (vector-length x))
            (eq? (vector-ref x 0)
                 record-marker)))
@@ -853,6 +840,7 @@
           (for (core derived)     run expand)
           (for (core with-syntax) run expand)
           (for (core number)      run expand) 
+          (for (core vector)      run expand) 
           (for (core intrinsics)  run expand))
   (begin
   
@@ -1419,6 +1407,7 @@
             (for (only (core primitives) _ ... set!) expand)
             (for (core number)                  expand run)
             (for (core list)                    expand run)
+            (for (core vector)                  expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)
