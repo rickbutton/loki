@@ -4,10 +4,21 @@
 (import (core control))
 (import (core number))
 (import (core intrinsics))
+(import (rename (core intrinsics) (%cons cons)
+                                  (%car  car)
+                                  (%cdr  cdr)))
 (export make-list list-copy
         member memv memq
-        assoc assv assq)
+        assoc assv assq
+        cons car cdr
+        caar cadr cdar cddr
+        for-all)
 (begin
+
+(define (caar obj) (car (car obj)))
+(define (cadr obj) (car (cdr obj)))
+(define (cdar obj) (cdr (car obj)))
+(define (cddr obj) (cdr (cdr obj)))
 
 (define (make-list n . o)
   (let ((default (if (pair? o) (car o))))
@@ -38,4 +49,8 @@
 (define (assv obj ls) (assoc obj ls eqv?))
 (define (assq obj ls) (assoc obj ls eq?))
 
+(define (for-all proc l . ls)
+      (or (null? l)
+        (and (apply proc (car l) (map car ls))
+             (apply for-all proc (cdr l) (map cdr ls)))))
 ))

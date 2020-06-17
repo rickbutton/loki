@@ -198,6 +198,10 @@
 (ex:runtime-add-primitive '%gt         >)
 (ex:runtime-add-primitive '%gte       >=)
 
+(ex:runtime-add-primitive '%cons      cons)
+(ex:runtime-add-primitive '%car       car)
+(ex:runtime-add-primitive '%cdr       cdr)
+
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 

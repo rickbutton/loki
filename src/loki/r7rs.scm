@@ -86,57 +86,234 @@
     (import (primitives 
                         %add %sub %mul %div
                         %lt %lte %number-eq %gt %gte
+                        %cons %car %cdr
 
-                        append apply binary-port?  boolean=?  boolean?  bytevector
-                        bytevector-append bytevector-copy bytevector-copy! bytevector-length
-                        bytevector-u8-ref bytevector-u8-set!  bytevector?
-                        call-with-current-continuation call-with-port call-with-values call/cc
-                        car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
-                        char<?  char=?  char>=?  char>?  char?  close-input-port
-                        close-output-port close-port complex?  cons ; TODO cond-expand
-                        current-error-port current-input-port current-output-port denominator
-                        dynamic-wind eof-object?  equal?  error error-object-message
-                        even?  exact-integer-sqrt exact?
-                        ;TODO features 
-                        floor floor-remainder
-                        flush-output-port gcd get-output-string include-ci inexact?
-                        input-port?  integer?  lcm list
-                        list->vector list-ref list-tail make-bytevector make-parameter
-                        make-vector max min number->string numerator
-                        open-input-bytevector open-output-bytevector output-port?
-                        parameterize peek-u8 quotient raise-continuable
-                        rationalize read-bytevector!  read-error?  read-string real?  reverse
-                        set-cdr!  string string->number string->utf8 string-append
-                        eof-object eq?  eqv?  error-object-irritants error-object?  exact
-                        exact-integer?  expt file-error?  floor-quotient floor/ for-each
-                        get-output-bytevector guard include inexact input-port-open?
-                        integer->char length 
-                        list->string list-set!  list?  make-string map
-                        modulo newline not null? number?  odd?  open-input-string
-                        open-output-string output-port-open?  pair?  peek-char port?
-                        procedure? raise rational?  read-bytevector read-char read-line
-                        read-u8 remainder round set-car!  square string->list string->symbol
-                        string->vector string-copy string-copy!  string-for-each string-map
-                        string-set!  string<?  string>=?  string?  symbol->string symbol?
-                        truncate truncate-remainder u8-ready?
-                        utf8->string vector real-vector? vector->string vector-copy vector-fill!
-                        vector-length vector-ref with-exception-handler
-                        write-char write-u8 string-fill!  string-length string-ref string<=?
-                        string=?  string>?  substring symbol=? syntax-error textual-port?
-                        truncate-quotient truncate/ values
-                        vector->list vector-append vector-copy!  vector-for-each vector-map
-                        vector-set!  write-bytevector write-string))
+                        append
+                        apply
+                        binary-port?
+                        boolean=?
+                        boolean?
+                        bytevector
+                      
+                        bytevector-append
+                        bytevector-copy
+                        bytevector-copy!
+                        bytevector-length
+                      
+                        bytevector-u8-ref
+                        bytevector-u8-set!
+                        bytevector?
+                      
+                        call-with-current-continuation
+                        call-with-port
+                        call-with-values
+                        call/cc
+                      
+                        ceiling
+                        char->integer
+                        char-ready? 
+                        char<=?
+                      
+                        char<?
+                        char=?
+                        char>=? 
+                        char>?
+                        char?
+                        close-input-port
+                      
+                        close-output-port
+                        close-port
+                        complex?
+                        ; TODO cond-expand
+                      
+                        current-error-port
+                        current-input-port
+                        current-output-port
+                        denominator
+                      
+                        dynamic-wind
+                        eof-object? 
+                        equal?
+                        error
+                        error-object-message
+                      
+                        even?
+                        exact-integer-sqrt
+                        exact?
+                      
+                        
+                        ; TODO features 
+                        floor
+                        floor-remainder
+                      
+                        flush-output-port
+                        gcd
+                        get-output-string
+                        include-ci
+                        inexact?
+                      
+                        input-port? 
+                        integer?
+                        lcm
+                        list
+                      
+                        list->vector
+                        list-ref
+                        list-tail
+                        make-bytevector
+                        make-parameter
+                      
+                        make-vector
+                        max
+                        min
+                        number->string
+                        numerator
+                      
+                        open-input-bytevector
+                        open-output-bytevector
+                        output-port?
+                      
+                        parameterize
+                        peek-u8
+                        quotient
+                        raise-continuable
+                      
+                        rationalize
+                        read-bytevector!
+                        read-error? 
+                        read-string
+                        real?
+                        reverse
+                      
+                        set-cdr!
+                        string
+                        string->number
+                        string->utf8
+                        string-append
+                      
+                        eof-object
+                        eq? 
+                        eqv?
+                        error-object-irritants
+                        error-object?
+                        exact
+                      
+                        exact-integer?
+                        expt
+                        file-error? 
+                        floor-quotient
+                        floor/
+                        for-each
+                      
+                        get-output-bytevector
+                        guard
+                        include
+                        inexact
+                        input-port-open?
+                      
+                        integer->char
+                        length 
+                      
+                        list->string
+                        list-set!
+                        list?
+                        make-string
+                        map
+                      
+                        modulo
+                        newline
+                        not
+                        null?
+                        number? 
+                        odd?
+                        open-input-string
+                      
+                        open-output-string
+                        output-port-open?
+                        pair?
+                        peek-char
+                        port?
+                      
+                        procedure?
+                        raise
+                        rational?
+                        read-bytevector
+                        read-char
+                        read-line
+                      
+                        read-u8
+                        remainder
+                        round
+                        set-car!
+                        square
+                        string->list
+                        string->symbol
+                      
+                        string->vector
+                        string-copy
+                        string-copy!
+                        string-for-each
+                        string-map
+                      
+                        string-set! 
+                        string<?
+                        string>=?
+                        string? 
+                        symbol->string
+                        symbol?
+                      
+                        truncate
+                        truncate-remainder
+                        u8-ready?
+                        utf8->string
+                        vector
+                        real-vector?
+                        vector->string
+                        vector-copy
+                        vector-fill!
+                      
+                        vector-length
+                        vector-ref
+                        with-exception-handler
+                      
+                        write-char
+                        write-u8
+                        string-fill!
+                        string-length
+                        string-ref
+                        string<=?
+                      
+                        string=?
+                        string>?
+                        substring
+                        symbol=?
+                        syntax-error
+                        textual-port?
+                        truncate-quotient
+                        truncate/
+                        values
+                      
+                        vector->list
+                        vector-append
+                        vector-copy!
+                        vector-for-each
+                        vector-map
+                      
+                        vector-set! 
+                        write-bytevector
+                        write-string))
     (export 
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
+          %cons %car %cdr
 
           append apply binary-port?  boolean=?  boolean?  bytevector
           bytevector-append bytevector-copy bytevector-copy! bytevector-length
           bytevector-u8-ref bytevector-u8-set!  bytevector?
           call-with-current-continuation call-with-port call-with-values call/cc
-          car caar cadr cdr cdar cddr ceiling char->integer char-ready?  char<=?
+          ceiling char->integer char-ready?  char<=?
           char<?  char=?  char>=?  char>?  char?  close-input-port
-          close-output-port close-port complex?  cons ; TODO cond-expand
+          close-output-port close-port complex?  ; TODO cond-expand
           current-error-port current-input-port current-output-port denominator
           dynamic-wind eof-object?  equal?  error error-object-message
           even?  exact-integer-sqrt exact?
@@ -170,18 +347,6 @@
           vector->list vector-append vector-copy!  vector-for-each vector-map
           vector-set!  write-bytevector write-string))
 
-(define-library (core util)
-  (export for-all)
-  (import (core primitives))
-  (import (core intrinsics))
-  (begin 
-
-  (define (for-all proc l . ls)
-      (or (null? l)
-        (and (apply proc (car l) (map car ls))
-             (apply for-all proc (cdr l) (map cdr ls)))))
-))
-
 (define-library (core with-syntax)
   (export with-syntax)
   (import (for (core primitives) run expand)
@@ -199,7 +364,6 @@
 (define-library (core syntax-rules)
   (export syntax-rules)
   (import (for (core primitives)        expand run)
-          (for (core util)              expand run)
           (for (core with-syntax)       expand run)
           (for (core intrinsics)        expand))
   (begin
@@ -218,7 +382,6 @@
 (define-library (core let)
   (export let letrec letrec*)
   (import (for (core primitives)        expand run)
-          (for (core util)              expand run)
           (for (core syntax-rules)      expand run))
   (begin
   
@@ -346,7 +509,6 @@
   (export let* cond case else =>)   
   (import (for (core primitives)       expand run)
           (for (core let)              expand run)
-          (for (core util)             expand run)
           (for (core with-syntax)      expand)
           (for (core syntax-rules)     expand)
           (for (core list)             expand run)
@@ -440,6 +602,7 @@
           (for (core derived)      expand run)
           (for (core syntax-rules) expand run)
           (for (core number)       expand run)
+          (for (core list)         expand run)
           (for (core intrinsics)   expand run))
   (export define-record-type vector?)
   (begin
@@ -766,6 +929,7 @@
           (for (core with-syntax) expand)
           (for (core quasisyntax) expand)
           (for (core number)      run expand) 
+          (for (core list)        run expand)
           (for (core intrinsics)  run expand))
   (begin
   
@@ -1080,7 +1244,7 @@
 
 (define-library (scheme cxr)
     (import (core primitives))
-    (import (core intrinsics))
+    (import (core list))
     (export caaar caadr cadar caddr cdaar cdadr cddar cdddr
             caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
             cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr)
@@ -1145,6 +1309,7 @@
     (import (core primitives))
     (import (core let))
     (import (core control))
+    (import (core list))
     (import (core intrinsics))
     (import (for (core syntax-rules) expand))
     (export delay
