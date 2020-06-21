@@ -78,11 +78,11 @@
     ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load
     ))
   (begin
-    (define void (if #f #f))
-    )
-  ) ;; core primitives
+      (define void (if #f #f))
+  )) ;; core primitives
 
 (define-library (core intrinsics)
+    (import (core primitives))
     (import (primitives 
                         %add %sub %mul %div
                         %lt %lte %number-eq %gt %gte
@@ -90,23 +90,13 @@
                         %set-car! %set-cdr!
                         %vector? %vector-set! %vector-ref
                         %vector-length %make-vector
+                        %bytevector %bytevector-u8-ref %bytevector-u8-set!
+                        %bytevector-length %make-bytevector %bytevector?
                         %char->integer %char-foldcase
                         %char-upcase %char-downcase
 
                         apply
                         binary-port?
-                        boolean=?
-                        boolean?
-                        bytevector
-                      
-                        bytevector-append
-                        bytevector-copy
-                        bytevector-copy!
-                        bytevector-length
-                      
-                        bytevector-u8-ref
-                        bytevector-u8-set!
-                        bytevector?
                       
                         call-with-current-continuation
                         call-with-port
@@ -153,7 +143,6 @@
                         integer?
                         lcm
                       
-                        make-bytevector
                         make-parameter
                       
                         max
@@ -210,7 +199,6 @@
                       
                         modulo
                         newline
-                        not
                         null?
                         number? 
                         odd?
@@ -236,7 +224,6 @@
                         string->list
                         string->symbol
                       
-                        string->vector
                         string-copy
                         string-copy!
                         string-for-each
@@ -253,7 +240,6 @@
                         truncate-remainder
                         u8-ready?
                         utf8->string
-                        vector->string
                       
                         with-exception-handler
                       
@@ -282,12 +268,12 @@
           %set-car! %set-cdr!
           %vector? %vector-set! %vector-ref
           %vector-length %make-vector
+          %bytevector %bytevector-u8-ref %bytevector-u8-set!
+          %bytevector-length %make-bytevector %bytevector?
           %char->integer %char-foldcase
           %char-upcase %char-downcase
 
-          apply binary-port?  boolean=?  boolean?  bytevector
-          bytevector-append bytevector-copy bytevector-copy! bytevector-length
-          bytevector-u8-ref bytevector-u8-set!  bytevector?
+          apply binary-port?
           call-with-current-continuation call-with-port call-with-values call/cc
           ceiling char-ready?
           char?  close-input-port
@@ -299,7 +285,7 @@
           floor floor-remainder
           flush-output-port gcd get-output-string include-ci inexact?
           input-port?  integer?  lcm
-          make-bytevector make-parameter
+          make-parameter
           max min number->string numerator
           open-input-bytevector open-output-bytevector output-port?
           parameterize peek-u8 quotient raise-continuable
@@ -310,14 +296,14 @@
           get-output-bytevector guard include inexact input-port-open?
           integer->char
           list->string list-set!  list?  make-string
-          modulo newline not null? number?  odd?  open-input-string
+          modulo newline null? number?  odd?  open-input-string
           open-output-string output-port-open?  pair?  peek-char port?
           procedure? raise rational?  read-bytevector read-char read-line
           read-u8 remainder round square string->list string->symbol
-          string->vector string-copy string-copy!  string-for-each string-map
+          string-copy string-copy!  string-for-each string-map
           string-set!  string<?  string>=?  string?  symbol->string symbol?
           truncate truncate-remainder u8-ready?
-          utf8->string vector->string 
+          utf8->string
           with-exception-handler
           write-char write-u8 string-fill!  string-length string-ref string<=?
           string=?  string>?  substring symbol=?  syntax-error textual-port?
@@ -455,6 +441,7 @@
           (for (core let)          expand run)
           (for (core with-syntax)  expand)
           (for (core syntax-rules) expand)
+          (for (core bool)         expand run)
           (for (core list)         expand run)
           (for (core intrinsics) expand run))
   (begin
@@ -593,6 +580,7 @@
           (for (core derived)      expand run)
           (for (core syntax-rules) expand run)
           (for (core number)       expand run)
+          (for (core bool)         expand run)
           (for (core list)         expand run)
           (for (core vector)       expand run)
           (for (core intrinsics)   expand run))
@@ -1400,6 +1388,7 @@
             (for (core syntax-rules)            expand run) 
             (for (only (core primitives) _ ... set!) expand)
             (for (core number)                  expand run)
+            (for (core bool)                    expand run)
             (for (core list)                    expand run)
             (for (core vector)                  expand run)
             (for (core char)                    expand run)

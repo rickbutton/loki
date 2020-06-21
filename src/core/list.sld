@@ -1,6 +1,7 @@
 (define-library (core list)
 (import (core primitives))
 (import (core let))
+(import (core bool))
 (import (core intrinsics))
 (import (rename (core intrinsics) (%cons cons)
                                   (%car  car)

@@ -211,6 +211,12 @@
 (ex:runtime-add-primitive '%vector-length  vector-length)
 (ex:runtime-add-primitive '%make-vector    make-vector)
 
+(ex:runtime-add-primitive '%bytevector?        bytevector?)
+(ex:runtime-add-primitive '%bytevector-u8-set! bytevector-u8-set!)
+(ex:runtime-add-primitive '%bytevector-u8-ref  bytevector-u8-ref)
+(ex:runtime-add-primitive '%make-bytevector    make-bytevector)
+(ex:runtime-add-primitive '%bytevector-length  bytevector-length)
+
 (ex:runtime-add-primitive '%char->integer char->integer)
 (ex:runtime-add-primitive '%char-foldcase char-foldcase)
 (ex:runtime-add-primitive '%char-upcase   char-upcase)
