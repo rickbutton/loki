@@ -5,7 +5,7 @@
     (import (scheme process-context))
     (import (srfi 69))
     (import (loki util))
-    (import (loki compat))
+    (import (loki host))
     (export 
         make-comment
         comment?

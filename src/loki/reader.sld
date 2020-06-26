@@ -30,7 +30,6 @@
 (define-library (loki reader)
 (import (scheme base))
 (import (scheme char))
-(import (loki compat))
 (import (loki shared))
 (import (loki util))
 (import (srfi 69))

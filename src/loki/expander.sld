@@ -75,11 +75,11 @@
 (import (scheme write))
 (import (scheme cxr))
 (import (scheme process-context))
-(import (loki compat))
 (import (loki shared))
 (import (loki runtime))
 (import (loki util))
 (import (loki reader))
+(import (loki host))
 (export ex:make-variable-transformer
         ex:identifier?              
         ex:bound-identifier=?       
@@ -1581,6 +1581,35 @@
                    (imports '())
                    (exports '())
                    (body-forms '()))
+          (define (scan-cond-expand-feature-clause feature-clause)
+            (match feature-clause
+              ((syntax else) #t)
+              (((syntax and)) #t)
+              (((syntax and) req1 req2 ___)
+                (and (scan-cond-expand-feature-clause req1)
+                     (scan-cond-expand-feature-clause req2)))
+              (((syntax or)) #f)
+              (((syntax or) req1 req2 ___)
+                (or (scan-cond-expand-feature-clause req1)
+                    (scan-cond-expand-feature-clause req2)))
+              (((syntax not) req) (not (scan-cond-expand-feature-clause req)))
+              ((? identifier? feature-id) (feature? (syntax->datum feature-id)))))
+
+          (define (scan-cond-expand-clauses clauses)
+            (if (null? clauses)
+              (syntax-violation 'cond-expand 
+                                "Unfulfilled library cond-expand" declarations clauses))
+            (let ((clause (car clauses)))
+              (match clause
+                ((feature-clause body-clause ___)
+                  (if (scan-cond-expand-feature-clause feature-clause)
+                    (loop (append body-clause (cdr declarations))
+                        imported-libraries
+                        imports
+                        exports
+                        body-forms)
+                    (scan-cond-expand-clauses (cdr clauses)))))))
+
             (if (null? declarations)
                 (let ()
                     (check-set? exports
@@ -1601,6 +1630,8 @@
                           imports
                           (append exports (scan-exports sets))
                           body-forms))
+                (((syntax cond-expand) clauses ___)
+                    (scan-cond-expand-clauses clauses))
                 (((syntax begin) forms ___)
                     (loop (cdr declarations)
                           imported-libraries
@@ -2177,7 +2208,7 @@
     ;;===================================================================
 
     (define library-language-names
-      `(program define-library export import begin for run expand meta only
+      `(program define-library export import cond-expand begin for run expand meta only
                 except prefix rename primitives))
 
     (define (make-library-language)
@@ -2196,6 +2227,8 @@
       wasm
       r7rs))
     (define (loki-features) (list-copy features))
+    (define (feature? feature)
+      (and (symbol? feature) (member feature features)))
 
     ;;===================================================================
     ;;

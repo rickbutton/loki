@@ -8,22 +8,15 @@
 (export cond-expand)
 (begin
 
+; TODO - support (library (library-name)) syntax
+; for detecting if library exists
 (define-syntax cond-expand
   (lambda (x)
     (let ((current-features (features)))
-      (display "cond-expand: ")
-      (display x)
-      (display "\n\n")
       (syntax-case x (and or not else)
         ((_) (error "Unfulfilled cond-expand"))
-        ((_ (else body ...))
-          (begin
-            (display "else:")
-            (display (syntax (begin body ...)))
-            (display "\n")
-            (syntax (begin body ...))))
-        ((_ ((and) body ...) more ...)
-          (syntax (begin body ...)))
+        ((_ (else body ...)) (syntax (begin body ...)))
+        ((_ ((and) body ...) more ...) (syntax (begin body ...)))
         ((_ ((and req1 req2 ...) body ...) more ...)
           (syntax (cond-expand
             (req1

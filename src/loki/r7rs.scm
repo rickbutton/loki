@@ -65,7 +65,7 @@
      define define-syntax let-syntax letrec-syntax 
      syntax syntax-case _ ...) run expand)
    
-   ;; An extension to the r6rs import syntax, used here to make  
+   ;; An extension to the import syntax, used here to make  
    ;; available variable bindings provided natively.
    ;; This will not work for macros, which have to be defined
    ;; within the context of this expander.  

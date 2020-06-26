@@ -3,10 +3,12 @@
 (import (scheme write))
 (import (scheme eval))
 (import (scheme char))
-(import (loki compat))
 (import (loki util))
 (import (loki shared))
-(export ex:map-while
+(import (loki host))
+
+(export ex:library-dirs
+        ex:map-while
         ex:make-library
         ex:library-name
         ex:library-envs
@@ -31,11 +33,8 @@
         ex:runtime-add-primitive
         ex:runtime-eval)
 (begin
-;;; 
-;;; Runtime include file:
-;;; Contains the minimal set of binding necessary
-;;; for running a fully expanded program.
-;;;
+
+(define ex:library-dirs (list "src"))
 
 (define (util:filter p? lst)
   (if (null? lst)
