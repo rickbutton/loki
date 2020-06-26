@@ -92,6 +92,7 @@
         ex:eval                     
         ex:load                     
         ex:syntax-violation         
+        ex:features
     
         ex:expand-file              
         ex:expand-sequence          
@@ -121,6 +122,7 @@
 (define ex:eval                      #f)
 (define ex:load                      #f)
 (define ex:syntax-violation          #f)
+(define ex:features                  #f)
 
 ;; System exports:
 
@@ -1184,10 +1186,11 @@
               ((syntax _)         sk)
               ((syntax ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
               (()                 `(if (null? ,input) ,sk ,fk))
-              ((? literal? id)    `(if (and (ex:identifier? ,input)
-                                            (ex:free-identifier=? ,input ,(syntax-reflect id)))
-                                       ,sk
-                                       ,fk))
+              ((? literal? id)
+                `(if (and (ex:identifier? ,input)
+                          (ex:free-identifier=? ,input ,(syntax-reflect id)))
+                   ,sk ,fk))
+                          
               ((? identifier? id) `(let ((,(binding-name (binding id)) ,input)) ,sk))
               ((p (syntax ...))
                (let ((mapped-pvars (map (lambda (pvar) (binding-name (binding pvar)))
@@ -2184,6 +2187,18 @@
 
     ;;===================================================================
     ;;
+    ;; Language features, for cond-expand.
+    ;;
+    ;;===================================================================
+
+    (define features '(
+      loki
+      wasm
+      r7rs))
+    (define (loki-features) (list-copy features))
+
+    ;;===================================================================
+    ;;
     ;; Bootstrap library containing macros defined in this expander.
     ;;
     ;;===================================================================
@@ -2258,6 +2273,7 @@
     (set! ex:eval                      loki-eval)
     (set! ex:load                      loki-load)
     (set! ex:syntax-violation          syntax-violation)
+    (set! ex:features                  loki-features)
     (set! ex:expand-file               expand-file)
     (set! ex:expand-sequence           expand-sequence)
     (set! ex:expand-datum-sequence     expand-datum-sequence)
@@ -2283,6 +2299,7 @@
     (ex:runtime-add-primitive 'ex:eval ex:eval)
     (ex:runtime-add-primitive 'ex:load ex:load)
     (ex:runtime-add-primitive 'ex:syntax-violation ex:syntax-violation)
+    (ex:runtime-add-primitive 'ex:features ex:features)
     (ex:runtime-add-primitive 'ex:expand-file ex:expand-file)
     (ex:runtime-add-primitive 'ex:expand-sequence ex:expand-sequence)
     (ex:runtime-add-primitive 'ex:expand-datum-sequence ex:expand-datum-sequence)

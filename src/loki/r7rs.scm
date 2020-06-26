@@ -14,7 +14,7 @@
 ;;;=====================================================================  
 
 ;;;=====================================================================
-;;;                  |----
+;;;                  |---- sike!
 ;;;                  V
 ;;; This file builds r6rs up using a sequence of libraries.
 ;;; It constitutes a nontrivial example, tutorial and test
@@ -50,6 +50,7 @@
            (ex:datum->syntax             datum->syntax)
            (ex:syntax->datum             syntax->datum)
            (ex:syntax-violation          syntax-violation)
+           (ex:features                  features)
            (ex:environment               environment)
            (ex:environment-bindings      environment-bindings)
            (ex:eval                      eval)
@@ -75,7 +76,7 @@
     
     ex:make-variable-transformer ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
-    ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load
+    ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load ex:features
     ))
   (begin
       (define void (if #f #f))
@@ -86,14 +87,14 @@
     (import (primitives 
                         %add %sub %mul %div
                         %lt %lte %number-eq %gt %gte
-                        %cons %car %cdr
+                        %cons %pair? %car %cdr
                         %set-car! %set-cdr!
                         %vector? %vector-set! %vector-ref
                         %vector-length %make-vector
                         %bytevector %bytevector-u8-ref %bytevector-u8-set!
                         %bytevector-length %make-bytevector %bytevector?
                         %char->integer %char-foldcase
-                        %char-upcase %char-downcase
+                        %char-upcase %char-downcase %char?
 
                         apply
                         binary-port?
@@ -105,13 +106,11 @@
                       
                         ceiling
                         char-ready? 
-                        char?
                         close-input-port
                       
                         close-output-port
                         close-port
                         complex?
-                        ; TODO cond-expand
                       
                         current-error-port
                         current-input-port
@@ -128,8 +127,6 @@
                         exact-integer-sqrt
                         exact?
                       
-                        
-                        ; TODO features 
                         floor
                         floor-remainder
                       
@@ -206,7 +203,6 @@
                       
                         open-output-string
                         output-port-open?
-                        pair?
                         peek-char
                         port?
                       
@@ -264,24 +260,22 @@
     (export 
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
-          %cons %car %cdr
+          %cons %pair? %car %cdr
           %set-car! %set-cdr!
           %vector? %vector-set! %vector-ref
           %vector-length %make-vector
           %bytevector %bytevector-u8-ref %bytevector-u8-set!
           %bytevector-length %make-bytevector %bytevector?
           %char->integer %char-foldcase
-          %char-upcase %char-downcase
+          %char-upcase %char-downcase %char?
 
           apply binary-port?
           call-with-current-continuation call-with-port call-with-values call/cc
-          ceiling char-ready?
-          char?  close-input-port
-          close-output-port close-port complex?  ; TODO cond-expand
+          ceiling char-ready?  close-input-port
+          close-output-port close-port complex?
           current-error-port current-input-port current-output-port denominator
           dynamic-wind eof-object?  equal?  error error-object-message
           even?  exact-integer-sqrt exact?
-          ;TODO features 
           floor floor-remainder
           flush-output-port gcd get-output-string include-ci inexact?
           input-port?  integer?  lcm
@@ -297,7 +291,7 @@
           integer->char
           list->string list-set!  list?  make-string
           modulo newline null? number?  odd?  open-input-string
-          open-output-string output-port-open?  pair?  peek-char port?
+          open-output-string output-port-open?  peek-char port?
           procedure? raise rational?  read-bytevector read-char read-line
           read-u8 remainder round square string->list string->symbol
           string-copy string-copy!  string-for-each string-map
@@ -1392,6 +1386,7 @@
             (for (core list)                    expand run)
             (for (core vector)                  expand run)
             (for (core char)                    expand run)
+            (for (core cond-expand)             expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)
@@ -1414,12 +1409,12 @@
           call-with-current-continuation call-with-port call-with-values call/cc
           car case cdar cddr cdr ceiling char->integer char-ready?  char<=?
           char<?  char=?  char>=?  char>?  char?  close-input-port
-          close-output-port close-port complex?  cond ; TODO cond-expand
+          close-output-port close-port complex?  cond cond-expand
           cons current-error-port current-input-port current-output-port
           define define-record-type define-syntax define-values
           denominator do
           dynamic-wind else eof-object?  equal?  error error-object-message
-          even?  exact-integer-sqrt exact?  ; TODO features
+          even?  exact-integer-sqrt exact?  features
           floor floor-remainder
           flush-output-port gcd get-output-string if include-ci inexact?
           input-port?  integer?  lcm let let*-values let-values letrec* list

@@ -3,13 +3,14 @@
 (import (core let))
 (import (core bool))
 (import (core intrinsics))
-(import (rename (core intrinsics) (%cons cons)
-                                  (%car  car)
-                                  (%cdr  cdr)
+(import (rename (core intrinsics) (%cons  cons)
+                                  (%pair? pair?)
+                                  (%car   car)
+                                  (%cdr   cdr)
                                   (%set-car! set-car!)
                                   (%set-cdr! set-cdr!)))
 (export 
-        cons car cdr
+        cons pair? car cdr
         caar cadr cdar cddr
         set-car! set-cdr!
         make-list list-copy
@@ -17,7 +18,9 @@
         assoc assv assq
         for-all
         length list list-tail list-ref
-        reverse append map)
+        reverse append map
+
+        boolean=?)
 (begin
 
 (define (caar obj) (car (car obj)))
@@ -124,4 +127,8 @@
       (if (pair? ls) (every1 pred ls) #t)
       (not (apply any (lambda xs (not (apply pred xs))) ls lol))))
 
+(define (boolean=? x y . o)
+  (if (not (boolean? x))
+    (error "not a boolean" x)
+    (and (eq? x y) (if (pair? o) (apply boolean=? y o) #t))))
 ))

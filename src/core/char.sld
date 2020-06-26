@@ -8,11 +8,13 @@
   (%char->integer    char->integer)
   (%char-foldcase    char-foldcase)
   (%char-upcase      char-upcase)
-  (%char-downcase    char-downcase)))
+  (%char-downcase    char-downcase)
+  (%char?            char?)))
 (export char->integer
         char-foldcase
         char-upcase
         char-downcase
+        char?
   
         char-alphabetic? char-numeric? char-whitespace?
         char-upper-case? char-lower-case?

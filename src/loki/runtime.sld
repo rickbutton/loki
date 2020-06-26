@@ -186,8 +186,6 @@
 (ex:runtime-add-primitive 'void (if #f #f))
 (ex:runtime-add-primitive 'ex:map-while ex:map-while)
 (ex:runtime-add-primitive 'ex:import-library ex:import-library)
-(ex:runtime-add-primitive 'real-vector? vector?)
-
 
 (ex:runtime-add-primitive '%add        +)
 (ex:runtime-add-primitive '%sub        -)
@@ -200,6 +198,7 @@
 (ex:runtime-add-primitive '%gte       >=)
 
 (ex:runtime-add-primitive '%cons      cons)
+(ex:runtime-add-primitive '%pair?     pair?)
 (ex:runtime-add-primitive '%car       car)
 (ex:runtime-add-primitive '%cdr       cdr)
 (ex:runtime-add-primitive '%set-car!  set-car!)
@@ -221,6 +220,7 @@
 (ex:runtime-add-primitive '%char-foldcase char-foldcase)
 (ex:runtime-add-primitive '%char-upcase   char-upcase)
 (ex:runtime-add-primitive '%char-downcase char-downcase)
+(ex:runtime-add-primitive '%char?         char?)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
