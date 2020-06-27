@@ -221,6 +221,10 @@
 (ex:runtime-add-primitive '%char-downcase char-downcase)
 (ex:runtime-add-primitive '%char?         char?)
 
+(ex:runtime-add-primitive '%apply            apply)
+(ex:runtime-add-primitive '%values           values)
+(ex:runtime-add-primitive '%call-with-values call-with-values)
+
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 

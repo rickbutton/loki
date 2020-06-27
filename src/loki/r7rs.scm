@@ -95,14 +95,11 @@
                         %bytevector-length %make-bytevector %bytevector?
                         %char->integer %char-foldcase
                         %char-upcase %char-downcase %char?
+                        %call/cc %values %call-with-values %apply
 
-                        apply
                         binary-port?
                       
-                        call-with-current-continuation
                         call-with-port
-                        call-with-values
-                        call/cc
                       
                         ceiling
                         char-ready? 
@@ -254,7 +251,6 @@
                         textual-port?
                         truncate-quotient
                         truncate/
-                        values
                         write-bytevector
                         write-string))
     (export 
@@ -268,9 +264,9 @@
           %bytevector-length %make-bytevector %bytevector?
           %char->integer %char-foldcase
           %char-upcase %char-downcase %char?
+          %call/cc %values %call-with-values %apply
 
-          apply binary-port?
-          call-with-current-continuation call-with-port call-with-values call/cc
+          binary-port? call-with-port
           ceiling char-ready?  close-input-port
           close-output-port close-port complex?
           current-error-port current-input-port current-output-port denominator
@@ -301,8 +297,12 @@
           with-exception-handler
           write-char write-u8 string-fill!  string-length string-ref string<=?
           string=?  string>?  substring symbol=?  syntax-error textual-port?
-          truncate-quotient truncate/ values
+          truncate-quotient truncate/
           write-bytevector write-string))
+
+(define-library (core apply)
+  (export (rename (%apply apply)))
+  (import (core intrinsics)))
 
 (define-library (core with-syntax)
   (export with-syntax)
@@ -397,6 +397,7 @@
   (export case-lambda)
   (import (for (core primitives)   expand run)
           (for (core let)          expand run)
+          (for (core apply)        expand run)
           (for (core syntax-rules) expand)
           (for (core list)         expand run)
           (for (core intrinsics)   expand run))
@@ -1023,10 +1024,21 @@
       (syntax-violation 'unquote-splicing "Invalid expression" e)))
   ))
 
+(define-library (core call/cc)
+  (export (rename (%call/cc call-with-current-continuation)
+                  (%call/cc call/cc)))
+  (import (core intrinsics)))
+
+(define-library (core values)
+  (export (rename (%values values)
+                  (%call-with-values call-with-values)))
+  (import (core intrinsics)))
+
 (define-library (core let-values)
   (export let-values let*-values define-values)
   (import (for (core primitives)   expand run)
           (for (core syntax-rules) expand run)
+          (for (core values)       expand run)
           (for (core let)          expand run)
           (for (core intrinsics)   expand run))
   (begin
@@ -1387,6 +1399,9 @@
             (for (core vector)                  expand run)
             (for (core char)                    expand run)
             (for (core cond-expand)             expand run)
+            (for (core call/cc)                 expand run)
+            (for (core values)                  expand run)
+            (for (core apply)                   expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)

@@ -1,5 +1,6 @@
 (define-library (core vector)
 (import (core primitives))
+(import (core apply))
 (import (core let))
 (import (core control))
 (import (core derived))

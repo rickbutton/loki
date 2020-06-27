@@ -1,5 +1,6 @@
 (define-library (core list)
 (import (core primitives))
+(import (core apply))
 (import (core let))
 (import (core bool))
 (import (core intrinsics))

@@ -1,5 +1,6 @@
 (define-library (core number)
 (import (core primitives))
+(import (core apply))
 (import (core intrinsics))
 (import (core case-lambda))
 (export + * - / < <= = > >=
