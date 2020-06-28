@@ -203,8 +203,7 @@
 
 (define (handle-unexpected-error e)
   (display "unexpected error: ")
-  (display e)
-  (error "unexpected error"))
+  (display e) (exit 1))
 
 (define (handle-error e)
         (if (loki-message? e)
@@ -213,6 +212,7 @@
 
 
 (define (with-loki-error-handler proc)
-    (with-exception-handler handle-error proc))
+   (proc) )
+    ;(with-exception-handler handle-error proc))
 
 ))

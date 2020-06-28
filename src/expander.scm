@@ -11,6 +11,19 @@
   (import (scheme write))
   (display "abolish the nypd!\nfuck the police.\n")))
 
+(define inside2
+`(define-library (inside2)
+    (import (scheme base))
+    (import (scheme write))
+    (import (scheme eval))
+    (import (loki expander))
+    (import (loki runtime))
+    (begin
+      (display "hello from the third compiler...\n\n")
+      (map ex:runtime-eval (ex:expand-datum-sequence ',form))
+)))
+
+
 (define inside
 `(define-library (inside)
     (import (scheme base))
@@ -20,7 +33,8 @@
     (import (loki runtime))
     (begin
       (display "hello from the second compiler...\n\n")
-      (map ex:runtime-eval (ex:expand-datum-sequence ',form))
+      (ex:expand-datum-sequence (list ',inside2))
+      (ex:import-library '(inside2))
 )))
 
 (with-loki-error-handler (lambda ()

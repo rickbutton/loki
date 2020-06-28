@@ -6,6 +6,7 @@
 (import (core derived))
 (import (core list))
 (import (core number))
+(import (core math))
 (import (core intrinsics))
 (import (rename (core intrinsics) (%vector-set!   vector-set!)
                                   (%vector-ref    vector-ref)

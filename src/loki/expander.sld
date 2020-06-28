@@ -1140,7 +1140,7 @@
     (define (check-valid-definition id common-env body-type form forms type)
       (and (not (eq? body-type 'toplevel))
            (duplicate? id common-env)
-           (syntax-violation type "Redefinition of identifier in body" form id))
+           (syntax-violation type "Redefinition of identifier in body" id form))
       (check-used id body-type form)
       (and (not (memq body-type `(toplevel program library)))
            (not (null? forms))
@@ -1597,18 +1597,21 @@
 
           (define (scan-cond-expand-clauses clauses)
             (if (null? clauses)
-              (syntax-violation 'cond-expand 
-                                "Unfulfilled library cond-expand" declarations clauses))
-            (let ((clause (car clauses)))
-              (match clause
-                ((feature-clause body-clause ___)
-                  (if (scan-cond-expand-feature-clause feature-clause)
-                    (loop (append body-clause (cdr declarations))
-                        imported-libraries
-                        imports
-                        exports
-                        body-forms)
-                    (scan-cond-expand-clauses (cdr clauses)))))))
+              (loop (cdr declarations)
+                    imported-libraries
+                    imports
+                    exports
+                    body-forms)
+              (let ((clause (car clauses)))
+                (match clause
+                  ((feature-clause body-clause ___)
+                    (if (scan-cond-expand-feature-clause feature-clause)
+                      (loop (append body-clause (cdr declarations))
+                          imported-libraries
+                          imports
+                          exports
+                          body-forms)
+                      (scan-cond-expand-clauses (cdr clauses))))))))
 
             (if (null? declarations)
                 (let ()

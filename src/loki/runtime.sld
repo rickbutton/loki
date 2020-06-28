@@ -3,6 +3,7 @@
 (import (scheme write))
 (import (scheme eval))
 (import (scheme char))
+(import (scheme inexact))
 (import (loki util))
 (import (loki shared))
 (import (loki host))
@@ -222,8 +223,17 @@
 (ex:runtime-add-primitive '%char?         char?)
 
 (ex:runtime-add-primitive '%apply            apply)
-(ex:runtime-add-primitive '%values           values)
-(ex:runtime-add-primitive '%call-with-values call-with-values)
+
+(ex:runtime-add-primitive '%number?    number?)
+(ex:runtime-add-primitive '%finite?    finite?)
+(ex:runtime-add-primitive '%infinite?  infinite?)
+(ex:runtime-add-primitive '%nan?       nan?)
+(ex:runtime-add-primitive '%floor      floor)
+(ex:runtime-add-primitive '%ceiling    ceiling)
+(ex:runtime-add-primitive '%truncate   truncate)
+(ex:runtime-add-primitive '%round      round)
+(ex:runtime-add-primitive '%sqrt       sqrt)
+(ex:runtime-add-primitive '%expt       expt)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

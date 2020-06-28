@@ -3,9 +3,7 @@
 (import (core apply))
 (import (core intrinsics))
 (import (core case-lambda))
-(export + * - / < <= = > >=
-        zero? positive? negative?
-        abs)
+(export + * - / < <= = > >= zero? positive? negative? abs)
 (begin
 
 (define +
@@ -65,4 +63,5 @@
 (define (negative? x) (< x 0))
 
 (define (abs x) (if (< x 0) (- x) x))
+
 ))

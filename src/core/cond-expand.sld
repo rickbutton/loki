@@ -14,7 +14,7 @@
   (lambda (x)
     (let ((current-features (features)))
       (syntax-case x (and or not else)
-        ((_) (error "Unfulfilled cond-expand"))
+        ((_) #f)
         ((_ (else body ...)) (syntax (begin body ...)))
         ((_ ((and) body ...) more ...) (syntax (begin body ...)))
         ((_ ((and req1 req2 ...) body ...) more ...)

@@ -87,6 +87,9 @@
     (import (primitives 
                         %add %sub %mul %div
                         %lt %lte %number-eq %gt %gte
+                        %number? %finite? %infinite?
+                        %nan? %floor %ceiling %truncate
+                        %round %sqrt %expt
                         %cons %pair? %car %cdr
                         %set-car! %set-cdr!
                         %vector? %vector-set! %vector-ref
@@ -94,25 +97,21 @@
                         %bytevector %bytevector-u8-ref %bytevector-u8-set!
                         %bytevector-length %make-bytevector %bytevector?
                         %char->integer %char-foldcase
-                        %char-upcase %char-downcase %char?
-                        %call/cc %values %call-with-values %apply
+                        %char-upcase %char-downcase %char? %call/cc %apply
 
                         binary-port?
                       
                         call-with-port
                       
-                        ceiling
                         char-ready? 
                         close-input-port
                       
                         close-output-port
                         close-port
-                        complex?
                       
                         current-error-port
                         current-input-port
                         current-output-port
-                        denominator
                       
                         dynamic-wind
                         eof-object? 
@@ -120,29 +119,15 @@
                         error
                         error-object-message
                       
-                        even?
-                        exact-integer-sqrt
-                        exact?
-                      
-                        floor
-                        floor-remainder
-                      
                         flush-output-port
-                        gcd
                         get-output-string
                         include-ci
-                        inexact?
                       
                         input-port? 
-                        integer?
-                        lcm
                       
                         make-parameter
                       
-                        max
-                        min
                         number->string
-                        numerator
                       
                         open-input-bytevector
                         open-output-bytevector
@@ -150,14 +135,11 @@
                       
                         parameterize
                         peek-u8
-                        quotient
                         raise-continuable
                       
-                        rationalize
                         read-bytevector!
                         read-error? 
                         read-string
-                        real?
                       
                         string
                         string->number
@@ -169,19 +151,13 @@
                         eqv?
                         error-object-irritants
                         error-object?
-                        exact
                       
-                        exact-integer?
-                        expt
                         file-error? 
-                        floor-quotient
-                        floor/
                         for-each
                       
                         get-output-bytevector
                         guard
                         include
-                        inexact
                         input-port-open?
                       
                         integer->char
@@ -191,11 +167,8 @@
                         list?
                         make-string
                       
-                        modulo
                         newline
                         null?
-                        number? 
-                        odd?
                         open-input-string
                       
                         open-output-string
@@ -205,15 +178,11 @@
                       
                         procedure?
                         raise
-                        rational?
                         read-bytevector
                         read-char
                         read-line
                       
                         read-u8
-                        remainder
-                        round
-                        square
                         string->list
                         string->symbol
                       
@@ -229,8 +198,6 @@
                         symbol->string
                         symbol?
                       
-                        truncate
-                        truncate-remainder
                         u8-ready?
                         utf8->string
                       
@@ -249,13 +216,15 @@
                         symbol=?
                         syntax-error
                         textual-port?
-                        truncate-quotient
-                        truncate/
                         write-bytevector
                         write-string))
     (export 
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
+          %number? %finite? %infinite?
+          %nan? %floor %ceiling %truncate
+          %round %sqrt %expt
+
           %cons %pair? %car %cdr
           %set-car! %set-cdr!
           %vector? %vector-set! %vector-ref
@@ -263,41 +232,37 @@
           %bytevector %bytevector-u8-ref %bytevector-u8-set!
           %bytevector-length %make-bytevector %bytevector?
           %char->integer %char-foldcase
-          %char-upcase %char-downcase %char?
-          %call/cc %values %call-with-values %apply
+          %char-upcase %char-downcase %char? %call/cc %apply
 
           binary-port? call-with-port
-          ceiling char-ready?  close-input-port
-          close-output-port close-port complex?
-          current-error-port current-input-port current-output-port denominator
+          char-ready?  close-input-port
+          close-output-port close-port
+          current-error-port current-input-port current-output-port
           dynamic-wind eof-object?  equal?  error error-object-message
-          even?  exact-integer-sqrt exact?
-          floor floor-remainder
-          flush-output-port gcd get-output-string include-ci inexact?
-          input-port?  integer?  lcm
+          flush-output-port get-output-string include-ci
+          input-port?
           make-parameter
-          max min number->string numerator
+          number->string
           open-input-bytevector open-output-bytevector output-port?
-          parameterize peek-u8 quotient raise-continuable
-          rationalize read-bytevector!  read-error?  read-string real?
+          parameterize peek-u8 raise-continuable
+          read-bytevector!  read-error?  read-string
           string string->number string->utf8 string-append
-          eof-object eq?  eqv?  error-object-irritants error-object?  exact
-          exact-integer?  expt file-error?  floor-quotient floor/ for-each
-          get-output-bytevector guard include inexact input-port-open?
+          eof-object eq?  eqv?  error-object-irritants error-object?
+          file-error?  for-each
+          get-output-bytevector guard include input-port-open?
           integer->char
-          list->string list-set!  list?  make-string
-          modulo newline null? number?  odd?  open-input-string
+          list->string list-set! list?  make-string
+          newline null? open-input-string
           open-output-string output-port-open?  peek-char port?
-          procedure? raise rational?  read-bytevector read-char read-line
-          read-u8 remainder round square string->list string->symbol
+          procedure? raise read-bytevector read-char read-line
+          read-u8 string->list string->symbol
           string-copy string-copy!  string-for-each string-map
           string-set!  string<?  string>=?  string?  symbol->string symbol?
-          truncate truncate-remainder u8-ready?
+          u8-ready?
           utf8->string
           with-exception-handler
           write-char write-u8 string-fill!  string-length string-ref string<=?
           string=?  string>?  substring symbol=?  syntax-error textual-port?
-          truncate-quotient truncate/
           write-bytevector write-string))
 
 (define-library (core apply)
@@ -392,6 +357,23 @@
          (let () body1 body2 ...)))))
   
   )) ; let
+
+(define-library (core define-missing)
+  (import (core primitives))
+  (import (core intrinsics))
+  (import (for (core syntax-rules) expand))
+  (export define-missing)
+  (begin
+    (define-syntax define-missing
+      (syntax-rules ()
+        ((_ name)
+          (define (name . args)
+              (raise (string-append "not implemented: "
+                                    (symbol->string 'name) "\n"))))
+        ((_ name names ...)
+          (begin
+            (define-missing name)
+            (define-missing names ...)))))))
 
 (define-library (core case-lambda)
   (export case-lambda)
@@ -1030,9 +1012,25 @@
   (import (core intrinsics)))
 
 (define-library (core values)
-  (export (rename (%values values)
-                  (%call-with-values call-with-values)))
-  (import (core intrinsics)))
+  (export values call-with-values)
+  (import (core primitives)
+          (core apply)
+          (core let)
+          (core list)
+          (core intrinsics))
+  (begin
+    (define *values-tag* (list 'values))
+    
+    (define (values . ls)
+      (if (and (pair? ls) (null? (cdr ls)))
+          (car ls)
+          (cons *values-tag* ls)))
+    
+    (define (call-with-values producer consumer)
+      (let ((res (producer)))
+        (if (and (pair? res) (eq? *values-tag* (car res)))
+            (apply consumer (cdr res))
+            (consumer res))))))
 
 (define-library (core let-values)
   (export let-values let*-values define-values)
@@ -1119,69 +1117,6 @@
                            list)))))
   
   )) ; core let-values
-
-(define-library (core define-missing)
-  (import (core primitives))
-  (import (core intrinsics))
-  (import (for (core syntax-rules) expand))
-  (export define-missing)
-  (begin
-    (define-syntax define-missing
-      (syntax-rules ()
-        ((_ name)
-          (define (name . args)
-              (raise (string-append "not implemented: "
-                                    (symbol->string 'name)))))
-        ((_ name names ...)
-          (begin
-            (define-missing name)
-            (define-missing names ...)))))))
-
-
-(define-library (core math)
-  (import (core primitives))
-  (import (core define-missing))
-  (export           ; (scheme complex)
-                    angle
-                    imag-part
-                    magnitude
-                    make-polar
-                    make-rectangular
-                    real-part
-                    ; (scheme inexact)
-                    acos
-                    asin
-                    atan
-                    cos
-                    exp
-                    finite?
-                    infinite?
-                    log
-                    nan?
-                    sin
-                    sqrt
-                    tan)
-
-  (begin            ; (scheme complex)
-    (define-missing angle
-                    imag-part
-                    magnitude
-                    make-polar
-                    make-rectangular
-                    real-part
-                    ; (scheme inexact)
-                    acos
-                    asin
-                    atan
-                    cos
-                    exp
-                    finite?
-                    infinite?
-                    log
-                    nan?
-                    sin
-                    sqrt
-                    tan)))
 
 (define-library (core string)
   (import (core primitives))
@@ -1285,8 +1220,8 @@
             with-output-to-file))
 
 (define-library (scheme inexact)
-    (import (core math))
-    (export acos asin atan cos exp finite? infinite? log nan? sin sqrt tan))
+  (import (core math))
+  (export acos asin atan cos exp finite? infinite? log nan? sin sqrt tan))
 
 (define-library (scheme lazy)
     (import (core primitives))
@@ -1402,6 +1337,7 @@
             (for (core call/cc)                 expand run)
             (for (core values)                  expand run)
             (for (core apply)                   expand run)
+            (for (core math)                    expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)
@@ -1437,7 +1373,7 @@
           make-vector max memq min negative?  not number->string numerator
           open-input-bytevector open-output-bytevector or output-port?
           parameterize peek-u8 positive?  quasiquote quotient raise-continuable
-          rationalize read-bytevector!  read-error?  read-string real?  reverse
+          rationalize read-bytevector!  read-error?  read-string reverse
           set!  set-cdr!  string string->number string->utf8 string-append
           eof-object eq?  eqv?  error-object-irritants error-object?  exact
           exact-integer?  expt file-error?  floor-quotient floor/ for-each
@@ -1448,7 +1384,7 @@
           member memv modulo newline null?  number?  odd?  open-input-string
           open-output-string output-port-open?  pair?  peek-char port?
           procedure?  quote raise rational?  read-bytevector read-char read-line
-          read-u8 remainder round set-car!  square string->list string->symbol
+          read-u8 real? remainder round set-car!  square string->list string->symbol
           string->vector string-copy string-copy!  string-for-each string-map
           string-set!  string<?  string>=?  string?  symbol->string symbol?
           syntax-rules truncate truncate-remainder u8-ready?  unquote
