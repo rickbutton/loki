@@ -3,14 +3,17 @@
 (import (core let))
 (import (core list))
 (import (core number))
+(import (core bool))
 (import (core intrinsics))
 (import (rename (core intrinsics)
   (%char->integer    char->integer)
+  (%integer->char    integer->char)
   (%char-foldcase    char-foldcase)
   (%char-upcase      char-upcase)
   (%char-downcase    char-downcase)
   (%char?            char?)))
 (export char->integer
+        integer->char
         char-foldcase
         char-upcase
         char-downcase

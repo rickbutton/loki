@@ -182,6 +182,17 @@
   (if (not runtime-env) (runtime-env-init!))
   (eval e runtime-env))
 
+; TODO - this sucks, we need exceptions really early
+; so we can't define exceptions using target-system records
+; when record types are moved away from vectors, we should
+; be able to move this back to (core exception)
+(define-record-type <exception>
+  (make-exception type message irritants)
+  exception?
+  (type exception-type)
+  (message exception-message)
+  (irritants exception-irritants))
+
 ;; Register the required runtime primitives
 (ex:runtime-add-primitive 'void (if #f #f))
 (ex:runtime-add-primitive 'ex:map-while ex:map-while)
@@ -199,6 +210,8 @@
 
 (ex:runtime-add-primitive '%cons      cons)
 (ex:runtime-add-primitive '%pair?     pair?)
+(ex:runtime-add-primitive '%null?     null?)
+(ex:runtime-add-primitive '%list?     list?)
 (ex:runtime-add-primitive '%car       car)
 (ex:runtime-add-primitive '%cdr       cdr)
 (ex:runtime-add-primitive '%set-car!  set-car!)
@@ -217,12 +230,25 @@
 (ex:runtime-add-primitive '%bytevector-length  bytevector-length)
 
 (ex:runtime-add-primitive '%char->integer char->integer)
+(ex:runtime-add-primitive '%integer->char integer->char)
 (ex:runtime-add-primitive '%char-foldcase char-foldcase)
 (ex:runtime-add-primitive '%char-upcase   char-upcase)
 (ex:runtime-add-primitive '%char-downcase char-downcase)
 (ex:runtime-add-primitive '%char?         char?)
 
-(ex:runtime-add-primitive '%apply            apply)
+(ex:runtime-add-primitive '%apply               apply)
+(ex:runtime-add-primitive '%raise               raise)
+(ex:runtime-add-primitive '%make-exception      make-exception)
+(ex:runtime-add-primitive '%exception?          exception?)
+(ex:runtime-add-primitive '%exception-type      exception-type)
+(ex:runtime-add-primitive '%exception-message   exception-message)
+(ex:runtime-add-primitive '%exception-irritants exception-irritants)
+(ex:runtime-add-primitive '%procedure?          procedure?)
+(ex:runtime-add-primitive '%symbol?             symbol?)
+
+(ex:runtime-add-primitive '%eq?    eq?)
+(ex:runtime-add-primitive '%eqv?   eqv?)
+(ex:runtime-add-primitive '%equal? equal?)
 
 (ex:runtime-add-primitive '%number?    number?)
 (ex:runtime-add-primitive '%finite?    finite?)

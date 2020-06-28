@@ -212,7 +212,6 @@
 
 
 (define (with-loki-error-handler proc)
-   (proc) )
-    ;(with-exception-handler handle-error proc))
+  (with-exception-handler handle-error proc))
 
 ))

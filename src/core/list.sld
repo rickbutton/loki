@@ -3,25 +3,28 @@
 (import (core apply))
 (import (core let))
 (import (core bool))
+(import (core exception))
 (import (core intrinsics))
 (import (rename (core intrinsics) (%cons  cons)
                                   (%pair? pair?)
+                                  (%null? null?)
+                                  (%list? list?)
                                   (%car   car)
                                   (%cdr   cdr)
                                   (%set-car! set-car!)
                                   (%set-cdr! set-cdr!)))
 (export 
-        cons pair? car cdr
+        cons pair? null? list? car cdr
         caar cadr cdar cddr
         set-car! set-cdr!
         make-list list-copy
         member memv memq
         assoc assv assq
         for-all
-        length list list-tail list-ref
+        length list list-tail list-ref list-set!
         reverse append map
 
-        boolean=?)
+        boolean=? symbol=?)
 (begin
 
 (define (caar obj) (car (car obj)))
@@ -79,6 +82,13 @@
 
 (define (list-ref ls k) (car (list-tail ls k)))
 
+(define (list-set! ls k x)
+  (if (null? ls)
+      (error "invalid list index")
+      (if (%number-eq k 0)
+          (set-car! ls x)
+          (list-set! (cdr ls) (%sub k 1) x))))
+
 (define (reverse ls)
   (let lp ((ls ls) (res '()))
     (if (pair? ls)
@@ -130,6 +140,11 @@
 
 (define (boolean=? x y . o)
   (if (not (boolean? x))
-    (error "not a boolean" x)
+    #f
     (and (eq? x y) (if (pair? o) (apply boolean=? y o) #t))))
+
+(define (symbol=? x y . o)
+  (if (not (symbol? x))
+    #f
+    (and (eq? x y) (if (pair? o) (apply symbol=? y o) #t))))
 ))

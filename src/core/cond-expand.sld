@@ -3,6 +3,7 @@
         (for (core let)              expand run)
         (for (core list)             expand run)
         (for (core intrinsics)       expand run)
+        (for (core bool)             expand run)
         (for (core derived)          expand run)
         (for (primitives display)    expand run))
 (export cond-expand)

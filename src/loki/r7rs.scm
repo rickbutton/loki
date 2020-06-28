@@ -90,134 +90,101 @@
                         %number? %finite? %infinite?
                         %nan? %floor %ceiling %truncate
                         %round %sqrt %expt
-                        %cons %pair? %car %cdr
+                        %cons %pair? %null? %list? %car %cdr
                         %set-car! %set-cdr!
                         %vector? %vector-set! %vector-ref
                         %vector-length %make-vector
                         %bytevector %bytevector-u8-ref %bytevector-u8-set!
                         %bytevector-length %make-bytevector %bytevector?
-                        %char->integer %char-foldcase
+                        %char->integer %integer->char %char-foldcase
                         %char-upcase %char-downcase %char? %call/cc %apply
+                        %raise %make-exception %exception? %exception-type
+                        %exception-message %exception-irritants
+                        %procedure? %symbol? %eq? %eqv? %equal?
 
+                        ; ports
                         binary-port?
-                      
                         call-with-port
-                      
                         char-ready? 
                         close-input-port
-                      
                         close-output-port
                         close-port
-                      
                         current-error-port
                         current-input-port
                         current-output-port
-                      
-                        dynamic-wind
                         eof-object? 
-                        equal?
-                        error
-                        error-object-message
-                      
                         flush-output-port
-                        get-output-string
-                        include-ci
-                      
                         input-port? 
-                      
-                        make-parameter
-                      
-                        number->string
-                      
+                        output-port?
+                        peek-u8
+                        read-bytevector!
+                        read-string
+                        eof-object
+                        get-output-bytevector
+                        input-port-open?
+                        output-port-open?
+                        peek-char
+                        port?
+                        read-bytevector
+                        read-char
+                        read-line
+                        read-u8
+                        write-char
+                        write-u8
+                        textual-port?
+                        write-bytevector
+                        write-string
+                        u8-ready?
+                        newline
+
+                        ; synthetic ports
+                        get-output-string
+                        open-output-string
+                        open-input-string
                         open-input-bytevector
                         open-output-bytevector
-                        output-port?
                       
+                        ; control flow
+                        dynamic-wind
+                        make-parameter
                         parameterize
-                        peek-u8
-                        raise-continuable
+                        for-each
+                        guard
+                        with-exception-handler
+                        syntax-error
                       
-                        read-bytevector!
-                        read-error? 
-                        read-string
+                        ; include/eval
+                        include-ci
+                        include
                       
+                        ; strings
+                        number->string
                         string
                         string->number
                         string->utf8
                         string-append
-                      
-                        eof-object
-                        eq? 
-                        eqv?
-                        error-object-irritants
-                        error-object?
-                      
-                        file-error? 
-                        for-each
-                      
-                        get-output-bytevector
-                        guard
-                        include
-                        input-port-open?
-                      
-                        integer->char
-                      
                         list->string
-                        list-set!
-                        list?
                         make-string
-                      
-                        newline
-                        null?
-                        open-input-string
-                      
-                        open-output-string
-                        output-port-open?
-                        peek-char
-                        port?
-                      
-                        procedure?
-                        raise
-                        read-bytevector
-                        read-char
-                        read-line
-                      
-                        read-u8
                         string->list
                         string->symbol
-                      
                         string-copy
                         string-copy!
                         string-for-each
                         string-map
-                      
                         string-set! 
                         string<?
                         string>=?
                         string? 
                         symbol->string
-                        symbol?
-                      
-                        u8-ready?
-                        utf8->string
-                      
-                        with-exception-handler
-                      
-                        write-char
-                        write-u8
                         string-fill!
                         string-length
                         string-ref
                         string<=?
-                      
                         string=?
                         string>?
                         substring
-                        symbol=?
-                        syntax-error
-                        textual-port?
-                        write-bytevector
-                        write-string))
+                        utf8->string
+                        ))
     (export 
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
@@ -225,44 +192,47 @@
           %nan? %floor %ceiling %truncate
           %round %sqrt %expt
 
-          %cons %pair? %car %cdr
+          %cons %pair? %null? %list? %car %cdr
           %set-car! %set-cdr!
           %vector? %vector-set! %vector-ref
           %vector-length %make-vector
           %bytevector %bytevector-u8-ref %bytevector-u8-set!
           %bytevector-length %make-bytevector %bytevector?
-          %char->integer %char-foldcase
+          %char->integer %integer->char %char-foldcase
           %char-upcase %char-downcase %char? %call/cc %apply
+          %raise %make-exception %exception? %exception-type
+          %exception-message %exception-irritants
+          %procedure? %symbol? %eq? %eqv? %equal?
+
 
           binary-port? call-with-port
           char-ready?  close-input-port
           close-output-port close-port
           current-error-port current-input-port current-output-port
-          dynamic-wind eof-object?  equal?  error error-object-message
+          dynamic-wind eof-object?
           flush-output-port get-output-string include-ci
           input-port?
           make-parameter
           number->string
           open-input-bytevector open-output-bytevector output-port?
-          parameterize peek-u8 raise-continuable
-          read-bytevector!  read-error?  read-string
+          parameterize peek-u8 
+          read-bytevector!  read-string
           string string->number string->utf8 string-append
-          eof-object eq?  eqv?  error-object-irritants error-object?
-          file-error?  for-each
+          eof-object
+          for-each
           get-output-bytevector guard include input-port-open?
-          integer->char
-          list->string list-set! list?  make-string
-          newline null? open-input-string
+          list->string make-string
+          newline open-input-string
           open-output-string output-port-open?  peek-char port?
-          procedure? raise read-bytevector read-char read-line
+          read-bytevector read-char read-line
           read-u8 string->list string->symbol
           string-copy string-copy!  string-for-each string-map
-          string-set!  string<?  string>=?  string?  symbol->string symbol?
+          string-set!  string<?  string>=?  string?  symbol->string
           u8-ready?
           utf8->string
           with-exception-handler
           write-char write-u8 string-fill!  string-length string-ref string<=?
-          string=?  string>?  substring symbol=?  syntax-error textual-port?
+          string=?  string>?  substring syntax-error textual-port?
           write-bytevector write-string))
 
 (define-library (core apply)
@@ -361,6 +331,7 @@
 (define-library (core define-missing)
   (import (core primitives))
   (import (core intrinsics))
+  (import (core exception))
   (import (for (core syntax-rules) expand))
   (export define-missing)
   (begin
@@ -382,6 +353,7 @@
           (for (core apply)        expand run)
           (for (core syntax-rules) expand)
           (for (core list)         expand run)
+          (for (core exception)    expand run)
           (for (core intrinsics)   expand run))
   (begin
 
@@ -560,6 +532,7 @@
           (for (core bool)         expand run)
           (for (core list)         expand run)
           (for (core vector)       expand run)
+          (for (core exception)    expand run)
           (for (core intrinsics)   expand run))
   (export define-record-type vector?)
   (begin
@@ -1015,6 +988,7 @@
   (export values call-with-values)
   (import (core primitives)
           (core apply)
+          (core bool)
           (core let)
           (core list)
           (core intrinsics))
@@ -1338,6 +1312,7 @@
             (for (core values)                  expand run)
             (for (core apply)                   expand run)
             (for (core math)                    expand run)
+            (for (core exception)               expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)
