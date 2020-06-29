@@ -20,7 +20,7 @@
         make-list list-copy
         member memv memq
         assoc assv assq
-        for-all
+        for-all for-each
         length list list-tail list-ref list-set!
         reverse append map
 
@@ -65,6 +65,10 @@
       (or (null? l)
         (and (apply proc (car l) (map car ls))
              (apply for-all proc (cdr l) (map cdr ls)))))
+
+(define (for-each f ls . lol)
+  (define (for1 f ls) (if (pair? ls) (begin (f (car ls)) (for1 f (cdr ls)))))
+  (if (null? lol) (for1 f ls) (begin (apply map f ls lol) (if #f #f))))
 
 (define (length-helper ls c)
   (if (null? ls)

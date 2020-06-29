@@ -146,12 +146,7 @@
                       
                         ; control flow
                         dynamic-wind
-                        make-parameter
-                        parameterize
-                        for-each
-                        guard
                         with-exception-handler
-                        syntax-error
                       
                         ; include/eval
                         include-ci
@@ -212,15 +207,12 @@
           dynamic-wind eof-object?
           flush-output-port get-output-string include-ci
           input-port?
-          make-parameter
           number->string
           open-input-bytevector open-output-bytevector output-port?
-          parameterize peek-u8 
-          read-bytevector!  read-string
+          peek-u8 read-bytevector!  read-string
           string string->number string->utf8 string-append
           eof-object
-          for-each
-          get-output-bytevector guard include input-port-open?
+          get-output-bytevector include input-port-open?
           list->string make-string
           newline open-input-string
           open-output-string output-port-open?  peek-char port?
@@ -232,7 +224,7 @@
           utf8->string
           with-exception-handler
           write-char write-u8 string-fill!  string-length string-ref string<=?
-          string=?  string>?  substring syntax-error textual-port?
+          string=?  string>?  substring textual-port?
           write-bytevector write-string))
 
 (define-library (core apply)
@@ -1201,37 +1193,40 @@
     (import (core primitives))
     (import (core let))
     (import (core control))
+    (import (core bool))
     (import (core list))
     (import (core intrinsics))
     (import (for (core syntax-rules) expand))
     (export delay
             force
-            ; TODO - promise?
+            promise?
             delay-force
             make-promise)
     (begin 
-
-      (define promise-done?
-        (lambda (x) (car (car x))))
-      (define promise-value
-        (lambda (x) (cdr (car x))))
-      (define promise-update!
-        (lambda (new old)
-          (set-car! (car old) (promise-done? new))
-          (set-cdr! (car old) (promise-value new))
-          (set-car! new (car old))))
       
+      (define *promise-tag* (list 'promise))
+      (define (promise done? proc)
+        (cons (cons done? proc) *promise-tag*))
+      (define (make-promise x)
+         (if (promise? x) x (delay x)))
+
+      (define (promise? x)
+        (and (pair? x) (eq? *promise-tag* (cdr x))))
+      (define (promise-done? x) (car (car x)))
+      (define (promise-value x) (cdr (car x)))
+
+      (define (promise-update! new old)
+        (set-car! (car old) (promise-done? new))
+        (set-cdr! (car old) (promise-value new))
+        (set-car! new (car old)))
+
       (define (force promise)
         (if (promise-done? promise)
             (promise-value promise)
             (let ((promise* ((promise-value promise))))
-              (unless (promise-done? promise)
+              (if (not (promise-done? promise))
                 (promise-update! promise* promise))
               (force promise))))
-      
-      (define make-promise
-        (lambda (done? proc)
-          (list (cons done? proc))))
       
       (define-syntax delay
         (syntax-rules ()
@@ -1242,7 +1237,6 @@
         (syntax-rules ()
           ((delay-force expression)
            (make-promise #f (lambda () expression)))))
-
 ))
 
 (define-library (scheme load)
@@ -1313,6 +1307,8 @@
             (for (core apply)                   expand run)
             (for (core math)                    expand run)
             (for (core exception)               expand run)
+            (for (core syntax-error)            expand run)
+            (for (core dynamic)                 expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)

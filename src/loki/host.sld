@@ -1,11 +1,14 @@
 (define-library (loki host)
 (import (scheme base))
 (import (scheme time))
+(import (scheme write))
+(import (scheme eval))
 (cond-expand 
   (chibi
     (import (chibi time))
+    (import (chibi ast))
     (import (rename (chibi ast) (type-printer-set! chibi-type-printer-set!)))))
-(export ex:unique-token type-printer-set!)
+(export ex:unique-token type-printer-set! host-eval)
 (begin
 
 (define (ex:unique-token)
@@ -19,5 +22,9 @@
       (chibi-type-printer-set! type 
           (lambda (x writer out) (printer x out))))
     (else #f)))
+
+(define (host-eval x env)
+  (cond-expand
+    (else (eval x env))))
 
 ))
