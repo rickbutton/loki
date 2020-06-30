@@ -249,6 +249,7 @@
 (ex:runtime-add-primitive '%exception-irritants exception-irritants)
 (ex:runtime-add-primitive '%procedure?          procedure?)
 (ex:runtime-add-primitive '%symbol?             symbol?)
+(ex:runtime-add-primitive '%string?             string?)
 
 (ex:runtime-add-primitive '%eq?    eq?)
 (ex:runtime-add-primitive '%eqv?   eqv?)

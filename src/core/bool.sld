@@ -3,10 +3,11 @@
 (import (core intrinsics))
 (import (rename (core intrinsics) (%procedure? procedure?)
                                   (%symbol? symbol?)
+                                  (%string? string?)
                                   (%eq? eq?)
                                   (%eqv? eqv?)
                                   (%equal? equal?)))
-(export not boolean? procedure? symbol? eq? eqv? equal?)
+(export not boolean? procedure? symbol? string? eq? eqv? equal?)
 (begin
 (define (not x) (if x #f #t))
 (define (boolean? x) (if (eq? x #t) #t (eq? x #f)))

@@ -102,7 +102,7 @@
                         %char-upcase %char-downcase %char? %call/cc %apply
                         %abort %make-exception %exception? %exception-type
                         %exception-message %exception-irritants
-                        %procedure? %symbol? %eq? %eqv? %equal?
+                        %procedure? %symbol? %string? %eq? %eqv? %equal?
 
                         ; ports
                         binary-port?
@@ -163,13 +163,11 @@
                         string-set! 
                         string<?
                         string>=?
-                        string? 
                         symbol->string
                         string-fill!
                         string-length
                         string-ref
                         string<=?
-                        string=?
                         string>?
                         substring
                         utf8->string
@@ -191,7 +189,7 @@
           %char-upcase %char-downcase %char? %call/cc %apply
           %abort %make-exception %exception? %exception-type
           %exception-message %exception-irritants
-          %procedure? %symbol? %eq? %eqv? %equal?
+          %procedure? %symbol? %string? %eq? %eqv? %equal?
 
 
           binary-port? call-with-port
@@ -213,10 +211,10 @@
           read-bytevector read-char read-line
           read-u8 string->list string->symbol
           string-copy string-copy!  string-for-each string-map
-          string-set!  string<?  string>=?  string?  symbol->string
+          string-set!  string<?  string>=? symbol->string
           u8-ready?  utf8->string
           write-char write-u8 string-fill!  string-length string-ref string<=?
-          string=?  string>?  substring textual-port?
+          string>?  substring textual-port?
           write-bytevector write-string))
 
 (define-library (core apply)
