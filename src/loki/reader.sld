@@ -33,7 +33,7 @@
 (import (loki shared))
 (import (loki util))
 (import (srfi 69))
-(export make-reader read-annotated)
+(export make-reader read-annotated reader-fold-case?-set!)
 (begin
 
 ; don't currently support unicode

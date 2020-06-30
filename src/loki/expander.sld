@@ -75,6 +75,7 @@
 (import (scheme write))
 (import (scheme cxr))
 (import (scheme process-context))
+(import (scheme case-lambda))
 (import (loki shared))
 (import (loki runtime))
 (import (loki util))
@@ -901,6 +902,23 @@
         ((or e es ___)
          `(let ((x ,(expand e)))
             (if x x ,(expand `(,or ,@es)))))))
+
+    (define (check-valid-include type exp file) 
+     (unless (string? file)
+            (syntax-violation type
+              "Invalid include syntax, requires string litreral" exp file)))
+    (define (expand-include-file exp fold-case?)
+      (match exp
+        ((include) (syntax-violation (syntax->datum include) "Invalid include syntax" exp include))
+        ((include file)
+          (check-valid-include (syntax->datum include) exp file)
+          (let ((content (read-file file fold-case?)))
+            (expand `(,(rename 'macro 'begin) ,@(source->syntax include content)))))
+        ((include file files ___)
+            (expand `(,(rename 'macro 'begin) (,include ,file) (,include ,@files))))))
+
+    (define (expand-include exp) (expand-include-file exp #f))
+    (define (expand-include-ci exp) (expand-include-file exp #t))
 
     ;;=========================================================================
     ;;
@@ -2178,14 +2196,18 @@
                ((program)
                   (loop (cdr exps) 'program libraries imports (cons exp toplevel))))))))
 
-    (define (read-file fn)
-        (let* ((p (open-input-file fn))
-               (reader (make-reader p fn)))
-          (let f ((x (read-annotated reader)))
-            (if (and (annotation? x)
-                     (eof-object? (annotation-expression x)))
-                '()
-                (cons x (f (read-annotated reader)))))))
+    (define read-file
+      (case-lambda
+        ((fn) (read-file fn #f))
+        ((fn fold-case?)
+          (let* ((p (open-input-file fn))
+                 (reader (make-reader p fn)))
+            (reader-fold-case?-set! reader #t)
+            (let f ((x (read-annotated reader)))
+              (if (and (annotation? x)
+                       (eof-object? (annotation-expression x)))
+                  '()
+                  (cons x (f (read-annotated reader)))))))))
 
     ;;==========================================================================
     ;;
@@ -2252,6 +2274,8 @@
               (syntax-case   . ,expand-syntax-case)
               (and           . ,expand-and)
               (or            . ,expand-or)
+              (include       . ,expand-include)
+              (include-ci    . ,expand-include-ci)
               (define        . ,invalid-form)
               (define-syntax . ,invalid-form)
               (_             . ,invalid-form)

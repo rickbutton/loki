@@ -38,6 +38,7 @@
    
    begin if lambda quote set! and or
    define define-syntax let-syntax letrec-syntax
+   include include-ci
    _ ... syntax syntax-case
       
    ;; Procedures and values defined in core expander:
@@ -63,6 +64,7 @@
      
      begin if set! and or lambda quote
      define define-syntax let-syntax letrec-syntax 
+     include include-ci
      syntax syntax-case _ ...) run expand)
    
    ;; An extension to the import syntax, used here to make  
@@ -144,10 +146,6 @@
                         open-input-bytevector
                         open-output-bytevector
                       
-                        ; include/eval
-                        include-ci
-                        include
-                      
                         ; strings
                         number->string
                         string
@@ -201,14 +199,14 @@
           close-output-port close-port
           current-error-port current-input-port current-output-port
           eof-object?
-          flush-output-port get-output-string include-ci
+          flush-output-port get-output-string
           input-port?
           number->string
           open-input-bytevector open-output-bytevector output-port?
           peek-u8 read-bytevector!  read-string
           string string->number string->utf8 string-append
           eof-object
-          get-output-bytevector include input-port-open?
+          get-output-bytevector input-port-open?
           list->string make-string
           newline open-input-string
           open-output-string output-port-open?  peek-char port?
