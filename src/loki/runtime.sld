@@ -193,6 +193,10 @@
   (message exception-message)
   (irritants exception-irritants))
 
+; root abort
+(define (abort obj)
+  (raise obj))
+
 ;; Register the required runtime primitives
 (ex:runtime-add-primitive 'void (if #f #f))
 (ex:runtime-add-primitive 'ex:map-while ex:map-while)
@@ -237,7 +241,7 @@
 (ex:runtime-add-primitive '%char?         char?)
 
 (ex:runtime-add-primitive '%apply               apply)
-(ex:runtime-add-primitive '%raise               raise)
+(ex:runtime-add-primitive '%abort               abort)
 (ex:runtime-add-primitive '%make-exception      make-exception)
 (ex:runtime-add-primitive '%exception?          exception?)
 (ex:runtime-add-primitive '%exception-type      exception-type)

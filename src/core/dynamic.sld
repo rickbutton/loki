@@ -4,10 +4,16 @@
 (import (core derived))
 (import (core intrinsics))
 (import (core bool))
+(import (core number))
 (import (core list))
 (import (core exception))
+(import (core values))
+(import (core records))
 (import (for (core syntax-rules) expand))
-(export make-parameter parameterize guard)
+(export make-parameter parameterize guard dynamic-wind
+        call-with-current-continuation
+        (rename (call-with-current-continuation call/cc))
+        with-exception-handler)
 (begin
 
 (define <param-set!> (cons 'param-set! '()))
@@ -112,4 +118,82 @@
      (if test
          (begin result1 result2 ...)
          (guard-aux reraise clause1 clause2 ...)))))
+
+
+(define-record-type <point>
+  (%make-point depth in out parent)
+  %point?
+  (depth %point-depth)
+  (in %point-in)
+  (out %point-out)
+  (parent %point-parent))
+
+(define root-point			; Shared among all state spaces
+  (%make-point 0
+	      (lambda () (error "winding in to root!"))
+	      (lambda () (error "winding out of root!"))
+	      #f))
+
+(define %dk
+  (let ((dk root-point))
+    (lambda o (if (pair? o) (set! dk (car o)) dk))))
+
+
+(define (dynamic-wind in body out)
+  (in)
+  (let ((here (%dk)))
+    (%dk (%make-point (+ (%point-depth here) 1)
+                     in
+                     out
+                     here))
+    (let ((res (body)))
+      (%dk here)
+      (out)
+      res)))
+
+(define (travel-to-point! here target)
+  (cond
+   ((eq? here target)
+    'done)
+   ((< (%point-depth here) (%point-depth target))
+    (travel-to-point! here (%point-parent target))
+    ((%point-in target)))
+   (else
+    ((%point-out here))
+    (travel-to-point! (%point-parent here) target))))
+
+(define (continuation->procedure cont point)
+  (lambda res
+    (travel-to-point! (%dk) point)
+    (%dk point)
+    (cont (values res))))
+
+(define (call-with-current-continuation proc)
+  (%call/cc
+   (lambda (cont)
+     (proc (continuation->procedure cont (%dk))))))
+
+(define (%with-exception-handler handler thunk)
+  (let ((old (current-exception-handler)))
+    (dynamic-wind
+      (lambda () (current-exception-handler-set! handler))
+      thunk
+      (lambda () (current-exception-handler-set! old)))))
+
+(define (with-exception-handler handler thunk)
+  (letrec ((orig-handler (current-exception-handler))
+           (self (lambda (exn)
+                   (%with-exception-handler orig-handler
+                     (lambda ()
+                       (cond
+                        ((and (exception? exn)
+                              (eq? 'continuable (exception-type exn)))
+                         (handler (exception-irritants exn)))
+                        (else
+                         (handler exn)
+                         (error "exception handler returned"))))))))
+    (%with-exception-handler self thunk)))
+
+(%dk root-point)
+
 ))

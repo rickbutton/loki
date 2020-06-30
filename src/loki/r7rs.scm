@@ -98,7 +98,7 @@
                         %bytevector-length %make-bytevector %bytevector?
                         %char->integer %integer->char %char-foldcase
                         %char-upcase %char-downcase %char? %call/cc %apply
-                        %raise %make-exception %exception? %exception-type
+                        %abort %make-exception %exception? %exception-type
                         %exception-message %exception-irritants
                         %procedure? %symbol? %eq? %eqv? %equal?
 
@@ -143,10 +143,6 @@
                         open-input-string
                         open-input-bytevector
                         open-output-bytevector
-                      
-                        ; control flow
-                        dynamic-wind
-                        with-exception-handler
                       
                         ; include/eval
                         include-ci
@@ -195,7 +191,7 @@
           %bytevector-length %make-bytevector %bytevector?
           %char->integer %integer->char %char-foldcase
           %char-upcase %char-downcase %char? %call/cc %apply
-          %raise %make-exception %exception? %exception-type
+          %abort %make-exception %exception? %exception-type
           %exception-message %exception-irritants
           %procedure? %symbol? %eq? %eqv? %equal?
 
@@ -204,7 +200,7 @@
           char-ready?  close-input-port
           close-output-port close-port
           current-error-port current-input-port current-output-port
-          dynamic-wind eof-object?
+          eof-object?
           flush-output-port get-output-string include-ci
           input-port?
           number->string
@@ -220,9 +216,7 @@
           read-u8 string->list string->symbol
           string-copy string-copy!  string-for-each string-map
           string-set!  string<?  string>=?  string?  symbol->string
-          u8-ready?
-          utf8->string
-          with-exception-handler
+          u8-ready?  utf8->string
           write-char write-u8 string-fill!  string-length string-ref string<=?
           string=?  string>?  substring textual-port?
           write-bytevector write-string))
@@ -971,11 +965,6 @@
       (syntax-violation 'unquote-splicing "Invalid expression" e)))
   ))
 
-(define-library (core call/cc)
-  (export (rename (%call/cc call-with-current-continuation)
-                  (%call/cc call/cc)))
-  (import (core intrinsics)))
-
 (define-library (core values)
   (export values call-with-values)
   (import (core primitives)
@@ -1302,7 +1291,6 @@
             (for (core vector)                  expand run)
             (for (core char)                    expand run)
             (for (core cond-expand)             expand run)
-            (for (core call/cc)                 expand run)
             (for (core values)                  expand run)
             (for (core apply)                   expand run)
             (for (core math)                    expand run)

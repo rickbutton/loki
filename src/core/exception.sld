@@ -1,16 +1,26 @@
 (define-library (core exception)
 (import (core primitives)
         (core bool)
-        (rename (core intrinsics) (%raise raise)
-                                  (%make-exception make-exception)
+        (rename (core intrinsics) (%make-exception make-exception)
                                   (%exception? exception?)
                                   (%exception-type exception-type)
                                   (%exception-message exception-message)
                                   (%exception-irritants exception-irritants)))
-(export raise raise-continuable error error-object?
+(export current-exception-handler current-exception-handler-set!
+        raise raise-continuable error error-object?
         error-object-message error-object-irritants
+        exception? exception-message exception-type exception-irritants
         read-error? file-error?)
 (begin
+
+(define exception-handler (lambda (obj) (%abort obj)))
+
+(define (current-exception-handler) exception-handler)
+(define (current-exception-handler-set! handler)
+  (set! exception-handler handler))
+
+(define (raise obj)
+  (exception-handler obj))
 
 (define (raise-continuable obj)          ; TODO - this sucks
   (raise (make-exception 'continuable "" (%cons obj '()))))
