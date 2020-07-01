@@ -100,6 +100,7 @@
                         %bytevector-length %make-bytevector %bytevector?
                         %char->integer %integer->char %char-foldcase
                         %char-upcase %char-downcase %char? %call/cc %apply
+                        %string-set! %string-ref %make-string %string-length
                         %abort %make-exception %exception? %exception-type
                         %exception-message %exception-irritants
                         %procedure? %symbol? %string? %eq? %eqv? %equal?
@@ -138,6 +139,17 @@
                         write-string
                         u8-ready?
                         newline
+                        call-with-input-file
+                        delete-file
+                        open-binary-input-file
+                        open-input-file
+                        with-input-from-file
+                        call-with-output-file
+                        file-exists?
+                        open-binary-output-file
+                        open-output-file
+                        with-output-to-file
+                        read
 
                         ; synthetic ports
                         get-output-string
@@ -148,29 +160,23 @@
                       
                         ; strings
                         number->string
-                        string
                         string->number
                         string->utf8
-                        string-append
-                        list->string
-                        make-string
-                        string->list
                         string->symbol
-                        string-copy
-                        string-copy!
-                        string-for-each
-                        string-map
-                        string-set! 
                         string<?
                         string>=?
                         symbol->string
-                        string-fill!
-                        string-length
-                        string-ref
                         string<=?
                         string>?
                         substring
                         utf8->string
+
+                        ; env
+                        command-line
+                        exit
+                        get-environment-variable
+                        get-environment-variables
+                        emergency-exit
                         ))
     (export 
           %add %sub %mul %div
@@ -187,6 +193,7 @@
           %bytevector-length %make-bytevector %bytevector?
           %char->integer %integer->char %char-foldcase
           %char-upcase %char-downcase %char? %call/cc %apply
+          %string-set! %string-ref %make-string %string-length
           %abort %make-exception %exception? %exception-type
           %exception-message %exception-irritants
           %procedure? %symbol? %string? %eq? %eqv? %equal?
@@ -202,20 +209,37 @@
           number->string
           open-input-bytevector open-output-bytevector output-port?
           peek-u8 read-bytevector!  read-string
-          string string->number string->utf8 string-append
+          string->number string->utf8
           eof-object
           get-output-bytevector input-port-open?
-          list->string make-string
           newline open-input-string
           open-output-string output-port-open?  peek-char port?
           read-bytevector read-char read-line
-          read-u8 string->list string->symbol
-          string-copy string-copy!  string-for-each string-map
-          string-set!  string<?  string>=? symbol->string
+          read-u8 string->symbol
+          string<?  string>=? symbol->string
           u8-ready?  utf8->string
-          write-char write-u8 string-fill!  string-length string-ref string<=?
+          write-char write-u8 string<=?
           string>?  substring textual-port?
-          write-bytevector write-string))
+          write-bytevector write-string
+
+          call-with-input-file
+          delete-file
+          open-binary-input-file
+          open-input-file
+          with-input-from-file
+          call-with-output-file
+          file-exists?
+          open-binary-output-file
+          open-output-file
+          with-output-to-file
+          read
+
+          command-line
+          exit
+          get-environment-variable
+          get-environment-variables
+          emergency-exit
+          ))
 
 (define-library (core apply)
   (export (rename (%apply apply)))
@@ -321,8 +345,7 @@
       (syntax-rules ()
         ((_ name)
           (define (name . args)
-              (raise (string-append "not implemented: "
-                                    (symbol->string 'name) "\n"))))
+            (raise "not implemented")))
         ((_ name names ...)
           (begin
             (define-missing name)
@@ -1069,25 +1092,6 @@
   
   )) ; core let-values
 
-(define-library (core string)
-  (import (core primitives))
-  (import (core char))
-  (import (primitives
-          digit-value
-          string-ci<=? string-ci<?
-          string-ci=? string-ci>=?
-          string-ci>? string-downcase
-          string-foldcase string-upcase))
-  (export 
-          char-downcase char-foldcase
-          char-lower-case? char-numeric?
-          char-upcase char-upper-case?
-          char-whitespace? digit-value
-          string-ci<=? string-ci<?
-          string-ci=? string-ci>=?
-          string-ci>? string-downcase
-          string-foldcase string-upcase))
-
 (define-library (scheme case-lambda)
   (export case-lambda)
   (import (for (core case-lambda) expand run)))
@@ -1149,16 +1153,7 @@
     (export environment eval))
 
 (define-library (scheme file)
-    (import (primitives call-with-input-file
-                        delete-file
-                        open-binary-input-file
-                        open-input-file
-                        with-input-from-file
-                        call-with-output-file
-                        file-exists?
-                        open-binary-output-file
-                        open-output-file
-                        with-output-to-file))
+    (import (core intrinsics))
     (export call-with-input-file
             delete-file
             open-binary-input-file
@@ -1229,11 +1224,7 @@
     (export load))
 
 (define-library (scheme process-context)
-    (import (primitives command-line
-                        exit
-                        get-environment-variable
-                        get-environment-variables
-                        emergency-exit))
+    (import (core intrinsics))
     (export command-line
             exit
             get-environment-variable
@@ -1241,7 +1232,7 @@
             emergency-exit))
 
 (define-library (scheme read)
-    (import (primitives read))
+    (import (core intrinsics))
     (export read))
 
 (define-library (scheme repl)
@@ -1285,6 +1276,7 @@
             (for (core bool)                    expand run)
             (for (core list)                    expand run)
             (for (core vector)                  expand run)
+            (for (core string)                  expand run)
             (for (core char)                    expand run)
             (for (core cond-expand)             expand run)
             (for (core values)                  expand run)

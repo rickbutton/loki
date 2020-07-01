@@ -21,7 +21,6 @@
         vector-fill! vector-append vector-map
         vector-for-each vector-copy vector-copy!
         vector-set! vector-ref vector-length make-vector 
-        vector->string string->vector
         bytevector bytevector-copy! bytevector-copy
         bytevector-append bytevector-u8-ref bytevector-u8-set!
         make-bytevector bytevector-length bytevector?)
@@ -95,12 +94,6 @@
         (do ((i (+ at (- end start 1)) (- i 1)) (j (- limit 1) (- j 1)))
             ((< j start))
           (vector-set! to i (vector-ref from j))))))
-
-(define (vector->string vec . o)
-  (list->string (apply vector->list vec o)))
-
-(define (string->vector vec . o)
-  (list->vector (apply string->list vec o)))
 
 (define (bytevector . args)
   (let* ((len (length args))

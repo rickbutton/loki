@@ -240,6 +240,11 @@
 (ex:runtime-add-primitive '%char-downcase char-downcase)
 (ex:runtime-add-primitive '%char?         char?)
 
+(ex:runtime-add-primitive '%string-set!   string-set!)
+(ex:runtime-add-primitive '%string-ref    string-ref)
+(ex:runtime-add-primitive '%make-string   make-string)
+(ex:runtime-add-primitive '%string-length string-length)
+
 (ex:runtime-add-primitive '%apply               apply)
 (ex:runtime-add-primitive '%abort               abort)
 (ex:runtime-add-primitive '%make-exception      make-exception)
