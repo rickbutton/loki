@@ -11,25 +11,24 @@
 (import (core math))
 (import (core intrinsics))
 (import (core char))
-(import (primitives
-          digit-value
-          string-ci<=? string-ci<?
-          string-ci=? string-ci>=?
-          string-ci>? string-downcase
-          string-foldcase string-upcase))
 (import (rename (core intrinsics) (%string-set!   string-set!)
                                   (%string-ref    string-ref)
                                   (%make-string   make-string)
-                                  (%string-length string-length)))
+                                  (%string-length string-length)
+                                  (%string->symbol string->symbol)
+                                  (%symbol->string symbol->string)
+                                  (%string-downcase string-downcase)
+                                  (%string-upcase string-upcase)
+                                  (%string-foldcase string-foldcase)))
 (export make-string string string-length string-ref string-set!
         string-append string-map string-for-each string-fill!
         string-copy string-copy! string->list list->string
-        vector->string string->vector 
-        digit-value
+        vector->string string->vector digit-value
+        string<=? string<? string>=? string>? string=?
         string-ci<=? string-ci<?
         string-ci=? string-ci>=?
         string-ci>? string-downcase
-        string-foldcase string-upcase)
+        string-foldcase string-upcase string->symbol symbol->string)
 (begin
 
 (define (string . args) (list->string args))
@@ -106,4 +105,46 @@
 
 (define (string->vector vec . o)
   (list->vector (apply string->list vec o)))
+
+(define (digit-value ch)
+  (let ((res (- (char->integer ch) (char->integer #\0))))
+    (if (<= 0 res 9)
+        res
+        ch)))
+
+(define string-cursor? number?)
+(define string-cursor=? eq?)
+(define string-cursor<? <)
+(define string-cursor<=? <=)
+(define string-cursor>? >)
+(define string-cursor>=? >=)
+(define (string-index->cursor str i) i)
+(define (string-cursor->index str off) off)
+(define (string-cursor-offset str off) off)
+(define string-size string-length)
+(define substring-cursor substring)
+(define (string-cursor-start s) 0)
+(define string-cursor-end string-length)
+(define string-cursor-ref string-ref)
+(define (string-cursor-next s i) (+ i 1))
+(define (string-cursor-prev s i) (- i 1))
+
+(define (string-cmp-ls op ci? s ls)
+  (if (null? ls)
+      #t
+      (and (op (%string-cmp s (car ls) ci?) 0)
+           (string-cmp-ls op ci? (car ls) (cdr ls)))))
+
+(define (string=? s . ls) (string-cmp-ls eq? #f s ls))
+(define (string<? s . ls) (string-cmp-ls < #f s ls))
+(define (string>? s . ls) (string-cmp-ls > #f s ls))
+(define (string<=? s . ls) (string-cmp-ls <= #f s ls))
+(define (string>=? s . ls) (string-cmp-ls >= #f s ls))
+
+(define (string-ci=? s . ls) (string-cmp-ls eq? #t s ls))
+(define (string-ci<? s . ls) (string-cmp-ls < #t s ls))
+(define (string-ci>? s . ls) (string-cmp-ls > #t s ls))
+(define (string-ci<=? s . ls) (string-cmp-ls <= #t s ls))
+(define (string-ci>=? s . ls) (string-cmp-ls >= #t s ls))
+
 ))

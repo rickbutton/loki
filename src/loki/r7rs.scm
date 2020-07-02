@@ -101,6 +101,8 @@
                         %char->integer %integer->char %char-foldcase
                         %char-upcase %char-downcase %char? %call/cc %apply
                         %string-set! %string-ref %make-string %string-length
+                        %string-downcase %string-upcase %string-foldcase
+                        %string->symbol %symbol->string %string-cmp
                         %abort %make-exception %exception? %exception-type
                         %exception-message %exception-irritants
                         %procedure? %symbol? %string? %eq? %eqv? %equal?
@@ -162,12 +164,6 @@
                         number->string
                         string->number
                         string->utf8
-                        string->symbol
-                        string<?
-                        string>=?
-                        symbol->string
-                        string<=?
-                        string>?
                         substring
                         utf8->string
 
@@ -194,6 +190,8 @@
           %char->integer %integer->char %char-foldcase
           %char-upcase %char-downcase %char? %call/cc %apply
           %string-set! %string-ref %make-string %string-length
+          %string-downcase %string-upcase %string-foldcase
+          %string->symbol %symbol->string %string-cmp
           %abort %make-exception %exception? %exception-type
           %exception-message %exception-irritants
           %procedure? %symbol? %string? %eq? %eqv? %equal?
@@ -215,11 +213,10 @@
           newline open-input-string
           open-output-string output-port-open?  peek-char port?
           read-bytevector read-char read-line
-          read-u8 string->symbol
-          string<?  string>=? symbol->string
+          read-u8
           u8-ready?  utf8->string
-          write-char write-u8 string<=?
-          string>?  substring textual-port?
+          write-char write-u8
+          substring textual-port?
           write-bytevector write-string
 
           call-with-input-file
@@ -1282,6 +1279,7 @@
             (for (core values)                  expand run)
             (for (core apply)                   expand run)
             (for (core math)                    expand run)
+            (for (core string)                  expand run)
             (for (core exception)               expand run)
             (for (core syntax-error)            expand run)
             (for (core dynamic)                 expand run)

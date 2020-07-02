@@ -197,6 +197,17 @@
 (define (abort obj)
   (raise obj))
 
+(define (string-cmp a b ci?)
+  (if ci?
+    (cond
+      ((string-ci<? a b) -1)
+      ((string-ci>? a b) 1)
+      (else 0))
+    (cond
+      ((string<? a b) -1)
+      ((string>? a b) 1)
+      (else 0))))
+
 ;; Register the required runtime primitives
 (ex:runtime-add-primitive 'void (if #f #f))
 (ex:runtime-add-primitive 'ex:map-while ex:map-while)
@@ -244,6 +255,11 @@
 (ex:runtime-add-primitive '%string-ref    string-ref)
 (ex:runtime-add-primitive '%make-string   make-string)
 (ex:runtime-add-primitive '%string-length string-length)
+(ex:runtime-add-primitive '%string->symbol string->symbol)
+(ex:runtime-add-primitive '%symbol->string symbol->string)
+(ex:runtime-add-primitive '%string-downcase string-downcase)
+(ex:runtime-add-primitive '%string-upcase string-upcase)
+(ex:runtime-add-primitive '%string-foldcase string-foldcase)
 
 (ex:runtime-add-primitive '%apply               apply)
 (ex:runtime-add-primitive '%abort               abort)
@@ -255,6 +271,7 @@
 (ex:runtime-add-primitive '%procedure?          procedure?)
 (ex:runtime-add-primitive '%symbol?             symbol?)
 (ex:runtime-add-primitive '%string?             string?)
+(ex:runtime-add-primitive '%string-cmp          string-cmp)
 
 (ex:runtime-add-primitive '%eq?    eq?)
 (ex:runtime-add-primitive '%eqv?   eqv?)

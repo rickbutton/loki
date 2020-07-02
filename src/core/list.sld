@@ -24,7 +24,7 @@
         length list list-tail list-ref list-set!
         reverse append map
 
-        boolean=? symbol=? string=?)
+        boolean=? symbol=?)
 (begin
 
 (define (caar obj) (car (car obj)))
@@ -151,9 +151,4 @@
   (if (not (symbol? x))
     #f
     (and (eq? x y) (if (pair? o) (apply symbol=? y o) #t))))
-
-(define (string=? x y . o)
-  (if (not (string? x))
-    #f
-    (and (equal? x y) (if (pair? o) (apply string=? y o) #t))))
 ))
