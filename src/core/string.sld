@@ -11,6 +11,7 @@
 (import (core math))
 (import (core intrinsics))
 (import (core char))
+(import (core define-missing))
 (import (rename (core intrinsics) (%string-set!   string-set!)
                                   (%string-ref    string-ref)
                                   (%make-string   make-string)
@@ -28,7 +29,8 @@
         string-ci<=? string-ci<?
         string-ci=? string-ci>=?
         string-ci>? string-downcase
-        string-foldcase string-upcase string->symbol symbol->string)
+        string-foldcase string-upcase string->symbol symbol->string
+        string->utf8 utf8->string)
 (begin
 
 (define (string . args) (list->string args))
@@ -146,5 +148,7 @@
 (define (string-ci>? s . ls) (string-cmp-ls > #t s ls))
 (define (string-ci<=? s . ls) (string-cmp-ls <= #t s ls))
 (define (string-ci>=? s . ls) (string-cmp-ls >= #t s ls))
+
+(define-missing string->utf8 utf8->string)
 
 ))

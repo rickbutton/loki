@@ -4,6 +4,7 @@
 (import (scheme eval))
 (import (scheme char))
 (import (scheme inexact))
+(import (scheme process-context))
 (import (loki util))
 (import (loki shared))
 (import (loki host))
@@ -288,6 +289,9 @@
 (ex:runtime-add-primitive '%sqrt       sqrt)
 (ex:runtime-add-primitive '%expt       expt)
 
+(ex:runtime-add-primitive '%command-line          ''())
+(ex:runtime-add-primitive '%environment-variables ''())
+(ex:runtime-add-primitive '%emergency-exit        exit) ; TODO - this sucks
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 

@@ -106,6 +106,7 @@
                         %abort %make-exception %exception? %exception-type
                         %exception-message %exception-irritants
                         %procedure? %symbol? %string? %eq? %eqv? %equal?
+                        %command-line %environment-variables %emergency-exit
 
                         ; ports
                         binary-port?
@@ -163,16 +164,7 @@
                         ; strings
                         number->string
                         string->number
-                        string->utf8
                         substring
-                        utf8->string
-
-                        ; env
-                        command-line
-                        exit
-                        get-environment-variable
-                        get-environment-variables
-                        emergency-exit
                         ))
     (export 
           %add %sub %mul %div
@@ -195,6 +187,7 @@
           %abort %make-exception %exception? %exception-type
           %exception-message %exception-irritants
           %procedure? %symbol? %string? %eq? %eqv? %equal?
+          %command-line %environment-variables %emergency-exit
 
 
           binary-port? call-with-port
@@ -207,14 +200,14 @@
           number->string
           open-input-bytevector open-output-bytevector output-port?
           peek-u8 read-bytevector!  read-string
-          string->number string->utf8
+          string->number
           eof-object
           get-output-bytevector input-port-open?
           newline open-input-string
           open-output-string output-port-open?  peek-char port?
           read-bytevector read-char read-line
           read-u8
-          u8-ready?  utf8->string
+          u8-ready?
           write-char write-u8
           substring textual-port?
           write-bytevector write-string
@@ -230,12 +223,6 @@
           open-output-file
           with-output-to-file
           read
-
-          command-line
-          exit
-          get-environment-variable
-          get-environment-variables
-          emergency-exit
           ))
 
 (define-library (core apply)
@@ -1221,7 +1208,7 @@
     (export load))
 
 (define-library (scheme process-context)
-    (import (core intrinsics))
+    (import (core process))
     (export command-line
             exit
             get-environment-variable
