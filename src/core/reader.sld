@@ -27,18 +27,160 @@
 ;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ;; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 ;; DEALINGS IN THE SOFTWARE.
-(define-library (loki reader)
-(import (scheme base))
-(import (scheme char))
-(import (loki shared))
-(import (loki util))
+(define-library (core reader)
+(cond-expand
+  (loki
+    (import (except (core primitives) identifier? datum->syntax syntax->datum))
+    (import (core intrinsics))
+    (import (core let))
+    (import (core apply))
+    (import (core derived))
+    (import (core control))
+    (import (core values))
+    (import (core number))
+    (import (core math))
+    (import (core let-values))
+    (import (core cond-expand))
+    (import (core char))
+    (import (core bool))
+    (import (core list))
+    (import (core vector))
+    (import (core exception))
+    (import (core quasiquote))
+    (import (core records))
+    (import (core string))
+    (import (core io)))
+  (chibi
+    (import (scheme base))
+    (import (scheme read))
+    (import (scheme write))
+    (import (scheme char))
+    (import (loki util))
+    (import (loki host))
+    (import (rename (chibi ast) (type-printer-set! chibi-type-printer-set!)))))
 (import (srfi 69))
-(export make-reader read-annotated reader-fold-case?-set!)
+(import (core loki-message))
+(export make-reader read-annotated read-datum
+        reader-fold-case?-set!
+        <source> make-source source?  source-filename source-line
+        source-column source->string
+        <annotation> annotate annotation?  annotation-type?
+        annotation-expression annotation-source unwrap-annotation
+        syntax->closest-source
+        <identifier-context> identifier?  make-identifier id-source
+        id-name id-colors id-transformer-envs id-displacement
+        id-maybe-library integer-syntax? type-printer-set!
+        call-with-string-output-port)
 (begin
 
 ; don't currently support unicode
 ; return an invalid category
 (define (char-general-category c) 'ZZ)
+
+(define (assert e) (if e e (error "assertion failed")))
+
+(define (call-with-string-output-port proc)
+    (define port (open-output-string))
+    (proc port)
+    (get-output-string port))
+
+(define-record-type <source>
+    (make-source filename line column)
+    source?
+    (filename source-filename)
+    (line source-line)
+    (column source-column))
+(define (source->string s)
+    (string-append 
+        (source-filename s)
+        " ["
+        (number->string (source-line s))
+        ":"
+        (number->string (source-column s))
+        "]"))
+
+
+(define-record-type <annotation>
+    (make-annotation-record type expression source context)
+    annotation?
+    (type annotation-type)
+    (expression annotation-expression)
+    (source annotation-source)
+    (context annotation-context))
+
+(define (annotation-type? type a)
+    (and (annotation? a)
+         (eq? type (annotation-type a))))
+
+(define (make-annotation type expr src)
+    (make-annotation-record type expr src #f))
+
+(define (annotate type source datum)
+  (assert (source? source))
+  (make-annotation type datum
+                   source))
+
+(define-record-type <identifier-context>
+    (make-identifier-context colors transformer-envs displacement maybe-library)
+    identifier-context?
+    (colors identifier-context-colors)
+    (transformer-envs identifier-context-transformer-envs)
+    (displacement identifier-context-displacement)
+    (maybe-library identifier-context-maybe-library))
+
+;;==========================================================================
+;;
+;; Identifiers:
+;;
+;;==========================================================================
+;; <name>             ::= <symbol>
+;; <colors>           ::= (<color> ...)
+;; <transformer-envs> ::= (<env> ...)
+;; <displacement>     ::= <integer>
+;; <maybe-library>    ::= (<symbol> ...) | #f
+;;
+;; where
+;;   <name>             : The symbolic name of the identifier in the source.
+;;   <colors>           : Each time an introduced identifier is renamed, a fresh
+;;                        color gets prepended to its <colors>.
+;;   <transformer-envs> : List of reflected transformer environments.
+;;                        The environment (env-reify (car <transformer-envs>)) was the
+;;                        usage environment valid during expansion of any (syntax id)
+;;                        expression whose evaluation introduced this identifier, while
+;;                        (cdr <transformer-envs>) are in turn the reflected
+;;                        <transformer-envs> of the original id.
+;;   <displacement>     : Integer that keeps track of shifts in phases
+;;                        between transformer and usage sites of identifier.
+;;   <maybe-library>    : Library name if identifier was introduced by evaluation of
+;;                        a (syntax ...) expression, otherwise #f.
+;;                        The empty name '() is used for toplevel.
+(define (make-identifier name colors transformer-envs displacement maybe-library src)
+    (make-annotation-record 'identifier name src
+        (make-identifier-context colors transformer-envs displacement maybe-library)))
+(define (identifier? i)
+    (and (annotation? i) (eq? 'identifier (annotation-type i))))
+(define (id-source i)
+    (assert (eq? 'identifier (annotation-type i)))
+    (annotation-source i))
+(define (id-name i)
+    (assert (eq? 'identifier (annotation-type i)))
+    (annotation-expression i))
+(define (id-colors i) (identifier-context-colors (annotation-context i)))
+(define (id-transformer-envs i) (identifier-context-transformer-envs (annotation-context i)))
+(define (id-displacement i) (identifier-context-displacement (annotation-context i)))
+(define (id-maybe-library i) (identifier-context-maybe-library (annotation-context i)))
+
+(define (unwrap-annotation a)
+    (if (annotation? a) (annotation-expression a) a))
+
+(define (syntax->closest-source s)
+    (cond
+        ((annotation? s) (annotation-source s))
+        ((and (pair? s) (annotation? (car s)))
+            (annotation-source (car s)))
+        ((pair? s) (syntax->closest-source (cdr s)))
+        (else #f)))
+(define (integer-syntax? x) (and (annotation-type? 'value x) (integer? (annotation-expression x))))
 
 ;; Peek at the next char from the reader.
 (define (lookahead-char reader)
@@ -122,6 +264,26 @@
                   ((d) (handle-lexeme reader type x labels #f)))
       (resolve-labels reader labels)
       d)))
+
+
+(define (sexp-map f s)
+  (cond ((null? s) '())
+        ((pair? s) (cons (sexp-map f (car s))
+                         (sexp-map f (cdr s))))
+        ((vector? s)
+         (apply vector (sexp-map f (vector->list s))))
+        (else (f s))))
+(define (syntax->datum exp)
+  (sexp-map (lambda (leaf)
+              (cond ((identifier? leaf) (id-name leaf))
+                    ((annotation? leaf) (annotation-expression leaf))
+                    ((symbol? leaf)
+                     (error "syntax->datum: A symbol is not a valid syntax object" leaf))
+                    (else leaf)))
+            exp))
+
+(define (read-datum reader)
+  (syntax->datum (read-annotated reader)))
 
 ;;; Lexeme reader
 
@@ -754,5 +916,40 @@
          (for-each (lambda (ref) (ref datum))
                    refs)))
      entries)))
+
+
+(define (type-printer-set! type printer)
+  (cond-expand
+    (chibi (chibi-type-printer-set! type 
+      (lambda (x writer out) (printer x out))))
+    (loki
+      (record-type-printer-set! type printer))))
+
+(type-printer-set! <source> 
+  (lambda (x out) 
+    (display (string-append
+      (string-append
+        (source-filename x) ":"
+        (number->string (source-line x)) ":"
+        (number->string (source-column x)))) out)))
+
+
+(type-printer-set! <annotation> 
+    (lambda (x out) 
+        (define expr-port (open-output-string))
+        (write (annotation-expression x) expr-port)
+
+        (let ((source (annotation-source x))
+              (expr-str (get-output-string expr-port)))
+            (display (string-append
+                "#<syntax"
+                (if source
+                    (string-append
+                        ":"
+                        (source-filename source) ":"
+                        (number->string (source-line source)) ":"
+                        (number->string (source-column source)) " ")
+                    " ")
+                expr-str ">" ) out))))
 
 ))

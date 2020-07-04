@@ -30,7 +30,7 @@
         string-ci=? string-ci>=?
         string-ci>? string-downcase
         string-foldcase string-upcase string->symbol symbol->string
-        string->utf8 utf8->string)
+        string->utf8 utf8->string substring)
 (begin
 
 (define (string . args) (list->string args))
@@ -83,6 +83,7 @@
          (res (make-string (- end start))))
     (do ((i 0 (+ i 1)) (j start (+ j 1))) ((>= j end) res)
       (string-set! res i (string-ref str j)))))
+(define substring string-copy)
 
 (define (string-copy! to at from . o)
   (let* ((start (if (pair? o) (car o) 0))

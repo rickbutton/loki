@@ -4,10 +4,14 @@
 (import (scheme eval))
 (import (scheme char))
 (import (scheme inexact))
+(import (scheme file))
+(import (scheme time))
 (import (scheme process-context))
 (import (loki util))
 (import (loki shared))
 (import (loki host))
+(import (core reader))
+(import (srfi 69))
 
 (export ex:library-dirs
         ex:map-while
@@ -196,7 +200,15 @@
 
 ; root abort
 (define (abort obj)
+  (for-each (lambda (trace) 
+    (debug "trace:" trace)) traces)
   (raise obj))
+
+(define traces '())
+(define (trace src proc . args)
+  (debug "TRACE" src)
+  (set! traces (cons src traces))
+  (apply proc args))
 
 (define (string-cmp a b ci?)
   (if ci?
@@ -208,6 +220,121 @@
       ((string<? a b) -1)
       ((string>? a b) 1)
       (else 0))))
+
+(define-record-type <loki-port>
+  (make-loki-port input output type)
+  loki-port?
+  (input loki-port-input loki-port-input-set!)
+  (output loki-port-output loki-port-output-set!)
+  (type loki-port-type))
+
+(define-record-type <loki-eof-object>
+  (make-loki-eof-object)
+  loki-eof-object?)
+(define %loki-eof-object (make-loki-eof-object))
+(define (loki-eof-object) %loki-eof-object)
+(define (loki-wrap-eof obj)
+  (if (eof-object? obj)
+    %loki-eof-object
+    obj))
+
+(define (loki-port-ready? port)
+  (unless (loki-port-input port)
+    (raise "loki-port-ready?: not an input port"))
+  (let ((type (loki-port-type port)))
+    (cond
+      ((eq? type 'textual) (char-ready? (loki-port-input port)))
+      ((eq? type 'binary) (u8-ready? (loki-port-input port)))
+      (else (raise "loki-port-ready?: unknown type")))))
+
+(define (loki-input-port-open? port)
+  (and (loki-port-input port)
+       (input-port-open? (loki-port-input port))))
+
+(define (loki-output-port-open? port)
+  (and (loki-port-output port)
+       (output-port-open? (loki-port-output port))))
+
+(define (loki-close-input-port port)
+  (if (loki-port-input port)
+    ((close-input-port (loki-port-input port)))))
+
+(define (loki-close-output-port port)
+  (if (loki-port-output port)
+    ((close-output-port (loki-port-output port)))))
+
+(define (loki-get-output-string port)
+  (get-output-string (loki-port-output port)))
+(define (loki-get-output-bytevector port)
+  (get-output-bytevector (loki-port-output port)))
+
+(define (loki-open-output-string)
+  (make-loki-port #f (open-output-string) 'textual))
+(define (loki-open-input-string string)
+  (make-loki-port (open-input-string string) #f 'textual))
+
+(define (loki-open-output-bytevector)
+  (make-loki-port #f (open-output-bytevector) 'binary))
+(define (loki-open-input-bytevector bytevector)
+  (make-loki-port (open-input-bytevector bytevector) #f 'binary))
+
+
+(define (loki-open-output-file file)
+  (make-loki-port #f (open-output-file file) 'textual))
+(define (loki-open-input-file file)
+  (make-loki-port (open-input-file file) #f 'textual))
+
+(define (loki-open-binary-output-file file)
+  (make-loki-port #f (open-binary-output-file file) 'binary))
+(define (loki-open-binary-input-file file)
+  (make-loki-port (open-binary-input-file file) #f 'binary))
+
+(define (loki-stderr) (make-loki-port #f (current-error-port) 'textual))
+(define (loki-stdin) (make-loki-port (current-input-port) #f 'textual))
+(define (loki-stdout) (make-loki-port #f (current-output-port) 'textual))
+
+(define (loki-flush-output-port port)
+  (unless (output-port? (loki-port-type port))
+    (raise "flush-output-port: not an output port"))
+  (flush-output-port (loki-port-output port)))
+
+
+
+(define (loki-peek-u8 port)
+  (unless (eq? (loki-port-type port) 'binary)
+    (raise "peek-u8: not a binary port"))
+  (loki-wrap-eof (peek-u8 (loki-port-input port))))
+(define (loki-peek-char port)
+  (unless (eq? (loki-port-type port) 'textual)
+    (raise "peek-char: not a textual port"))
+  (loki-wrap-eof (peek-u8 (loki-port-input port))))
+
+(define (loki-read-bytevector! bytevector port start end)
+  (loki-wrap-eof (read-bytevector! bytevector (loki-port-input port) start end)))
+(define (loki-read-bytevector bytevector port)
+  (loki-wrap-eof (read-bytevector bytevector (loki-port-input port))))
+(define (loki-read-string k port)
+  (loki-wrap-eof (read-string k (loki-port-input port))))
+(define (loki-read-char port)
+  (loki-wrap-eof (read-char (loki-port-input port))))
+(define (loki-read-line port)
+  (loki-wrap-eof (read-line (loki-port-input port))))
+(define (loki-read-u8 port)
+  (loki-wrap-eof (read-u8 (loki-port-input port))))
+
+(define (loki-write-bytevector bytevector port start end)
+  (write-bytevector bytevector (loki-port-output port) start end))
+(define (loki-write-string string port start end)
+  (write-string string (loki-port-output port) start end))
+(define (loki-write-char char port)
+  (write-char char (loki-port-output port)))
+(define (loki-write-u8 u8 port)
+  (write-u8 u8 (loki-port-output port)))
+
+(define (loki-display x port) (display x (loki-port-output port)))
+(define (loki-write x port) (write x (loki-port-output port)))
+(define (loki-write-simple x port) (display x (loki-port-output port)))
+(define (loki-write-shared x port) (display x (loki-port-output port)))
 
 ;; Register the required runtime primitives
 (ex:runtime-add-primitive 'void (if #f #f))
@@ -292,6 +419,61 @@
 (ex:runtime-add-primitive '%command-line          ''())
 (ex:runtime-add-primitive '%environment-variables ''())
 (ex:runtime-add-primitive '%emergency-exit        exit) ; TODO - this sucks
+
+(ex:runtime-add-primitive '%port?                   loki-port?)
+(ex:runtime-add-primitive '%eof-object              loki-eof-object)
+(ex:runtime-add-primitive '%eof-object?             loki-eof-object?)
+(ex:runtime-add-primitive '%port-input              loki-port-input)
+(ex:runtime-add-primitive '%port-output             loki-port-output)
+(ex:runtime-add-primitive '%port-type               loki-port-type)
+(ex:runtime-add-primitive '%port-ready?             loki-port-ready?)
+(ex:runtime-add-primitive '%input-port-open?        loki-input-port-open?)
+(ex:runtime-add-primitive '%output-port-open?       loki-output-port-open?)
+(ex:runtime-add-primitive '%close-input-port        loki-close-input-port)
+(ex:runtime-add-primitive '%close-output-port       loki-close-output-port)
+(ex:runtime-add-primitive '%delete-file             delete-file)
+(ex:runtime-add-primitive '%file-exists?            file-exists?)
+(ex:runtime-add-primitive '%get-output-string       loki-get-output-string)
+(ex:runtime-add-primitive '%get-output-bytevector   loki-get-output-bytevector)
+(ex:runtime-add-primitive '%open-output-string      loki-open-output-string)
+(ex:runtime-add-primitive '%open-input-string       loki-open-input-string)
+(ex:runtime-add-primitive '%open-input-bytevector   loki-open-input-bytevector)
+(ex:runtime-add-primitive '%open-output-bytevector  loki-open-output-bytevector)
+(ex:runtime-add-primitive '%open-output-file        loki-open-output-file)
+(ex:runtime-add-primitive '%open-input-file         loki-open-input-file)
+(ex:runtime-add-primitive '%open-binary-input-file  loki-open-binary-input-file)
+(ex:runtime-add-primitive '%open-binary-output-file loki-open-binary-output-file)
+(ex:runtime-add-primitive '%stderr                  loki-stderr)
+(ex:runtime-add-primitive '%stdin                   loki-stdin)
+(ex:runtime-add-primitive '%stdout                  loki-stdout)
+(ex:runtime-add-primitive '%flush-output-port       flush-output-port)
+
+(ex:runtime-add-primitive '%peek-char        loki-peek-char)
+(ex:runtime-add-primitive '%peek-u8          loki-peek-u8)
+(ex:runtime-add-primitive '%read-bytevector! loki-read-bytevector!)
+(ex:runtime-add-primitive '%read-bytevector! loki-read-bytevector!)
+(ex:runtime-add-primitive '%read-bytevector  loki-read-bytevector)
+(ex:runtime-add-primitive '%read-string      loki-read-string)
+(ex:runtime-add-primitive '%read-char        loki-read-char)
+(ex:runtime-add-primitive '%read-line        loki-read-line)
+(ex:runtime-add-primitive '%read-u8          loki-read-u8)
+(ex:runtime-add-primitive '%write-bytevector loki-write-bytevector)
+(ex:runtime-add-primitive '%write-string     loki-write-string)
+(ex:runtime-add-primitive '%write-char       loki-write-char)
+(ex:runtime-add-primitive '%write-u8         loki-write-u8)
+
+(ex:runtime-add-primitive '%write            loki-write)
+(ex:runtime-add-primitive '%write-simple     loki-write-simple)
+(ex:runtime-add-primitive '%write-shared     loki-write-shared)
+
+(ex:runtime-add-primitive '%current-jiffy         current-jiffy)
+(ex:runtime-add-primitive '%current-second        current-second)
+(ex:runtime-add-primitive '%jiffies-per-second    jiffies-per-second)
+
+(ex:runtime-add-primitive '%hash-by-identity hash-by-identity)
+(ex:runtime-add-primitive '%trace trace)
+
+
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 

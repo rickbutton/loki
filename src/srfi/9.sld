@@ -1,3 +1,5 @@
 (define-library (srfi 9)
-    (import (scheme base))
-    (export define-record-type))
+(cond-expand
+  (chibi (import (scheme base)))
+  (loki (import (core records))))
+(export define-record-type))

@@ -21,7 +21,6 @@
         make-named-id
         fluid-let
         assert
-        call-with-string-output-port
         memp
         for-all
         find
@@ -125,12 +124,7 @@
                (apply values results)))))))
 
 (define (assert e)
-    (if e e (raise e)))
-
-(define (call-with-string-output-port proc)
-    (define port (open-output-string))
-    (proc port)
-    (get-output-string port))
+    (if e e (error "assertion failed")))
 
 (define (memp proc ls)
   (cond ((null? ls) #f)

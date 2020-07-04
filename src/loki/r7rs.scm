@@ -85,94 +85,12 @@
   )) ;; core primitives
 
 (define-library (core intrinsics)
-    (import (core primitives))
     (import (primitives 
-                        %add %sub %mul %div
-                        %lt %lte %number-eq %gt %gte
-                        %number? %finite? %infinite?
-                        %nan? %floor %ceiling %truncate
-                        %round %sqrt %expt
-                        %cons %pair? %null? %list? %car %cdr
-                        %set-car! %set-cdr!
-                        %vector? %vector-set! %vector-ref
-                        %vector-length %make-vector
-                        %bytevector %bytevector-u8-ref %bytevector-u8-set!
-                        %bytevector-length %make-bytevector %bytevector?
-                        %char->integer %integer->char %char-foldcase
-                        %char-upcase %char-downcase %char? %call/cc %apply
-                        %string-set! %string-ref %make-string %string-length
-                        %string-downcase %string-upcase %string-foldcase
-                        %string->symbol %symbol->string %string-cmp
-                        %abort %make-exception %exception? %exception-type
-                        %exception-message %exception-irritants
-                        %procedure? %symbol? %string? %eq? %eqv? %equal?
-                        %command-line %environment-variables %emergency-exit
-
-                        ; ports
-                        binary-port?
-                        call-with-port
-                        char-ready? 
-                        close-input-port
-                        close-output-port
-                        close-port
-                        current-error-port
-                        current-input-port
-                        current-output-port
-                        eof-object? 
-                        flush-output-port
-                        input-port? 
-                        output-port?
-                        peek-u8
-                        read-bytevector!
-                        read-string
-                        eof-object
-                        get-output-bytevector
-                        input-port-open?
-                        output-port-open?
-                        peek-char
-                        port?
-                        read-bytevector
-                        read-char
-                        read-line
-                        read-u8
-                        write-char
-                        write-u8
-                        textual-port?
-                        write-bytevector
-                        write-string
-                        u8-ready?
-                        newline
-                        call-with-input-file
-                        delete-file
-                        open-binary-input-file
-                        open-input-file
-                        with-input-from-file
-                        call-with-output-file
-                        file-exists?
-                        open-binary-output-file
-                        open-output-file
-                        with-output-to-file
-                        read
-
-                        ; synthetic ports
-                        get-output-string
-                        open-output-string
-                        open-input-string
-                        open-input-bytevector
-                        open-output-bytevector
-                      
-                        ; strings
-                        number->string
-                        string->number
-                        substring
-                        ))
-    (export 
           %add %sub %mul %div
           %lt %lte %number-eq %gt %gte
           %number? %finite? %infinite?
           %nan? %floor %ceiling %truncate
           %round %sqrt %expt
-
           %cons %pair? %null? %list? %car %cdr
           %set-car! %set-cdr!
           %vector? %vector-set! %vector-ref
@@ -189,41 +107,56 @@
           %procedure? %symbol? %string? %eq? %eqv? %equal?
           %command-line %environment-variables %emergency-exit
 
+          %port? %eof-object %eof-object? %port-input %port-output
+          %port-type %port-ready? %input-port-open? %output-port-open?
+          %close-input-port %close-output-port %delete-file %file-exists?
+          %get-output-string %get-output-bytevector
+          %open-output-string %open-input-string %open-input-bytevector
+          %open-output-bytevector %open-output-file %open-input-file
+          %open-binary-input-file %open-binary-output-file
+          %stderr %stdin %stdout %flush-output-port
+          %peek-u8 %peek-char
+          %read-bytevector! %read-bytevector %read-string %read-char
+          %read-line %read-u8 %write-bytevector %write-string
+          %write-char %write-u8 %write %write-simple %write-shared
+          %hash-by-identity %current-jiffy %current-second %jiffies-per-second
+          number->string string->number))
+    (export 
+          %add %sub %mul %div
+          %lt %lte %number-eq %gt %gte
+          %number? %finite? %infinite?
+          %nan? %floor %ceiling %truncate
+          %round %sqrt %expt
+          %cons %pair? %null? %list? %car %cdr
+          %set-car! %set-cdr!
+          %vector? %vector-set! %vector-ref
+          %vector-length %make-vector
+          %bytevector %bytevector-u8-ref %bytevector-u8-set!
+          %bytevector-length %make-bytevector %bytevector?
+          %char->integer %integer->char %char-foldcase
+          %char-upcase %char-downcase %char? %call/cc %apply
+          %string-set! %string-ref %make-string %string-length
+          %string-downcase %string-upcase %string-foldcase
+          %string->symbol %symbol->string %string-cmp
+          %abort %make-exception %exception? %exception-type
+          %exception-message %exception-irritants
+          %procedure? %symbol? %string? %eq? %eqv? %equal?
+          %command-line %environment-variables %emergency-exit
 
-          binary-port? call-with-port
-          char-ready?  close-input-port
-          close-output-port close-port
-          current-error-port current-input-port current-output-port
-          eof-object?
-          flush-output-port get-output-string
-          input-port?
-          number->string
-          open-input-bytevector open-output-bytevector output-port?
-          peek-u8 read-bytevector!  read-string
-          string->number
-          eof-object
-          get-output-bytevector input-port-open?
-          newline open-input-string
-          open-output-string output-port-open?  peek-char port?
-          read-bytevector read-char read-line
-          read-u8
-          u8-ready?
-          write-char write-u8
-          substring textual-port?
-          write-bytevector write-string
-
-          call-with-input-file
-          delete-file
-          open-binary-input-file
-          open-input-file
-          with-input-from-file
-          call-with-output-file
-          file-exists?
-          open-binary-output-file
-          open-output-file
-          with-output-to-file
-          read
-          ))
+          %port? %eof-object %eof-object? %port-input %port-output
+          %port-type %port-ready? %input-port-open? %output-port-open?
+          %close-input-port %close-output-port %delete-file %file-exists?
+          %get-output-string %get-output-bytevector
+          %open-output-string %open-input-string %open-input-bytevector
+          %open-output-bytevector %open-output-file %open-input-file
+          %open-binary-input-file %open-binary-output-file
+          %stderr %stdin %stdout %flush-output-port
+          %peek-u8 %peek-char
+          %read-bytevector! %read-bytevector %read-string %read-char
+          %read-line %read-u8 %write-bytevector %write-string
+          %write-char %write-u8 %write %write-simple %write-shared
+          %hash-by-identity %current-jiffy %current-second %jiffies-per-second
+          number->string string->number))
 
 (define-library (core apply)
   (export (rename (%apply apply)))
@@ -470,37 +403,37 @@
            (cond clause1 clause2 ...)))))
 
   (define-syntax case
-    (syntax-rules (else =>)
-      ((case (key ...)
-         clauses ...)
-       (let ((atom-key (key ...)))
-         (case atom-key clauses ...)))
-      ((case key
-         (else => result))
-       (result key))
-      ((case key
-         (else result1 result2 ...))
-       (begin result1 result2 ...))
-      ((case key
-         ((atoms ...) result1 result2 ...))
-       (if (memv key '(atoms ...))
-           (begin result1 result2 ...)))
-      ((case key
-         ((atoms ...) => result))
-       (if (memv key '(atoms ...))
-           (result key)))
-      ((case key
-         ((atoms ...) => result)
-         clause clauses ...)
-       (if (memv key '(atoms ...))
-           (result key)
-           (case key clause clauses ...)))
-      ((case key
-         ((atoms ...) result1 result2 ...)
-         clause clauses ...)
-       (if (memv key '(atoms ...))
-           (begin result1 result2 ...)
-           (case key clause clauses ...)))))  
+   (syntax-rules (else =>)
+     ((case (key ...)
+        clauses ...)
+      (let ((atom-key (key ...)))
+        (case atom-key clauses ...)))
+     ((case key
+        (else => result))
+      (result key))
+     ((case key
+        (else result1 result2 ...))
+      (begin result1 result2 ...))
+     ((case key
+        ((atoms ...) => result))
+      (if (memv key '(atoms ...))
+          (result key)))
+     ((case key
+        ((atoms ...) => result)
+        clause clauses ...)
+      (if (memv key '(atoms ...))
+          (result key)
+          (case key clause clauses ...)))
+     ((case key
+        ((atoms ...) result1 result2 ...))
+      (if (memv key '(atoms ...))
+          (begin result1 result2 ...)))
+     ((case key
+        ((atoms ...) result1 result2 ...)
+        clause clauses ...)
+      (if (memv key '(atoms ...))
+          (begin result1 result2 ...)
+          (case key clause clauses ...)))))
 
   (define-syntax =>
     (lambda (x)
@@ -523,7 +456,7 @@
           (for (core vector)       expand run)
           (for (core exception)    expand run)
           (for (core intrinsics)   expand run))
-  (export define-record-type vector?)
+  (export define-record-type vector? record? record-printer record-type-printer-set!)
   (begin
 
     ; This implements a record abstraction that is identical to vectors,
@@ -579,7 +512,7 @@
            (field-tag accessor . more) ...)
          (begin
            (define type
-             (make-record-type 'type '(field-tag ...)))
+             (make-record-type 'type '(field-tag ...) #f))
            (define constructor
              (record-constructor type '(constructor-tag ...)))
            (define predicate
@@ -634,16 +567,17 @@
     (define :record-type (make-record 3))
     (record-set! :record-type 0 :record-type)	; Its type is itself.
     (record-set! :record-type 1 ':record-type)
-    (record-set! :record-type 2 '(name field-tags))
+    (record-set! :record-type 2 '(name field-tags printer))
     
     ; Now that :record-type exists we can define a procedure for making more
     ; record types.
     
-    (define (make-record-type name field-tags)
-      (let ((new (make-record 3)))
+    (define (make-record-type name field-tags printer)
+      (let ((new (make-record 4)))
         (record-set! new 0 :record-type)
         (record-set! new 1 name)
         (record-set! new 2 field-tags)
+        (record-set! new 3 printer)
         new))
     
     ; Accessors for record types.
@@ -653,7 +587,16 @@
     
     (define (record-type-field-tags record-type)
       (record-ref record-type 2))
-    
+
+    (define (record-type-printer record-type)
+      (record-ref record-type 3))
+
+    (define (record-type-printer-set! record-type printer)
+      (record-set! record-type 3 printer))
+
+    (define (record-printer record)
+      (record-type-printer (record-type record)))
+
     ;----------------
     ; A utility for getting the offset of a field within a record.
     
@@ -1095,11 +1038,7 @@
         string-ci>? string-downcase
         string-foldcase string-upcase))
 
-(define-library (scheme complex)
-    (import (core math))
-    (export angle imag-part magnitude make-polar make-rectangular real-part))
-
-(define-library (scheme cxr)
+(define-library (core cxr)
     (import (core primitives))
     (import (core list))
     (export caaar caadr cadar caddr cdaar cdadr cddar cdddr
@@ -1132,12 +1071,23 @@
       (define (cddddr x) (cdr (cdr (cdr (cdr x)))))
 ))
 
+(define-library (scheme complex)
+    (import (core math))
+    (export angle imag-part magnitude make-polar make-rectangular real-part))
+
+(define-library (scheme cxr)
+    (import (core cxr))
+    (import (core list))
+    (export caaar caadr cadar caddr cdaar cdadr cddar cdddr
+            caaaar caaadr caadar caaddr cadaar cadadr caddar cadddr
+            cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr))
+
 (define-library (scheme eval)
     (import (core primitives))
     (export environment eval))
 
 (define-library (scheme file)
-    (import (core intrinsics))
+    (import (core io))
     (export call-with-input-file
             delete-file
             open-binary-input-file
@@ -1216,8 +1166,16 @@
             emergency-exit))
 
 (define-library (scheme read)
-    (import (core intrinsics))
-    (export read))
+  (import (core primitives))
+  (import (only (core reader) read-datum))
+  (import (core io))
+  (import (core case-lambda))
+  (export read)
+  (begin
+    (define read
+      (case-lambda
+        (() (read-datum (current-input-port)))
+        ((port) (read-datum port))))))
 
 (define-library (scheme repl)
     (import (except (core primitives) eval environment))
@@ -1228,22 +1186,15 @@
         (environment '(scheme base)))))
 
 (define-library (scheme time)
-    (import (primitives current-jiffy
-                        current-second
-                        jiffies-per-second))
-    (export current-jiffy
-            current-second
-            jiffies-per-second))
+    (import (core intrinsics))
+    (export (rename
+            (%current-jiffy current-jiffy)
+            (%current-second current-second)
+            (%jiffies-per-second jiffies-per-second))))
 
 (define-library (scheme write)
-    (import (primitives display
-                        write
-                        write-shared
-                        write-simple))
-    (export display
-            write
-            write-shared
-            write-simple))
+    (import (core io))
+    (export display write write-shared write-simple))
 
 (define-library (scheme base)
     (import (for (except (core primitives) _ ... environment eval load) run expand)
@@ -1270,6 +1221,7 @@
             (for (core exception)               expand run)
             (for (core syntax-error)            expand run)
             (for (core dynamic)                 expand run)
+            (for (core io)                      expand run)
             (scheme case-lambda)
             (scheme char)
             (scheme complex)

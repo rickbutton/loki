@@ -79,15 +79,17 @@
 (import (loki shared))
 (import (loki runtime))
 (import (loki util))
-(import (loki reader))
+(import (core loki-message))
+(import (core reader))
 (import (loki host))
+
 (export ex:make-variable-transformer
         ex:identifier?              
         ex:bound-identifier=?       
         ex:free-identifier=?        
         ex:generate-temporaries     
-        ex:datum->syntax            
-        ex:syntax->datum            
+        ex:datum->syntax
+        ex:syntax->datum
         ex:environment              
         ex:environment-bindings     
         ex:eval                     
@@ -654,28 +656,6 @@
                         (else leaf)))
                 datum))
 
-    (define (datum->syntax tid datum)
-      (check tid identifier? 'datum->syntax)
-      (sexp-map (lambda (leaf)
-                  (cond ((symbol? leaf)
-                         (make-identifier leaf
-                                          (id-colors tid)
-                                          (id-transformer-envs tid)
-                                          (id-displacement tid)
-                                          (id-maybe-library tid)
-                                          (id-source tid)))
-                        (else leaf)))
-                datum))
-
-    (define (syntax->datum exp)
-      (sexp-map (lambda (leaf)
-                  (cond ((identifier? leaf) (id-name leaf))
-                        ((annotation? leaf) (annotation-expression leaf))
-                        ((symbol? leaf)
-                         (assertion-violation 'syntax->datum "A symbol is not a valid syntax object" leaf))
-                        (else leaf)))
-                exp))
-
     ;; Fresh identifiers:
 
     (define (generate-temporaries ls)
@@ -701,6 +681,30 @@
                        *phase*
                        #f
                        (make-source "<unknown>" 1 0)))
+                       
+    (define (syntax->datum exp)
+      (sexp-map (lambda (leaf)
+                  (cond ((identifier? leaf) (id-name leaf))
+                        ((annotation? leaf) (annotation-expression leaf))
+                        ((symbol? leaf)
+                         (error "syntax->datum: A symbol is not a valid syntax object" leaf))
+                        (else leaf)))
+                exp))
+    
+    (define (datum->syntax tid datum)
+      (unless (identifier? tid)
+        (error "datum->syntax: Invalid form" tid))
+      (sexp-map (lambda (leaf)
+                  (cond ((symbol? leaf)
+                         (make-identifier leaf
+                                          (id-colors tid)
+                                          (id-transformer-envs tid)
+                                          (id-displacement tid)
+                                          (id-maybe-library tid)
+                                          (id-source tid)))
+                        (else leaf)))
+                datum))
+
 
     ;;=========================================================================
     ;;
@@ -772,6 +776,16 @@
     ;;
     ;;=========================================================================
 
+    (define (make-call trace? operator binding args)
+      (if trace?
+        `(%trace 
+          ,(string-append 
+            (symbol->string (id-name operator))
+            " "
+            (source->string (id-source operator)))
+            ,(binding-name binding) ,@args)
+        `(,(binding-name binding) ,@args)))
+
     (define (expand t)
       (fluid-let ((*trace* (cons t *trace*)))
         (let ((binding (operator-binding t)))
@@ -785,13 +799,12 @@
                                    (expand expanded-once))))))
                            ((variable)
                             (if (list? t)
-                                (cons (binding-name binding)
-                                      (map expand (cdr t)))
+                                (make-call #f (car t) binding (map expand (cdr t)))
                                 (binding-name binding)))
                            ((pattern-variable)
                            (begin
                             (syntax-violation #f "Pattern variable used outside syntax template" t)))))
-                ((list? t)       (map expand t))
+                ((list? t)      (map expand t))
                 ((identifier? t) (make-free-name (id-name t)))
                 ((annotation? t) (annotation-expression t))
                 ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
@@ -1156,9 +1169,10 @@
            (syntax-violation type "Expression may only occur at toplevel" form)))
 
     (define (check-valid-definition id common-env body-type form forms type)
-      (and (not (eq? body-type 'toplevel))
-           (duplicate? id common-env)
-           (syntax-violation type "Redefinition of identifier in body" id form))
+      (unless (eq? body-type 'toplevel)
+        (let ((dup (duplicate? id common-env)))
+          (if dup
+            (syntax-violation type "Redefinition of identifier in body" (binding id) id))))
       (check-used id body-type form)
       (and (not (memq body-type `(toplevel program library)))
            (not (null? forms))
@@ -1714,8 +1728,8 @@
                               (syntax-violation from
                                                 (string-append "Identifier not in set: "
                                                                (list->string (map car mappings) " "))
-                                                import-set
-                                                name)))
+                                                name
+                                                import-set)))
                         names))
 
             (match import-set
@@ -1964,8 +1978,9 @@
 
     (define (sexp-map f s)
       (cond ((null? s) '())
-            ((pair? s) (cons (sexp-map f (car s))
-                             (sexp-map f (cdr s))))
+            ((pair? s)
+              (cons (sexp-map f (car s))
+                (sexp-map f (cdr s))))
             ((vector? s)
              (apply vector (sexp-map f (vector->list s))))
             (else (f s))))
@@ -2352,8 +2367,8 @@
     (ex:runtime-add-primitive 'ex:bound-identifier=? ex:bound-identifier=?)
     (ex:runtime-add-primitive 'ex:free-identifier=? ex:free-identifier=?)
     (ex:runtime-add-primitive 'ex:generate-temporaries ex:generate-temporaries)
-    (ex:runtime-add-primitive 'ex:datum->syntax ex:datum->syntax)
-    (ex:runtime-add-primitive 'ex:syntax->datum ex:syntax->datum)
+    (ex:runtime-add-primitive 'ex:datum->syntax datum->syntax)
+    (ex:runtime-add-primitive 'ex:syntax->datum syntax->datum)
     (ex:runtime-add-primitive 'ex:environment ex:environment)
     (ex:runtime-add-primitive 'ex:environment-bindings ex:environment-bindings)
     (ex:runtime-add-primitive 'ex:eval ex:eval)
