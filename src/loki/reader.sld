@@ -27,39 +27,17 @@
 ;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ;; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 ;; DEALINGS IN THE SOFTWARE.
-(define-library (core reader)
-(cond-expand
-  (loki
-    (import (except (core primitives) identifier? datum->syntax syntax->datum))
-    (import (core intrinsics))
-    (import (core let))
-    (import (core apply))
-    (import (core derived))
-    (import (core control))
-    (import (core values))
-    (import (core number))
-    (import (core math))
-    (import (core let-values))
-    (import (core cond-expand))
-    (import (core char))
-    (import (core bool))
-    (import (core list))
-    (import (core vector))
-    (import (core exception))
-    (import (core quasiquote))
-    (import (core records))
-    (import (core string))
-    (import (core io)))
-  (chibi
-    (import (scheme base))
-    (import (scheme read))
-    (import (scheme write))
-    (import (scheme char))
-    (import (loki util))
-    (import (loki host))
-    (import (rename (chibi ast) (type-printer-set! chibi-type-printer-set!)))))
+(define-library (loki reader)
+(import (scheme base))
+(import (scheme char))
+(import (scheme case-lambda))
+(import (loki writer))
 (import (srfi 69))
-(import (core loki-message))
+(cond-expand
+  (chibi
+    (import (rename (only (chibi ast) make-exception) (make-exception chibi-make-exception))))
+  (loki
+    (import (core exception))))
 (export make-reader read-annotated read-datum
         reader-fold-case?-set!
         <source> make-source source?  source-filename source-line
@@ -69,15 +47,17 @@
         syntax->closest-source
         <identifier-context> identifier?  make-identifier id-source
         id-name id-colors id-transformer-envs id-displacement
-        id-maybe-library integer-syntax? type-printer-set!
+        id-maybe-library integer-syntax?
         call-with-string-output-port)
 (begin
 
-; don't currently support unicode
-; return an invalid category
-(define (char-general-category c) 'ZZ)
-
 (define (assert e) (if e e (error "assertion failed")))
+
+(define (for-all proc l . ls)
+  (or (null? l)
+      (and (apply proc (car l) (map car ls))
+           (apply for-all proc (cdr l) (map cdr ls)))))
+
 
 (define (call-with-string-output-port proc)
     (define port (open-output-string))
@@ -287,27 +267,21 @@
 
 ;;; Lexeme reader
 
-; TODO - use irritants
+(cond-expand
+  (chibi 
+    (define (make-read-error message irritants)
+      (chibi-make-exception 'read message irritants #f #f))))
+
 (define (reader-error reader msg . irritants)
   ;; Non-recoverable errors.
-  (raise-loki-error
-    (make-source
-      (reader-filename reader)
-      (reader-saved-line reader)
-      (reader-saved-column reader))
-    msg))
+  (raise (make-read-error msg irritants)))
 
-; TODO - use irritants
 (define (reader-warning reader msg . irritants)
   ;; Recoverable if the reader is tolerant.
   (if (reader-tolerant? reader)
-      (raise-loki-error
-        (make-source
-          (reader-filename reader)
-          (reader-saved-line reader)
-          (reader-saved-column reader))
-        msg)
-      (apply reader-error reader msg irritants)))
+    (raise-continuable
+      (make-read-error msg irritants))
+    (raise (make-read-error msg irritants))))
 
 (define (eof-warning reader)
   (reader-warning reader "Unexpected EOF" (eof-object)))
@@ -366,14 +340,7 @@
   (let lp ((chars (if initial-char (list initial-char) '())))
     (let ((c (lookahead-char p)))
       (cond
-        ((and (char? c)
-              (or (char-ci<=? #\a c #\Z)
-                  (char<=? #\0 c #\9)
-                  (memv c '(#\! #\$ #\% #\& #\* #\/ #\: #\< #\= #\> #\? #\^ #\_ #\~
-                            #\+ #\- #\. #\@ #\x200C #\x200D))
-                (and (> (char->integer c) 127)
-                    (memq (char-general-category c) ;XXX: could be done faster
-                           '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))))
+        ((is-identifier-char? c)
          (lp (cons (get-char p) chars)))
         ((and pipe-quoted? (char? c) (not (memv c '(#\| #\\))))
          (lp (cons (get-char p) chars)))
@@ -917,14 +884,6 @@
                    refs)))
      entries)))
 
-
-(define (type-printer-set! type printer)
-  (cond-expand
-    (chibi (chibi-type-printer-set! type 
-      (lambda (x writer out) (printer x out))))
-    (loki
-      (record-type-printer-set! type printer))))
-
 (type-printer-set! <source> 
   (lambda (x out) 
     (display (string-append
@@ -951,5 +910,4 @@
                         (number->string (source-column source)) " ")
                     " ")
                 expr-str ">" ) out))))
-
 ))

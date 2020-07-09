@@ -31,9 +31,7 @@
                                   (%open-input-file open-input-file)
                                   (%open-binary-input-file open-binary-input-file)
                                   (%open-binary-output-file open-binary-output-file)
-                                  (%flush-output-port flush-output-port)
-                                  (%write-shared write-shared)
-                                  (%write-simple write-simple)))
+                                  (%flush-output-port flush-output-port)))
 (export eof-object? eof-object
         port? binary-port? textual-port? input-port? output-port?
         char-ready? u8-ready? input-port-open? output-port-open?
@@ -49,7 +47,7 @@
         peek-char peek-u8
         read-bytevector! read-bytevector read-string read-char
         read-line read-u8 write-bytevector write-string write-char
-        write-u8 display write write-shared write-simple)
+        write-u8)
 (begin
 
 ; TODO - i should make these all throw on invalid args
@@ -200,18 +198,5 @@
     (%write-u8 byte (current-output-port)))
   ((byte port)
     (%write-u8 byte port))))
-
-
-(define (write x . o)
-  (let ((out (if (pair? o) (car o) (current-output-port))))
-    (if (record? x)
-      ((record-printer x) x out)
-      (%write x out))))
-
-(define (display x . o)
-  (let ((out (if (pair? o) (car o) (current-output-port))))
-    (cond ((char? x) (write-char x out))
-          ((string? x) (write-string x out))
-          (else (write x out)))))
 
 ))

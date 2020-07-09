@@ -1,7 +1,6 @@
 (define-library 
     (loki util)
     (import (scheme base))
-    (import (scheme read))
     (import (scheme eval))
     (import (scheme write))
     (export 
@@ -16,7 +15,6 @@
         contains?
         range
         debug
-        pretty-print
         make-anon-id
         make-named-id
         fluid-let
@@ -24,8 +22,7 @@
         memp
         for-all
         find
-        string-join
-        assertion-violation)
+        string-join)
 (begin
 
 (define (map-vector fn vec)
@@ -94,10 +91,6 @@
        (display " ")) args)
     (display "\n\n"))
 
-(define (pretty-print exp)
-    (display exp))
-    ;(display (show #f (pretty exp))))
-
 (define (make-anon-id prefix)
     (let ((count 0))
         (lambda () 
@@ -131,7 +124,7 @@
         ((pair? ls) (if (proc (car ls))
                         ls
                         (memp proc (cdr ls))))
-        (else (assertion-violation 'memp "Invalid argument" ls))))
+        (else (error "memp: Invalid argument" ls))))
 
 (define (for-all proc l . ls)
   (or (null? l)
@@ -150,13 +143,5 @@
       (fold-right (lambda (s so-far) (string-append so-far delimiter s))
             (car strings)
             (cdr strings))))
-
-(define assertion-violation 
-  (lambda args 
-    (display 'assertion-violation)
-    (newline)
-    (display args)
-    (newline)
-    (error)))
 
 ))

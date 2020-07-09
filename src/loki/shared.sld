@@ -1,12 +1,11 @@
 (define-library 
     (loki shared)
     (import (scheme base))
-    (import (scheme write))
     (import (scheme process-context))
     (import (srfi 69))
     (import (loki util))
     (import (loki host))
-    (import (core reader))
+    (import (loki writer))
     (export 
         make-comment
         comment?

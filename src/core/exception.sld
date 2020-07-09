@@ -10,7 +10,7 @@
         raise raise-continuable error error-object?
         error-object-message error-object-irritants
         exception? exception-message exception-type exception-irritants
-        read-error? file-error?)
+        read-error? file-error? make-read-error make-file-error)
 (begin
 
 (define exception-handler (lambda (obj) (%abort obj)))
@@ -43,5 +43,11 @@
 (define (file-error? obj)
   (and (exception? obj)
        (eq? (exception-type obj) 'file-error)))
+
+(define (make-read-error message irritants)
+  (make-exception 'read-error message irritants))
+
+(define (make-file-error message irritants)
+  (make-exception 'file-error message irritants))
 
 ))

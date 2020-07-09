@@ -118,7 +118,7 @@
           %peek-u8 %peek-char
           %read-bytevector! %read-bytevector %read-string %read-char
           %read-line %read-u8 %write-bytevector %write-string
-          %write-char %write-u8 %write %write-simple %write-shared
+          %write-char %write-u8
           %hash-by-identity %current-jiffy %current-second %jiffies-per-second
           number->string string->number))
     (export 
@@ -154,7 +154,7 @@
           %peek-u8 %peek-char
           %read-bytevector! %read-bytevector %read-string %read-char
           %read-line %read-u8 %write-bytevector %write-string
-          %write-char %write-u8 %write %write-simple %write-shared
+          %write-char %write-u8
           %hash-by-identity %current-jiffy %current-second %jiffies-per-second
           number->string string->number))
 
@@ -1165,18 +1165,6 @@
             get-environment-variables
             emergency-exit))
 
-(define-library (scheme read)
-  (import (core primitives))
-  (import (only (core reader) read-datum))
-  (import (core io))
-  (import (core case-lambda))
-  (export read)
-  (begin
-    (define read
-      (case-lambda
-        (() (read-datum (current-input-port)))
-        ((port) (read-datum port))))))
-
 (define-library (scheme repl)
     (import (except (core primitives) eval environment))
     (import (scheme eval))
@@ -1191,10 +1179,6 @@
             (%current-jiffy current-jiffy)
             (%current-second current-second)
             (%jiffies-per-second jiffies-per-second))))
-
-(define-library (scheme write)
-    (import (core io))
-    (export display write write-shared write-simple))
 
 (define-library (scheme base)
     (import (for (except (core primitives) _ ... environment eval load) run expand)
@@ -1232,10 +1216,8 @@
             (scheme lazy)
             (scheme load)
             (scheme process-context)
-            (scheme read)
             (scheme repl)
-            (scheme time)
-            (scheme write))
+            (scheme time))
     (export 
           * + - ... / < <= = => > >= _ abs and append apply assoc assq
           assv begin binary-port?  boolean=?  boolean?  bytevector
@@ -1279,6 +1261,22 @@
           truncate-quotient truncate/ unless unquote-splicing values
           vector->list vector-append vector-copy!  vector-for-each vector-map
           vector-set!  when write-bytevector write-string zero?))
+
+(define-library (scheme read)
+  (import (core primitives))
+  (import (only (loki reader) read-datum))
+  (import (core io))
+  (import (core case-lambda))
+  (export read)
+  (begin
+    (define read
+      (case-lambda
+        (() (read-datum (current-input-port)))
+        ((port) (read-datum port))))))
+
+(define-library (scheme write)
+    (import (loki writer))
+    (export display write write-shared write-simple))
 
 (define-library (scheme r5rs)
   (import
@@ -1334,3 +1332,4 @@
    syntax-rules tan truncate values vector vector->list vector-fill!
    vector-length vector-ref vector-set! vector? with-input-from-file
    with-output-to-file write write-char zero?))
+

@@ -79,8 +79,8 @@
 (import (loki shared))
 (import (loki runtime))
 (import (loki util))
-(import (core loki-message))
-(import (core reader))
+(import (loki message))
+(import (loki reader))
 (import (loki host))
 
 (export ex:make-variable-transformer
@@ -738,15 +738,14 @@
         ((procedure? procedure-or-macro)
           (make-transformer procedure-or-macro))
         (else
-          (assertion-violation #f "Invalid user macro" procedure-or-macro))))
+          (error "Invalid user macro" procedure-or-macro))))
 
     ;; Returns <macro>.
 
     (define (binding->macro binding t)
       (cond ((assq (binding-name binding) *macro-table*) => cdr)
             (else
-             (syntax-violation
-              #f "Reference to macro keyword out of context" t))))
+             (raise-loki-error t "Reference to macro keyword out of context"))))
 
     ;; Registering macro.
 
@@ -1876,7 +1875,7 @@
     (define (library-ref-helper e)
       (match e
         (((? library-name-part? ids) ___) ids)
-        (- (syntax-violation 'library "Invalid library reference" e))))
+        (- (raise-loki-error e "Invalid library reference."))))
 
     ;;==========================================================================
     ;;
@@ -1889,9 +1888,8 @@
                            ((and (pair? maybe-subform)
                                  (null? (cdr maybe-subform)))
                             (car maybe-subform))
-                           (else (assertion-violation 'syntax-violation
-                                                      "Invalid subform in syntax violation"
-                                                      maybe-subform))))
+                           (else (error "syntax-violation: Invalid subform in syntax violation"
+                                        maybe-subform))))
             (form-source (syntax->closest-source form))
             (subform-source (syntax->closest-source subform)))
         
@@ -2009,7 +2007,7 @@
     (define (dotted-butlast ls n)
       (let recurse ((ls ls)
                     (length-left (dotted-length ls)))
-        (cond ((< length-left n) (assertion-violation 'dotted-butlast "List too short" ls n))
+        (cond ((< length-left n) (error "dotted-butlast: List too short" ls n))
               ((= length-left n) '())
               (else
                (cons (car ls)
@@ -2019,7 +2017,7 @@
     (define (dotted-last ls n)
       (let recurse ((ls ls)
                     (length-left (dotted-length ls)))
-        (cond ((< length-left n) (assertion-violation 'dotted-last "List too short" ls n))
+        (cond ((< length-left n) (error "dotted-last: List too short" ls n))
               ((= length-left n) ls)
               (else
                (recurse (cdr ls)
@@ -2059,7 +2057,7 @@
               ((number? x)
                (number->string x))
               (else
-               (assertion-violation 'list->string "Invalid argument" e))))
+               (error "list->string: Invalid argument." e))))
       (if (null? e)
           ""
           (string-append
@@ -2389,7 +2387,7 @@
 
     ;; Load the r7rs standard library into the expander
     (with-loki-error-handler (lambda ()
-      (ex:expand-file "src/loki/r7rs.scm")))
+      (ex:expand-file "src/r7rs.scm")))
 
     ) ; let
   ) ; letrec-syntax

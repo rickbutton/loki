@@ -1,7 +1,6 @@
 (define-library (loki host)
 (import (scheme base))
 (import (scheme time))
-(import (scheme write))
 (import (scheme eval))
 (cond-expand 
   (chibi

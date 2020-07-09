@@ -5,7 +5,7 @@
 (import (loki runtime))
 (import (loki shared))
 (import (loki util))
-(import (core loki-message))
+(import (loki message))
 
 (define form '(
   (import (scheme base))

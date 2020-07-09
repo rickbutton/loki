@@ -1,18 +1,8 @@
-(define-library (core loki-message)
-(cond-expand
-  (loki
-    (import (core primitives))
-    (import (core let))
-    (import (core bool))
-    (import (core io))
-    (import (core records))
-    (import (core exception))
-    (import (core process))
-    (import (core dynamic)))
-  (chibi
-    (import (scheme base))
-    (import (scheme process-context))
-    (import (scheme write))))
+(define-library (loki message)
+(import (scheme base))
+(import (scheme process-context))
+(import (scheme case-lambda))
+(import (loki writer))
 (export raise-loki-error
         raise-loki-warning
         make-loki-message
@@ -24,17 +14,26 @@
 (begin
 
 (define-record-type <loki-message>
-  (make-loki-message type source message)
+  (make-loki-message type source message obj)
   loki-message?
   (type loki-message->type)
   (source loki-message->source)
-  (message loki-message->message))
+  (message loki-message->message)
+  (obj loki-message->obj))
 
-(define (raise-loki-error source message)
-  (raise (make-loki-message 'error source message)))
+(define raise-loki-error
+  (case-lambda
+    ((source message)
+      (raise-loki-error source message #f))
+    ((source message obj)
+      (raise (make-loki-message 'error source message obj)))))
 
-(define (raise-loki-warning source message)
-  (raise (make-loki-message 'warning source message)))
+(define raise-loki-warning
+  (case-lambda
+    ((source message)
+      (raise-loki-warning source message #f))
+    ((source message obj)
+      (raise (make-loki-message 'warning source message obj)))))
 
 (define (handle-loki-message e)
   (let ((type (loki-message->type e)) (source (loki-message->source e))
@@ -47,7 +46,6 @@
     (display ": ")
     (display message)
     (display "\n")
-    (raise e)
     (if (eq? type 'error) (raise e))))
 
 (define (handle-unexpected-error e)

@@ -10,7 +10,7 @@
 (import (loki util))
 (import (loki shared))
 (import (loki host))
-(import (core reader))
+(import (loki reader))
 (import (srfi 69))
 
 (export ex:library-dirs
@@ -90,8 +90,8 @@
             (let () 
               (display build) (newline)
               (display (ex:library-build library)) (newline)
-            (assertion-violation 
-             'import "Client was expanded against a different build of this library" name)))
+            (error 
+             "Import failed: client was expanded against a different build of this library" name)))
         (ex:import-libraries-for (ex:library-imports library) 
                           (ex:library-builds library)
                           phase
@@ -149,7 +149,7 @@
       (let ((library (ex:lookup-library/false name)))
         (if library
             library
-            (assertion-violation 'lookup-library "Library not loaded" name)))))
+            (error "library lookup failed, library not loaded" name)))))
 
 (define ex:lookup-library/false
     (lambda (name)
@@ -331,11 +331,6 @@
 (define (loki-write-u8 u8 port)
   (write-u8 u8 (loki-port-output port)))
 
-(define (loki-display x port) (display x (loki-port-output port)))
-(define (loki-write x port) (write x (loki-port-output port)))
-(define (loki-write-simple x port) (display x (loki-port-output port)))
-(define (loki-write-shared x port) (display x (loki-port-output port)))
-
 ;; Register the required runtime primitives
 (ex:runtime-add-primitive 'void (if #f #f))
 (ex:runtime-add-primitive 'ex:map-while ex:map-while)
@@ -461,10 +456,6 @@
 (ex:runtime-add-primitive '%write-string     loki-write-string)
 (ex:runtime-add-primitive '%write-char       loki-write-char)
 (ex:runtime-add-primitive '%write-u8         loki-write-u8)
-
-(ex:runtime-add-primitive '%write            loki-write)
-(ex:runtime-add-primitive '%write-simple     loki-write-simple)
-(ex:runtime-add-primitive '%write-shared     loki-write-shared)
 
 (ex:runtime-add-primitive '%current-jiffy         current-jiffy)
 (ex:runtime-add-primitive '%current-second        current-second)
