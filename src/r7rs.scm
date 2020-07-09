@@ -84,80 +84,6 @@
       (define void (if #f #f))
   )) ;; core primitives
 
-(define-library (core intrinsics)
-    (import (primitives 
-          %add %sub %mul %div
-          %lt %lte %number-eq %gt %gte
-          %number? %finite? %infinite?
-          %nan? %floor %ceiling %truncate
-          %round %sqrt %expt
-          %cons %pair? %null? %list? %car %cdr
-          %set-car! %set-cdr!
-          %vector? %vector-set! %vector-ref
-          %vector-length %make-vector
-          %bytevector %bytevector-u8-ref %bytevector-u8-set!
-          %bytevector-length %make-bytevector %bytevector?
-          %char->integer %integer->char %char-foldcase
-          %char-upcase %char-downcase %char? %call/cc %apply
-          %string-set! %string-ref %make-string %string-length
-          %string-downcase %string-upcase %string-foldcase
-          %string->symbol %symbol->string %string-cmp
-          %abort %make-exception %exception? %exception-type
-          %exception-message %exception-irritants
-          %procedure? %symbol? %string? %eq? %eqv? %equal?
-          %command-line %environment-variables %emergency-exit
-
-          %port? %eof-object %eof-object? %port-input %port-output
-          %port-type %port-ready? %input-port-open? %output-port-open?
-          %close-input-port %close-output-port %delete-file %file-exists?
-          %get-output-string %get-output-bytevector
-          %open-output-string %open-input-string %open-input-bytevector
-          %open-output-bytevector %open-output-file %open-input-file
-          %open-binary-input-file %open-binary-output-file
-          %stderr %stdin %stdout %flush-output-port
-          %peek-u8 %peek-char
-          %read-bytevector! %read-bytevector %read-string %read-char
-          %read-line %read-u8 %write-bytevector %write-string
-          %write-char %write-u8
-          %hash-by-identity %current-jiffy %current-second %jiffies-per-second
-          number->string string->number))
-    (export 
-          %add %sub %mul %div
-          %lt %lte %number-eq %gt %gte
-          %number? %finite? %infinite?
-          %nan? %floor %ceiling %truncate
-          %round %sqrt %expt
-          %cons %pair? %null? %list? %car %cdr
-          %set-car! %set-cdr!
-          %vector? %vector-set! %vector-ref
-          %vector-length %make-vector
-          %bytevector %bytevector-u8-ref %bytevector-u8-set!
-          %bytevector-length %make-bytevector %bytevector?
-          %char->integer %integer->char %char-foldcase
-          %char-upcase %char-downcase %char? %call/cc %apply
-          %string-set! %string-ref %make-string %string-length
-          %string-downcase %string-upcase %string-foldcase
-          %string->symbol %symbol->string %string-cmp
-          %abort %make-exception %exception? %exception-type
-          %exception-message %exception-irritants
-          %procedure? %symbol? %string? %eq? %eqv? %equal?
-          %command-line %environment-variables %emergency-exit
-
-          %port? %eof-object %eof-object? %port-input %port-output
-          %port-type %port-ready? %input-port-open? %output-port-open?
-          %close-input-port %close-output-port %delete-file %file-exists?
-          %get-output-string %get-output-bytevector
-          %open-output-string %open-input-string %open-input-bytevector
-          %open-output-bytevector %open-output-file %open-input-file
-          %open-binary-input-file %open-binary-output-file
-          %stderr %stdin %stdout %flush-output-port
-          %peek-u8 %peek-char
-          %read-bytevector! %read-bytevector %read-string %read-char
-          %read-line %read-u8 %write-bytevector %write-string
-          %write-char %write-u8
-          %hash-by-identity %current-jiffy %current-second %jiffies-per-second
-          number->string string->number))
-
 (define-library (core apply)
   (export (rename (%apply apply)))
   (import (core intrinsics)))
@@ -1261,7 +1187,6 @@
           truncate-quotient truncate/ unless unquote-splicing values
           vector->list vector-append vector-copy!  vector-for-each vector-map
           vector-set!  when write-bytevector write-string zero?))
-
 (define-library (scheme read)
   (import (core primitives))
   (import (only (loki reader) read-datum))
@@ -1318,12 +1243,12 @@
    letrec-syntax list list->string list->vector list-ref list-tail list?
    load log magnitude make-polar make-rectangular make-string make-vector
    map max member memq memv min modulo negative? newline not
-   ; TODO null-environment
+   null-environment
    null? number->string number? numerator odd?
    open-input-file open-output-file or output-port? pair? peek-char
    positive? procedure? quasiquote quote quotient rational? rationalize
    read read-char real-part real? remainder reverse round
-   ; TODO scheme-report-environment
+   scheme-report-environment
    set-car! set-cdr! set! sin sqrt string
    string->list string->number string->symbol string-append string-ci<?
    string-ci<=? string-ci=? string-ci>? string-ci>=? string-copy
@@ -1331,5 +1256,21 @@
    string<=? string=? string>? string>=? substring symbol->string symbol?
    syntax-rules tan truncate values vector vector->list vector-fill!
    vector-length vector-ref vector-set! vector? with-input-from-file
-   with-output-to-file write write-char zero?))
+   with-output-to-file write write-char zero?)
+  (begin
+    (define (null-environment version)
+      (if (or (= version 5)
+              (= version 7))
+        (environment '(only (core primitives) 
+          begin if lambda quote set! and or
+          define define-syntax let-syntax letrec-syntax
+          include include-ci
+          _ ... syntax syntax-case))
+        (error "null-environment: invalid version" version)))
+    (define (scheme-report-environment version)
+      (cond
+        ((= version 5) (environment '(scheme r5rs)))
+        ((= version 7) (environment '(scheme base)))
+        (else (error "scheme-report-environment: invalid version" version))))))
+
 

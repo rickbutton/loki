@@ -12,7 +12,7 @@
 (define (ex:unique-token)
   (cond-expand
     (chibi (number->string (current-seconds) 32))
-    (else (number->string (current-jiffy)))))
+    (else (number->string (current-jiffy) 32))))
 
 (define (host-eval x env)
   (cond-expand

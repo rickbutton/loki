@@ -895,7 +895,7 @@
     (define (expand-local-syntax exp)
       (expand-begin `(,(rename 'macro 'begin) ,exp)))
 
-    ;; Define and and or as primitives  so we can import them into the
+    ;; Define and and or as primitives so we can import them into the
     ;; toplevel without spoiling the and and or of the library language.
 
     (define (expand-and exp)
@@ -2224,6 +2224,58 @@
 
     ;;==========================================================================
     ;;
+    ;; Intrinsic bootstrap:
+    ;;
+    ;;==========================================================================
+
+
+    (define intrinsic-template
+      (make-identifier 'intrinsic-template
+                       '()
+                       '()
+                       0
+                       `(anonymous)
+                       (make-source "<intrinsic>" 1 0)))
+
+    (define intrinsics '(
+          %add %sub %mul %div
+          %lt %lte %number-eq %gt %gte
+          %number? %finite? %infinite?
+          %nan? %floor %ceiling %truncate
+          %round %sqrt %expt
+          %cons %pair? %null? %list? %car %cdr
+          %set-car! %set-cdr!
+          %vector? %vector-set! %vector-ref
+          %vector-length %make-vector
+          %bytevector %bytevector-u8-ref %bytevector-u8-set!
+          %bytevector-length %make-bytevector %bytevector?
+          %char->integer %integer->char %char-foldcase
+          %char-upcase %char-downcase %char? %call/cc %apply
+          %string-set! %string-ref %make-string %string-length
+          %string-downcase %string-upcase %string-foldcase
+          %string->symbol %symbol->string %string-cmp
+          %abort %make-exception %exception? %exception-type
+          %exception-message %exception-irritants
+          %procedure? %symbol? %string? %eq? %eqv? %equal?
+          %command-line %environment-variables %emergency-exit
+
+          %port? %eof-object %eof-object? %port-input %port-output
+          %port-type %port-ready? %input-port-open? %output-port-open?
+          %close-input-port %close-output-port %delete-file %file-exists?
+          %get-output-string %get-output-bytevector
+          %open-output-string %open-input-string %open-input-bytevector
+          %open-output-bytevector %open-output-file %open-input-file
+          %open-binary-input-file %open-binary-output-file
+          %stderr %stdin %stdout %flush-output-port
+          %peek-u8 %peek-char
+          %read-bytevector! %read-bytevector %read-string %read-char
+          %read-line %read-u8 %write-bytevector %write-string
+          %write-char %write-u8
+          %hash-by-identity %current-jiffy %current-second %jiffies-per-second
+          %number->string %string->number))
+
+    ;;==========================================================================
+    ;;
     ;; Toplevel bootstrap:
     ;;
     ;;==========================================================================
@@ -2315,6 +2367,35 @@
         '()
         ;; build
         'system)))
+
+    ;;===================================================================
+    ;;
+    ;; Bootstrap library containing compiler intrinsics.
+    ;;
+    ;;===================================================================
+
+    (ex:register-library!
+      (ex:make-library
+       '(core intrinsics)
+       ;; envs
+       '()
+       ;; exports
+       (map (lambda (intrinsic)
+              (cons intrinsic (make-binding 'variable intrinsic '(0) #f '())))
+            intrinsics)
+       ;; imported-libraries
+       '()
+       ;; builds
+       '()
+       ;; syntax-defs
+       '()
+       ;; bound-vars
+       '()
+       ;; forms
+       '()
+       ;; build
+       'system))
+
 
     ;; Initial environments:
 

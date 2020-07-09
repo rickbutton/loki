@@ -16,6 +16,8 @@
                                   (%string-ref    string-ref)
                                   (%make-string   make-string)
                                   (%string-length string-length)
+                                  (%number->string number->string)
+                                  (%string->number string->number)
                                   (%string->symbol string->symbol)
                                   (%symbol->string symbol->string)
                                   (%string-downcase string-downcase)
@@ -23,7 +25,8 @@
                                   (%string-foldcase string-foldcase)))
 (export make-string string string-length string-ref string-set!
         string-append string-map string-for-each string-fill!
-        string-copy string-copy! string->list list->string
+        string-copy string-copy! 
+        string->number number->string string->list list->string
         vector->string string->vector digit-value
         string<=? string<? string>=? string>? string=?
         string-ci<=? string-ci<?

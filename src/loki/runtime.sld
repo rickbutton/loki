@@ -383,6 +383,8 @@
 (ex:runtime-add-primitive '%string-downcase string-downcase)
 (ex:runtime-add-primitive '%string-upcase string-upcase)
 (ex:runtime-add-primitive '%string-foldcase string-foldcase)
+(ex:runtime-add-primitive '%number->string number->string)
+(ex:runtime-add-primitive '%string->number string->number)
 
 (ex:runtime-add-primitive '%apply               apply)
 (ex:runtime-add-primitive '%abort               abort)
