@@ -726,8 +726,8 @@
              (let ((name (car def)) (macro (cdr def)))
                 (if (macro? macro)
                   (register-macro! name macro)
-                  (register-macro! name (make-transformer (ex:runtime-eval macro))))))
-           (ex:library-syntax-defs library)))
+                  (register-macro! name (make-transformer (rt:runtime-eval macro))))))
+           (rt:library-syntax-defs library)))
 
 ;; Calls a macro with a new color.
 
@@ -1049,7 +1049,7 @@
                          (env-extend! (list mapping) common-env)
                          (let ((rhs (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand rhs))))
-                           (register-macro! (binding-name (cdr mapping)) (make-transformer (ex:runtime-eval rhs)))
+                           (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-eval rhs)))
                            (loop (cdr ws)
                                  forms
                                  (cons (cons (binding-name (binding id)) rhs) syntax-defs)
@@ -1080,7 +1080,7 @@
                                               ((let-syntax)    original-env)
                                               ((letrec-syntax) extended-env))))
                                  (map expand rhs)))
-                              (macros (map (lambda (e) (ex:runtime-eval e)) rhs-expanded)))
+                              (macros (map (lambda (e) (rt:runtime-eval e)) rhs-expanded)))
                          (for-each (lambda (mapping macro)
                                      (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                    usage-diff
@@ -1204,7 +1204,7 @@
                       ,fk)                                              ; +++
                  (let ((columns (generate-guid 'cols))
                        (rest    (generate-guid 'rest)))
-                   `(ex:map-while (lambda (,input)
+                   `(rt:map-while (lambda (,input)
                                     ,(process-match input
                                                     p
                                                     `(list ,@mapped-pvars)
@@ -1527,7 +1527,7 @@
                                                        ;     'library "Attempt to export mutable variable" t (cadr mapping)))
                                                        binding)))
                                              exports))
-                                        (library (ex:make-library
+                                        (library (rt:make-library
                                                name
                                                (if *syntax-reflected*
                                                  (compress (drop-tail *env-table* initial-env-table))
@@ -1539,10 +1539,10 @@
                                                bound-variables
                                                (emit-body forms 'set!)
                                                (generate-guid 'build))))
-                                    (ex:register-library! library)
+                                    (rt:register-library! library)
                                     (case library-type
                                       ((library) #f)
-                                      ((program) `(ex:import-library ',name))))))))))))))
+                                      ((program) `(rt:import-library ',name))))))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
@@ -1554,26 +1554,26 @@
 
 (define (current-builds imported-libraries)
   (map (lambda (lib-entry)
-         (ex:library-build (ex:lookup-library (car lib-entry))))
+         (rt:library-build (rt:lookup-library (car lib-entry))))
        imported-libraries))
 
 (define (import-libraries-for-expand imports builds phase)
-  (ex:import-libraries-for
+  (rt:import-libraries-for
    imports
    builds
    phase
    (lambda (library phase imported)
      (if (and (>= phase 0)
-              (not (ex:library-visited? library)))
+              (not (rt:library-visited? library)))
          (begin
-           (set! *env-table* (append (uncompress (ex:library-envs library)) *env-table*))
+           (set! *env-table* (append (uncompress (rt:library-envs library)) *env-table*))
            (visit-library! library)
-           (ex:library-visited?-set! library #t)))
+           (rt:library-visited?-set! library #t)))
      (if (and (>= phase 1)
-              (not (ex:library-invoked? library)))
+              (not (rt:library-invoked? library)))
          (begin 
-           (ex:invoke-library! library)
-           (ex:library-invoked?-set! library #t))))
+           (rt:invoke-library! library)
+           (rt:library-invoked?-set! library #t))))
    'expand))
 
 (define (scan-declarations declarations)
@@ -1755,7 +1755,7 @@
            (let ((library-ref (library-ref import-set)))
              (if library-ref
                  (let* ((library (load-library (syntax->datum library-ref)))
-                        (exports (ex:library-exports library))
+                        (exports (rt:library-exports library))
                         (imports
                          (map (lambda (mapping)
                                 (cons (car mapping)
@@ -1912,8 +1912,8 @@
     (let ((exp (datum->syntax eval-template exp))
           (imported-libraries (environment-imported-libraries env)))
       (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
-      (ex:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
-      (let ((result (map ex:runtime-eval (expand-toplevel-sequence (list exp)))))
+      (rt:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
+      (let ((result (map rt:runtime-eval (expand-toplevel-sequence (list exp)))))
         (if (null? result) result (car result))))))
 
 ;;==========================================================================
@@ -2078,22 +2078,22 @@
         (map (lambda (dir)
             (string-append 
                 (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
-            ex:library-dirs))
+            rt:library-dirs))
       (syntax-violation #f (string-join (cons "File not found for library: "
                                           (reverse (map library-name-part->string name))) " ") name)))
 
 (define (load-library name)
     (or
-        (ex:lookup-library/false name)
+        (rt:lookup-library/false name)
         (begin (loki-load (library-name->filename name))
-               (ex:lookup-library name))))
+               (rt:lookup-library name))))
 
 (define (loki-load filename)
   (with-toplevel-parameters
    (lambda ()
      (for-each (lambda (exp)
                  (for-each (lambda (exp)
-                             (ex:runtime-eval exp))
+                             (rt:runtime-eval exp))
                            (expand-toplevel-sequence (list exp))))
                (read-file filename)))))
   
@@ -2296,7 +2296,7 @@
 ;;
 ;;===================================================================
 
-(ex:register-library!
+(rt:register-library!
  (let ((primitive-macro-mapping
         `((lambda        . ,expand-lambda)
           (if            . ,expand-if)
@@ -2315,7 +2315,7 @@
           (define-syntax . ,invalid-form)
           (_             . ,invalid-form)
           (...           . ,invalid-form))))
-   (ex:make-library
+   (rt:make-library
     '(core primitive-macros)
     ;; envs
     '()
@@ -2344,8 +2344,8 @@
 ;;
 ;;===================================================================
 
-(ex:register-library!
-  (ex:make-library
+(rt:register-library!
+  (rt:make-library
    '(core intrinsics)
    ;; envs
    '()
@@ -2380,30 +2380,30 @@
 (register-macro! 'import  (make-expander invalid-form))
 
 ;; Register the expander's primitive API surface with the runtime
-(ex:runtime-add-primitive 'ex:make-variable-transformer make-variable-transformer)
-(ex:runtime-add-primitive 'ex:identifier? identifier?)
-(ex:runtime-add-primitive 'ex:bound-identifier=? bound-identifier=?)
-(ex:runtime-add-primitive 'ex:free-identifier=? free-identifier=?)
-(ex:runtime-add-primitive 'ex:generate-temporaries generate-temporaries)
-(ex:runtime-add-primitive 'ex:datum->syntax datum->syntax)
-(ex:runtime-add-primitive 'ex:syntax->datum syntax->datum)
-(ex:runtime-add-primitive 'ex:environment environment)
-(ex:runtime-add-primitive 'ex:environment-bindings environment-bindings)
-(ex:runtime-add-primitive 'ex:eval loki-eval)
-(ex:runtime-add-primitive 'ex:load loki-load)
-(ex:runtime-add-primitive 'ex:syntax-violation syntax-violation)
-(ex:runtime-add-primitive 'ex:features loki-features)
-(ex:runtime-add-primitive 'ex:expand-file expand-file)
-(ex:runtime-add-primitive 'ex:expand-sequence expand-sequence)
-(ex:runtime-add-primitive 'ex:expand-datum-sequence expand-datum-sequence)
+(rt:runtime-add-primitive 'ex:make-variable-transformer make-variable-transformer)
+(rt:runtime-add-primitive 'ex:identifier? identifier?)
+(rt:runtime-add-primitive 'ex:bound-identifier=? bound-identifier=?)
+(rt:runtime-add-primitive 'ex:free-identifier=? free-identifier=?)
+(rt:runtime-add-primitive 'ex:generate-temporaries generate-temporaries)
+(rt:runtime-add-primitive 'ex:datum->syntax datum->syntax)
+(rt:runtime-add-primitive 'ex:syntax->datum syntax->datum)
+(rt:runtime-add-primitive 'ex:environment environment)
+(rt:runtime-add-primitive 'ex:environment-bindings environment-bindings)
+(rt:runtime-add-primitive 'ex:eval loki-eval)
+(rt:runtime-add-primitive 'ex:load loki-load)
+(rt:runtime-add-primitive 'ex:syntax-violation syntax-violation)
+(rt:runtime-add-primitive 'ex:features loki-features)
+(rt:runtime-add-primitive 'ex:expand-file expand-file)
+(rt:runtime-add-primitive 'ex:expand-sequence expand-sequence)
+(rt:runtime-add-primitive 'ex:expand-datum-sequence expand-datum-sequence)
 
-(ex:runtime-add-primitive 'ex:invalid-form invalid-form)
-(ex:runtime-add-primitive 'ex:register-macro! register-macro!)
-(ex:runtime-add-primitive 'ex:syntax-rename syntax-rename)
-(ex:runtime-add-primitive 'ex:dotted-length dotted-length)
-(ex:runtime-add-primitive 'ex:dotted-butlast dotted-butlast)
-(ex:runtime-add-primitive 'ex:dotted-last dotted-last)
-(ex:runtime-add-primitive 'ex:free=? free=?)
+(rt:runtime-add-primitive 'ex:invalid-form invalid-form)
+(rt:runtime-add-primitive 'ex:register-macro! register-macro!)
+(rt:runtime-add-primitive 'ex:syntax-rename syntax-rename)
+(rt:runtime-add-primitive 'ex:dotted-length dotted-length)
+(rt:runtime-add-primitive 'ex:dotted-butlast dotted-butlast)
+(rt:runtime-add-primitive 'ex:dotted-last dotted-last)
+(rt:runtime-add-primitive 'ex:free=? free=?)
 
 ;; Load the r7rs standard library into the expander
 (with-loki-error-handler (lambda ()

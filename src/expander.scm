@@ -21,7 +21,7 @@
     (import (loki runtime))
     (begin
       (display "hello from the third compiler...\n\n")
-      (map ex:runtime-eval (ex:expand-datum-sequence ',form))
+      (map rt:runtime-eval (ex:expand-datum-sequence ',form))
 )))
 
 
@@ -35,10 +35,10 @@
     (begin
       (display "hello from the second compiler...\n\n")
       (ex:expand-datum-sequence (list ',inside2))
-      (ex:import-library '(inside2))
+      (rt:import-library '(inside2))
 )))
 
 (with-loki-error-handler (lambda ()
   (display "hello from the first compiler...\n")
   (ex:expand-datum-sequence (list inside))
-  (ex:import-library '(inside))))
+  (rt:import-library '(inside))))

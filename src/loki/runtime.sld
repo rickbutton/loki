@@ -13,34 +13,34 @@
 (import (loki reader))
 (import (srfi 69))
 
-(export ex:library-dirs
-        ex:map-while
-        ex:make-library
-        ex:library-name
-        ex:library-envs
-        ex:library-exports
-        ex:library-imports
-        ex:library-builds
-        ex:library-syntax-defs
-        ex:library-bound-vars
-        ex:library-forms
-        ex:library-build
-        ex:library-visited?
-        ex:library-invoked?
-        ex:library-visited?-set!
-        ex:library-invoked?-set!
-        ex:import-libraries-for
-        ex:import-libraries-for-run
-        ex:import-library
-        ex:register-library!
-        ex:invoke-library!
-        ex:lookup-library
-        ex:lookup-library/false
-        ex:runtime-add-primitive
-        ex:runtime-eval)
+(export rt:library-dirs
+        rt:map-while
+        rt:make-library
+        rt:library-name
+        rt:library-envs
+        rt:library-exports
+        rt:library-imports
+        rt:library-builds
+        rt:library-syntax-defs
+        rt:library-bound-vars
+        rt:library-forms
+        rt:library-build
+        rt:library-visited?
+        rt:library-invoked?
+        rt:library-visited?-set!
+        rt:library-invoked?-set!
+        rt:import-libraries-for
+        rt:import-libraries-for-run
+        rt:import-library
+        rt:register-library!
+        rt:invoke-library!
+        rt:lookup-library
+        rt:lookup-library/false
+        rt:runtime-add-primitive
+        rt:runtime-eval)
 (begin
 
-(define ex:library-dirs (list "src"))
+(define rt:library-dirs (list "src"))
 
 (define (util:filter p? lst)
   (if (null? lst)
@@ -50,12 +50,12 @@
                 (util:filter p? (cdr lst)))
           (util:filter p? (cdr lst)))))
 
-(define (ex:map-while f lst k)
+(define (rt:map-while f lst k)
   (cond ((null? lst) (k '() '()))
         ((pair? lst)
          (let ((head (f (car lst))))
            (if head
-               (ex:map-while f
+               (rt:map-while f
                           (cdr lst)
                           (lambda (answer rest)
                             (k (cons head answer)
@@ -65,49 +65,49 @@
 
 (define-record-type <library>
     (make-library-record name envs exports imports builds syntax-defs bound-vars forms build visited? invoked?)
-    ex:library?
-    (name        ex:library-name)
-    (envs        ex:library-envs)
-    (exports     ex:library-exports)
-    (imports     ex:library-imports)
-    (builds      ex:library-builds)
-    (syntax-defs ex:library-syntax-defs)
-    (bound-vars  ex:library-bound-vars)
-    (forms       ex:library-forms)
-    (build       ex:library-build)
-    (visited?    ex:library-visited? ex:library-visited?-set!)
-    (invoked?    ex:library-invoked? ex:library-invoked?-set!))
+    rt:library?
+    (name        rt:library-name)
+    (envs        rt:library-envs)
+    (exports     rt:library-exports)
+    (imports     rt:library-imports)
+    (builds      rt:library-builds)
+    (syntax-defs rt:library-syntax-defs)
+    (bound-vars  rt:library-bound-vars)
+    (forms       rt:library-forms)
+    (build       rt:library-build)
+    (visited?    rt:library-visited? rt:library-visited?-set!)
+    (invoked?    rt:library-invoked? rt:library-invoked?-set!))
 
-(define (ex:make-library name envs exports imports builds syntax-defs bound-vars forms build)
+(define (rt:make-library name envs exports imports builds syntax-defs bound-vars forms build)
   (make-library-record name envs exports imports builds syntax-defs bound-vars forms build #f #f))
 
-(define ex:imported '())
+(define rt:imported '())
 (define (import-library name build phase importer run-or-expand)
-  (if (not (member (cons name (cons phase run-or-expand)) ex:imported))
-      (let ((library (ex:lookup-library name)))
+  (if (not (member (cons name (cons phase run-or-expand)) rt:imported))
+      (let ((library (rt:lookup-library name)))
         (or (not build)
-            (eq? build (ex:library-build library))
+            (eq? build (rt:library-build library))
             (let () 
               (display build) (newline)
-              (display (ex:library-build library)) (newline)
+              (display (rt:library-build library)) (newline)
             (error 
              "Import failed: client was expanded against a different build of this library" name)))
-        (ex:import-libraries-for (ex:library-imports library) 
-                          (ex:library-builds library)
+        (rt:import-libraries-for (rt:library-imports library) 
+                          (rt:library-builds library)
                           phase
                           importer 
                           run-or-expand)
-        (importer library phase ex:imported)
-        (set! ex:imported (cons (cons name (cons phase run-or-expand)) ex:imported)))))
+        (importer library phase rt:imported)
+        (set! rt:imported (cons (cons name (cons phase run-or-expand)) rt:imported)))))
 
 (define (importer library phase imported)
   (if (and (= phase 0)
-    (not (ex:library-invoked? library)))
+    (not (rt:library-invoked? library)))
     (begin 
-      (ex:invoke-library! library)
-      (ex:library-invoked?-set! library #t))))
+      (rt:invoke-library! library)
+      (rt:library-invoked?-set! library #t))))
 
-(define (ex:import-libraries-for imports builds phase importer run-or-expand)
+(define (rt:import-libraries-for imports builds phase importer run-or-expand)
   (for-each (lambda (import build)
               (let ((name   (car import))
                     (levels (cdr import)))
@@ -117,43 +117,43 @@
             imports
             builds)
   (values))
-(define (ex:import-libraries-for-run imports builds phase)
-  (ex:import-libraries-for imports 
+(define (rt:import-libraries-for-run imports builds phase)
+  (rt:import-libraries-for imports 
                            builds
                            phase 
                            importer
                            'run))
 
-(define (ex:import-library name)
-    (let ((library (ex:lookup-library name)))
-      (ex:import-libraries-for-run (ex:library-imports library) (ex:library-builds library) 0)
-      (import-library (ex:library-name library) (ex:library-build library) 0 importer 'run)))
+(define (rt:import-library name)
+    (let ((library (rt:lookup-library name)))
+      (rt:import-libraries-for-run (rt:library-imports library) (rt:library-builds library) 0)
+      (import-library (rt:library-name library) (rt:library-build library) 0 importer 'run)))
 
 (define table '())
-(define ex:register-library! 
+(define rt:register-library! 
     (lambda (library)
       (set! table (cons library table))
-      (set! ex:imported (util:filter (lambda (entry)
-                                  (not (equal? (ex:library-name library) 
+      (set! rt:imported (util:filter (lambda (entry)
+                                  (not (equal? (rt:library-name library) 
                                                (car entry))))
-                                ex:imported))))
+                                rt:imported))))
 
-(define ex:invoke-library!
+(define rt:invoke-library!
     (lambda (library)
-        (ex:runtime-eval `(begin
-                      ,@(map (lambda (var) `(define ,var '(if #f #f))) (ex:library-bound-vars library))
-                      ,@(ex:library-forms library)))))
+        (rt:runtime-eval `(begin
+                      ,@(map (lambda (var) `(define ,var '(if #f #f))) (rt:library-bound-vars library))
+                      ,@(rt:library-forms library)))))
 
-(define ex:lookup-library 
+(define rt:lookup-library 
     (lambda (name)
-      (let ((library (ex:lookup-library/false name)))
+      (let ((library (rt:lookup-library/false name)))
         (if library
             library
             (error "library lookup failed, library not loaded" name)))))
 
-(define ex:lookup-library/false
+(define rt:lookup-library/false
     (lambda (name)
-      (let ((library (find (lambda (l) (equal? name (ex:library-name l))) table)))
+      (let ((library (find (lambda (l) (equal? name (rt:library-name l))) table)))
         (if library
             library
             #f))))
@@ -180,10 +180,10 @@
      '(scheme base)
      )))
 
-(define (ex:runtime-add-primitive name value)
-  (ex:runtime-eval `(define ,name ,value)))
+(define (rt:runtime-add-primitive name value)
+  (rt:runtime-eval `(define ,name ,value)))
 
-(define (ex:runtime-eval e)
+(define (rt:runtime-eval e)
   (if (not runtime-env) (runtime-env-init!))
   (host:eval e runtime-env))
 
@@ -332,146 +332,146 @@
   (write-u8 u8 (loki-port-output port)))
 
 ;; Register the required runtime primitives
-(ex:runtime-add-primitive 'void (if #f #f))
-(ex:runtime-add-primitive 'ex:map-while ex:map-while)
-(ex:runtime-add-primitive 'ex:import-library ex:import-library)
+(rt:runtime-add-primitive 'void (if #f #f))
+(rt:runtime-add-primitive 'rt:map-while rt:map-while)
+(rt:runtime-add-primitive 'rt:import-library rt:import-library)
 
-(ex:runtime-add-primitive '%add        +)
-(ex:runtime-add-primitive '%sub        -)
-(ex:runtime-add-primitive '%mul        *)
-(ex:runtime-add-primitive '%div        /)
-(ex:runtime-add-primitive '%lt         <)
-(ex:runtime-add-primitive '%lte       <=)
-(ex:runtime-add-primitive '%number-eq  =)
-(ex:runtime-add-primitive '%gt         >)
-(ex:runtime-add-primitive '%gte       >=)
+(rt:runtime-add-primitive '%add        +)
+(rt:runtime-add-primitive '%sub        -)
+(rt:runtime-add-primitive '%mul        *)
+(rt:runtime-add-primitive '%div        /)
+(rt:runtime-add-primitive '%lt         <)
+(rt:runtime-add-primitive '%lte       <=)
+(rt:runtime-add-primitive '%number-eq  =)
+(rt:runtime-add-primitive '%gt         >)
+(rt:runtime-add-primitive '%gte       >=)
 
-(ex:runtime-add-primitive '%cons      cons)
-(ex:runtime-add-primitive '%pair?     pair?)
-(ex:runtime-add-primitive '%null?     null?)
-(ex:runtime-add-primitive '%list?     list?)
-(ex:runtime-add-primitive '%car       car)
-(ex:runtime-add-primitive '%cdr       cdr)
-(ex:runtime-add-primitive '%set-car!  set-car!)
-(ex:runtime-add-primitive '%set-cdr!  set-cdr!)
+(rt:runtime-add-primitive '%cons      cons)
+(rt:runtime-add-primitive '%pair?     pair?)
+(rt:runtime-add-primitive '%null?     null?)
+(rt:runtime-add-primitive '%list?     list?)
+(rt:runtime-add-primitive '%car       car)
+(rt:runtime-add-primitive '%cdr       cdr)
+(rt:runtime-add-primitive '%set-car!  set-car!)
+(rt:runtime-add-primitive '%set-cdr!  set-cdr!)
 
-(ex:runtime-add-primitive '%vector?        vector?)
-(ex:runtime-add-primitive '%vector-set!    vector-set!)
-(ex:runtime-add-primitive '%vector-ref     vector-ref)
-(ex:runtime-add-primitive '%vector-length  vector-length)
-(ex:runtime-add-primitive '%make-vector    make-vector)
+(rt:runtime-add-primitive '%vector?        vector?)
+(rt:runtime-add-primitive '%vector-set!    vector-set!)
+(rt:runtime-add-primitive '%vector-ref     vector-ref)
+(rt:runtime-add-primitive '%vector-length  vector-length)
+(rt:runtime-add-primitive '%make-vector    make-vector)
 
-(ex:runtime-add-primitive '%bytevector?        bytevector?)
-(ex:runtime-add-primitive '%bytevector-u8-set! bytevector-u8-set!)
-(ex:runtime-add-primitive '%bytevector-u8-ref  bytevector-u8-ref)
-(ex:runtime-add-primitive '%make-bytevector    make-bytevector)
-(ex:runtime-add-primitive '%bytevector-length  bytevector-length)
+(rt:runtime-add-primitive '%bytevector?        bytevector?)
+(rt:runtime-add-primitive '%bytevector-u8-set! bytevector-u8-set!)
+(rt:runtime-add-primitive '%bytevector-u8-ref  bytevector-u8-ref)
+(rt:runtime-add-primitive '%make-bytevector    make-bytevector)
+(rt:runtime-add-primitive '%bytevector-length  bytevector-length)
 
-(ex:runtime-add-primitive '%char->integer char->integer)
-(ex:runtime-add-primitive '%integer->char integer->char)
-(ex:runtime-add-primitive '%char-foldcase char-foldcase)
-(ex:runtime-add-primitive '%char-upcase   char-upcase)
-(ex:runtime-add-primitive '%char-downcase char-downcase)
-(ex:runtime-add-primitive '%char?         char?)
+(rt:runtime-add-primitive '%char->integer char->integer)
+(rt:runtime-add-primitive '%integer->char integer->char)
+(rt:runtime-add-primitive '%char-foldcase char-foldcase)
+(rt:runtime-add-primitive '%char-upcase   char-upcase)
+(rt:runtime-add-primitive '%char-downcase char-downcase)
+(rt:runtime-add-primitive '%char?         char?)
 
-(ex:runtime-add-primitive '%string-set!   string-set!)
-(ex:runtime-add-primitive '%string-ref    string-ref)
-(ex:runtime-add-primitive '%make-string   make-string)
-(ex:runtime-add-primitive '%string-length string-length)
-(ex:runtime-add-primitive '%string->symbol string->symbol)
-(ex:runtime-add-primitive '%symbol->string symbol->string)
-(ex:runtime-add-primitive '%string-downcase string-downcase)
-(ex:runtime-add-primitive '%string-upcase string-upcase)
-(ex:runtime-add-primitive '%string-foldcase string-foldcase)
-(ex:runtime-add-primitive '%number->string number->string)
-(ex:runtime-add-primitive '%string->number string->number)
+(rt:runtime-add-primitive '%string-set!   string-set!)
+(rt:runtime-add-primitive '%string-ref    string-ref)
+(rt:runtime-add-primitive '%make-string   make-string)
+(rt:runtime-add-primitive '%string-length string-length)
+(rt:runtime-add-primitive '%string->symbol string->symbol)
+(rt:runtime-add-primitive '%symbol->string symbol->string)
+(rt:runtime-add-primitive '%string-downcase string-downcase)
+(rt:runtime-add-primitive '%string-upcase string-upcase)
+(rt:runtime-add-primitive '%string-foldcase string-foldcase)
+(rt:runtime-add-primitive '%number->string number->string)
+(rt:runtime-add-primitive '%string->number string->number)
 
-(ex:runtime-add-primitive '%apply               apply)
-(ex:runtime-add-primitive '%abort               abort)
-(ex:runtime-add-primitive '%make-exception      make-exception)
-(ex:runtime-add-primitive '%exception?          exception?)
-(ex:runtime-add-primitive '%exception-type      exception-type)
-(ex:runtime-add-primitive '%exception-message   exception-message)
-(ex:runtime-add-primitive '%exception-irritants exception-irritants)
-(ex:runtime-add-primitive '%procedure?          procedure?)
-(ex:runtime-add-primitive '%symbol?             symbol?)
-(ex:runtime-add-primitive '%string?             string?)
-(ex:runtime-add-primitive '%string-cmp          string-cmp)
+(rt:runtime-add-primitive '%apply               apply)
+(rt:runtime-add-primitive '%abort               abort)
+(rt:runtime-add-primitive '%make-exception      make-exception)
+(rt:runtime-add-primitive '%exception?          exception?)
+(rt:runtime-add-primitive '%exception-type      exception-type)
+(rt:runtime-add-primitive '%exception-message   exception-message)
+(rt:runtime-add-primitive '%exception-irritants exception-irritants)
+(rt:runtime-add-primitive '%procedure?          procedure?)
+(rt:runtime-add-primitive '%symbol?             symbol?)
+(rt:runtime-add-primitive '%string?             string?)
+(rt:runtime-add-primitive '%string-cmp          string-cmp)
 
-(ex:runtime-add-primitive '%eq?    eq?)
-(ex:runtime-add-primitive '%eqv?   eqv?)
-(ex:runtime-add-primitive '%equal? equal?)
+(rt:runtime-add-primitive '%eq?    eq?)
+(rt:runtime-add-primitive '%eqv?   eqv?)
+(rt:runtime-add-primitive '%equal? equal?)
 
-(ex:runtime-add-primitive '%number?    number?)
-(ex:runtime-add-primitive '%finite?    finite?)
-(ex:runtime-add-primitive '%infinite?  infinite?)
-(ex:runtime-add-primitive '%nan?       nan?)
-(ex:runtime-add-primitive '%floor      floor)
-(ex:runtime-add-primitive '%ceiling    ceiling)
-(ex:runtime-add-primitive '%truncate   truncate)
-(ex:runtime-add-primitive '%round      round)
-(ex:runtime-add-primitive '%sqrt       sqrt)
-(ex:runtime-add-primitive '%expt       expt)
+(rt:runtime-add-primitive '%number?    number?)
+(rt:runtime-add-primitive '%finite?    finite?)
+(rt:runtime-add-primitive '%infinite?  infinite?)
+(rt:runtime-add-primitive '%nan?       nan?)
+(rt:runtime-add-primitive '%floor      floor)
+(rt:runtime-add-primitive '%ceiling    ceiling)
+(rt:runtime-add-primitive '%truncate   truncate)
+(rt:runtime-add-primitive '%round      round)
+(rt:runtime-add-primitive '%sqrt       sqrt)
+(rt:runtime-add-primitive '%expt       expt)
 
-(ex:runtime-add-primitive '%command-line          ''())
-(ex:runtime-add-primitive '%environment-variables ''())
-(ex:runtime-add-primitive '%emergency-exit        exit) ; TODO - this sucks
+(rt:runtime-add-primitive '%command-line          ''())
+(rt:runtime-add-primitive '%environment-variables ''())
+(rt:runtime-add-primitive '%emergency-exit        exit) ; TODO - this sucks
 
-(ex:runtime-add-primitive '%port?                   loki-port?)
-(ex:runtime-add-primitive '%eof-object              loki-eof-object)
-(ex:runtime-add-primitive '%eof-object?             loki-eof-object?)
-(ex:runtime-add-primitive '%port-input              loki-port-input)
-(ex:runtime-add-primitive '%port-output             loki-port-output)
-(ex:runtime-add-primitive '%port-type               loki-port-type)
-(ex:runtime-add-primitive '%port-ready?             loki-port-ready?)
-(ex:runtime-add-primitive '%input-port-open?        loki-input-port-open?)
-(ex:runtime-add-primitive '%output-port-open?       loki-output-port-open?)
-(ex:runtime-add-primitive '%close-input-port        loki-close-input-port)
-(ex:runtime-add-primitive '%close-output-port       loki-close-output-port)
-(ex:runtime-add-primitive '%delete-file             delete-file)
-(ex:runtime-add-primitive '%file-exists?            file-exists?)
-(ex:runtime-add-primitive '%get-output-string       loki-get-output-string)
-(ex:runtime-add-primitive '%get-output-bytevector   loki-get-output-bytevector)
-(ex:runtime-add-primitive '%open-output-string      loki-open-output-string)
-(ex:runtime-add-primitive '%open-input-string       loki-open-input-string)
-(ex:runtime-add-primitive '%open-input-bytevector   loki-open-input-bytevector)
-(ex:runtime-add-primitive '%open-output-bytevector  loki-open-output-bytevector)
-(ex:runtime-add-primitive '%open-output-file        loki-open-output-file)
-(ex:runtime-add-primitive '%open-input-file         loki-open-input-file)
-(ex:runtime-add-primitive '%open-binary-input-file  loki-open-binary-input-file)
-(ex:runtime-add-primitive '%open-binary-output-file loki-open-binary-output-file)
-(ex:runtime-add-primitive '%stderr                  loki-stderr)
-(ex:runtime-add-primitive '%stdin                   loki-stdin)
-(ex:runtime-add-primitive '%stdout                  loki-stdout)
-(ex:runtime-add-primitive '%flush-output-port       flush-output-port)
+(rt:runtime-add-primitive '%port?                   loki-port?)
+(rt:runtime-add-primitive '%eof-object              loki-eof-object)
+(rt:runtime-add-primitive '%eof-object?             loki-eof-object?)
+(rt:runtime-add-primitive '%port-input              loki-port-input)
+(rt:runtime-add-primitive '%port-output             loki-port-output)
+(rt:runtime-add-primitive '%port-type               loki-port-type)
+(rt:runtime-add-primitive '%port-ready?             loki-port-ready?)
+(rt:runtime-add-primitive '%input-port-open?        loki-input-port-open?)
+(rt:runtime-add-primitive '%output-port-open?       loki-output-port-open?)
+(rt:runtime-add-primitive '%close-input-port        loki-close-input-port)
+(rt:runtime-add-primitive '%close-output-port       loki-close-output-port)
+(rt:runtime-add-primitive '%delete-file             delete-file)
+(rt:runtime-add-primitive '%file-exists?            file-exists?)
+(rt:runtime-add-primitive '%get-output-string       loki-get-output-string)
+(rt:runtime-add-primitive '%get-output-bytevector   loki-get-output-bytevector)
+(rt:runtime-add-primitive '%open-output-string      loki-open-output-string)
+(rt:runtime-add-primitive '%open-input-string       loki-open-input-string)
+(rt:runtime-add-primitive '%open-input-bytevector   loki-open-input-bytevector)
+(rt:runtime-add-primitive '%open-output-bytevector  loki-open-output-bytevector)
+(rt:runtime-add-primitive '%open-output-file        loki-open-output-file)
+(rt:runtime-add-primitive '%open-input-file         loki-open-input-file)
+(rt:runtime-add-primitive '%open-binary-input-file  loki-open-binary-input-file)
+(rt:runtime-add-primitive '%open-binary-output-file loki-open-binary-output-file)
+(rt:runtime-add-primitive '%stderr                  loki-stderr)
+(rt:runtime-add-primitive '%stdin                   loki-stdin)
+(rt:runtime-add-primitive '%stdout                  loki-stdout)
+(rt:runtime-add-primitive '%flush-output-port       flush-output-port)
 
-(ex:runtime-add-primitive '%peek-char        loki-peek-char)
-(ex:runtime-add-primitive '%peek-u8          loki-peek-u8)
-(ex:runtime-add-primitive '%read-bytevector! loki-read-bytevector!)
-(ex:runtime-add-primitive '%read-bytevector! loki-read-bytevector!)
-(ex:runtime-add-primitive '%read-bytevector  loki-read-bytevector)
-(ex:runtime-add-primitive '%read-string      loki-read-string)
-(ex:runtime-add-primitive '%read-char        loki-read-char)
-(ex:runtime-add-primitive '%read-line        loki-read-line)
-(ex:runtime-add-primitive '%read-u8          loki-read-u8)
-(ex:runtime-add-primitive '%write-bytevector loki-write-bytevector)
-(ex:runtime-add-primitive '%write-string     loki-write-string)
-(ex:runtime-add-primitive '%write-char       loki-write-char)
-(ex:runtime-add-primitive '%write-u8         loki-write-u8)
+(rt:runtime-add-primitive '%peek-char        loki-peek-char)
+(rt:runtime-add-primitive '%peek-u8          loki-peek-u8)
+(rt:runtime-add-primitive '%read-bytevector! loki-read-bytevector!)
+(rt:runtime-add-primitive '%read-bytevector! loki-read-bytevector!)
+(rt:runtime-add-primitive '%read-bytevector  loki-read-bytevector)
+(rt:runtime-add-primitive '%read-string      loki-read-string)
+(rt:runtime-add-primitive '%read-char        loki-read-char)
+(rt:runtime-add-primitive '%read-line        loki-read-line)
+(rt:runtime-add-primitive '%read-u8          loki-read-u8)
+(rt:runtime-add-primitive '%write-bytevector loki-write-bytevector)
+(rt:runtime-add-primitive '%write-string     loki-write-string)
+(rt:runtime-add-primitive '%write-char       loki-write-char)
+(rt:runtime-add-primitive '%write-u8         loki-write-u8)
 
-(ex:runtime-add-primitive '%current-jiffy         current-jiffy)
-(ex:runtime-add-primitive '%current-second        current-second)
-(ex:runtime-add-primitive '%jiffies-per-second    jiffies-per-second)
+(rt:runtime-add-primitive '%current-jiffy         current-jiffy)
+(rt:runtime-add-primitive '%current-second        current-second)
+(rt:runtime-add-primitive '%jiffies-per-second    jiffies-per-second)
 
-(ex:runtime-add-primitive '%hash-by-identity hash-by-identity)
-(ex:runtime-add-primitive '%trace trace)
+(rt:runtime-add-primitive '%hash-by-identity hash-by-identity)
+(rt:runtime-add-primitive '%trace trace)
 
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.
 
-(ex:register-library! 
- (ex:make-library
+(rt:register-library! 
+ (rt:make-library
   '(core primitive-macros)
   ;; envs
   '()
