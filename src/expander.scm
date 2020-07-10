@@ -38,6 +38,7 @@
       (ex:import-library '(inside2))
 )))
 
+(with-loki-error-handler (lambda ()
   (display "hello from the first compiler...\n")
   (ex:expand-datum-sequence (list inside))
-  (ex:import-library '(inside))
+  (ex:import-library '(inside))))

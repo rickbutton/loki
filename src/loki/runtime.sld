@@ -185,7 +185,7 @@
 
 (define (ex:runtime-eval e)
   (if (not runtime-env) (runtime-env-init!))
-  (host-eval e runtime-env))
+  (host:eval e runtime-env))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records

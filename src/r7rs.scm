@@ -40,23 +40,24 @@
    define define-syntax let-syntax letrec-syntax
    include include-ci
    _ ... syntax syntax-case
+
+   void
       
    ;; Procedures and values defined in core expander:
    
-   (rename (ex:make-variable-transformer make-variable-transformer)
-           (ex:identifier?               identifier?)
-           (ex:bound-identifier=?        bound-identifier=?)
-           (ex:free-identifier=?         free-identifier=?)
-           (ex:generate-temporaries      generate-temporaries) 
-           (ex:datum->syntax             datum->syntax)
-           (ex:syntax->datum             syntax->datum)
-           (ex:syntax-violation          syntax-violation)
-           (ex:features                  features)
-           (ex:environment               environment)
-           (ex:environment-bindings      environment-bindings)
-           (ex:eval                      eval)
-           (ex:load                      load))
-   void)
+   (rename ex:make-variable-transformer make-variable-transformer)
+   (rename ex:identifier?               identifier?)
+   (rename ex:bound-identifier=?        bound-identifier=?)
+   (rename ex:free-identifier=?         free-identifier=?)
+   (rename ex:generate-temporaries      generate-temporaries)
+   (rename ex:datum->syntax             datum->syntax)
+   (rename ex:syntax->datum             syntax->datum)
+   (rename ex:syntax-violation          syntax-violation)
+   (rename ex:features                  features)
+   (rename ex:environment               environment)
+   (rename ex:environment-bindings      environment-bindings)
+   (rename ex:eval                      eval)
+   (rename ex:load                      load))
   
   (import
    
@@ -85,7 +86,7 @@
   )) ;; core primitives
 
 (define-library (core apply)
-  (export (rename (%apply apply)))
+  (export (rename %apply apply))
   (import (core intrinsics)))
 
 (define-library (core with-syntax)
@@ -1101,10 +1102,9 @@
 
 (define-library (scheme time)
     (import (core intrinsics))
-    (export (rename
-            (%current-jiffy current-jiffy)
-            (%current-second current-second)
-            (%jiffies-per-second jiffies-per-second))))
+    (export (rename %current-jiffy current-jiffy)
+            (rename %current-second current-second)
+            (rename %jiffies-per-second jiffies-per-second)))
 
 (define-library (scheme base)
     (import (for (except (core primitives) _ ... environment eval load) run expand)

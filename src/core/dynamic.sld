@@ -12,7 +12,7 @@
 (import (for (core syntax-rules) expand))
 (export make-parameter parameterize guard dynamic-wind
         call-with-current-continuation
-        (rename (call-with-current-continuation call/cc))
+        (rename call-with-current-continuation call/cc)
         with-exception-handler)
 (begin
 
