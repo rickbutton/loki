@@ -18,12 +18,15 @@
     (import (scheme write))
     (import (scheme eval))
     (import (loki expander))
+    (import (loki util))
     (import (loki runtime))
     (begin
       (display "hello from the third compiler...\n\n")
-      (map rt:runtime-eval (ex:expand-datum-sequence ',form))
-)))
-
+      (ex:expand-datum-sequence ',form (lambda (library invoke?)
+        (debug "library" library)
+        (debug "invoke?" invoke?)
+        (if invoke?
+          (rt:import-library (rt:library-name library))))))))
 
 (define inside
 `(define-library (inside)
@@ -34,11 +37,14 @@
     (import (loki runtime))
     (begin
       (display "hello from the second compiler...\n\n")
-      (ex:expand-datum-sequence (list ',inside2))
+      (ex:expand-datum-sequence (list ',inside2) #f)
       (rt:import-library '(inside2))
 )))
 
 (with-loki-error-handler (lambda ()
   (display "hello from the first compiler...\n")
-  (ex:expand-datum-sequence (list inside))
-  (rt:import-library '(inside))))
+  (ex:expand-datum-sequence form (lambda (library invoke?)
+        (debug "library" library)
+        (debug "invoke?" invoke?)
+        (if invoke?
+          (rt:import-library (rt:library-name library)))))))

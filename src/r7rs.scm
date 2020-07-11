@@ -43,7 +43,6 @@
 
    ;; Procedures and values defined in core expander:
    
-   (rename ex:make-variable-transformer make-variable-transformer)
    (rename ex:identifier?               identifier?)
    (rename ex:bound-identifier=?        bound-identifier=?)
    (rename ex:free-identifier=?         free-identifier=?)
@@ -75,7 +74,7 @@
    
     ;; Procedures and values defined in the core expander:
     
-    ex:make-variable-transformer ex:identifier? ex:bound-identifier=?
+    ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
     ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load ex:features
     ))
@@ -380,7 +379,8 @@
           (for (core vector)       expand run)
           (for (core exception)    expand run)
           (for (core intrinsics)   expand run))
-  (export define-record-type vector? record? record-printer record-type-printer-set!)
+  (export define-record-type vector? record? record-printer record-type-printer-set!
+          record-type record-type-field-tags record-type-name record-accessor)
   (begin
 
     ; This implements a record abstraction that is identical to vectors,

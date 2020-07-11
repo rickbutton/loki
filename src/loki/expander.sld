@@ -83,8 +83,7 @@
 (import (loki reader))
 (import (loki host))
 
-(export (rename make-variable-transformer ex:make-variable-transformer)
-        (rename identifier?               ex:identifier?)
+(export (rename identifier?               ex:identifier?)
         (rename bound-identifier=?        ex:bound-identifier=?)
         (rename free-identifier=?         ex:free-identifier=?)
         (rename generate-temporaries      ex:generate-temporaries)
@@ -235,6 +234,8 @@
 (define *used*             (list '()))
 ;; history trace for error reporting
 (define *trace*            '())
+;; the current module handler
+(define *module-handler*   #f)
 ;; whether expanded library introduces identifiers via syntax
 ;; expressions - if not, save lots of space by not including
 ;; env-table in object code
@@ -694,8 +695,6 @@
 
 (define (make-expander proc)             (make-macro 'expander proc))
 (define (make-transformer proc)          (make-macro 'transformer proc))
-(define (make-variable-transformer proc) (make-macro 'variable-transformer proc))
-
 
 (define (make-user-macro procedure-or-macro)
   (cond
@@ -1138,9 +1137,6 @@
     (let ((dup (duplicate? id common-env)))
       (if dup
        (begin
-        (debug "id" id)
-        (debug "binding" (binding id))
-        (debug "form" form)
         (syntax-violation type "Redefinition of identifier in body" (binding id) id)))))
   (check-used id body-type form)
   (and (not (memq body-type `(toplevel program library)))
@@ -1540,9 +1536,9 @@
                                                (emit-body forms 'set!)
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
-                                    (case library-type
-                                      ((library) #f)
-                                      ((program) `(rt:import-library ',name))))))))))))))
+                                    (if *module-handler*
+                                      (*module-handler* library (eq? library-type 'program)))
+                                    #f)))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
@@ -2065,14 +2061,15 @@
 ;; reentrant. 
 
 (define with-toplevel-parameters
-  (lambda (thunk)
+  (lambda (module-handler thunk)
     (fluid-let ((*trace*            '())
                 (*current-library*  '())
                 (*phase*            0)
                 (*used*             (list '()))
                 (*color*            (generate-color))
                 (*usage-env*        *toplevel-env*)
-                (*syntax-reflected* #f))
+                (*syntax-reflected* #f)
+                (*module-handler*   module-handler))
       (thunk))))
 
 (define (expand-toplevel-sequence forms)
@@ -2103,6 +2100,9 @@
 
 (define (loki-load filename)
   (with-toplevel-parameters
+   (lambda (library invoke?)
+     (if invoke?
+       (rt:import-library (rt:library-name library))))
    (lambda ()
      (for-each (lambda (exp)
                  (for-each (lambda (exp)
@@ -2116,13 +2116,13 @@
 ;; The result is a sequence of vanilla r5rs-like toplevel
 ;; definitions and expressions.
 
-(define (expand-file filename)
-  (with-toplevel-parameters
+(define (expand-file filename module-handler)
+  (with-toplevel-parameters module-handler
    (lambda ()
-     (expand-toplevel-sequence (normalize (read-file filename))))))
+    (expand-toplevel-sequence (normalize (read-file filename))))))
 
-(define (expand-datum-sequence forms)
-  (with-toplevel-parameters
+(define (expand-datum-sequence forms module-handler)
+  (with-toplevel-parameters module-handler
    (lambda ()
         (expand-toplevel-sequence (normalize (datum->syntax eval-template forms))))))
 
@@ -2134,7 +2134,7 @@
   (define (error)
     (let ((newline (string #\newline)))
       (syntax-violation
-       'expand-file
+       'normalize
        (string-append
         "File should be of the form:" newline
         "      <library>*" newline
@@ -2391,7 +2391,6 @@
 (register-macro! 'import  (make-expander invalid-form))
 
 ;; Register the expander's primitive API surface with the runtime
-(rt:runtime-add-primitive 'ex:make-variable-transformer make-variable-transformer)
 (rt:runtime-add-primitive 'ex:identifier? identifier?)
 (rt:runtime-add-primitive 'ex:bound-identifier=? bound-identifier=?)
 (rt:runtime-add-primitive 'ex:free-identifier=? free-identifier=?)
@@ -2418,6 +2417,6 @@
 
 ;; Load the r7rs standard library into the expander
 (with-loki-error-handler (lambda ()
-  (expand-file "src/r7rs.scm")))
+  (expand-file "src/r7rs.scm" #f)))
 
 ))

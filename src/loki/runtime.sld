@@ -319,8 +319,6 @@
   (write-u8 u8 (loki-port-output port)))
 
 ;; Register the required runtime primitives
-(rt:runtime-add-primitive 'rt:import-library rt:import-library)
-
 (rt:runtime-add-primitive '%void (if #f #f))
 (rt:runtime-add-primitive '%add        +)
 (rt:runtime-add-primitive '%sub        -)

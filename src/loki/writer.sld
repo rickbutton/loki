@@ -50,7 +50,7 @@
       (write-string string port))))
 
 (define (write-pair obj in-maybe-list? port)
-  (unless in-maybe-list? (write-char #\( port))
+  (if in-maybe-list? (write-char #\( port))
   (cond
     ((null? (cdr obj))
       (write-simple (car obj) port)
@@ -58,18 +58,38 @@
     ((pair? (cdr obj))
       (write-simple (car obj) port)
       (write-char #\space port)
-      (write-pair (cdr obj) #t port))
+      (write-pair (cdr obj) #f port))
     (else
       (write-simple (car obj) port)
       (write-char #\space port)
       (write-char #\. port)
       (write-char #\space port)
-      (write-pair (cdr obj) #f port))))
+      (write-simple (cdr obj) port)
+      (write-char #\) port))))
 
 (cond-expand
   (chibi 
     (define (record? r) #f)
-    (define (record-printer r) #f)))
+    (define (record-printer r) #f)
+    (define (record-type r) #f)
+    (define (record-type-field-tags t) '())
+    (define (record-type-name t) #f)
+    (define (record-accessor t) #f)))
+
+(define (default-record-printer obj port)
+  (let* ((type (record-type obj))
+         (tags (record-type-field-tags type)))
+    (write-simple (record-type-name type) port)
+    (if (= (length tags) 0)
+      (write-string "#{}" port)
+      (begin
+        (write-string "#{ ")
+        (for-each (lambda (tag)
+          (write-string tag port)
+          (write-string ": " port)
+          (write-simple ((record-accessor type tag) obj) port)
+          (write-char #\space port)) tags)
+        (write-char #\} port)))))
 
 (define write-simple (case-lambda
   ((obj)
@@ -107,7 +127,10 @@
           (write-string " output" port))
         (write-string ">" port))
       ((record? obj)
-        ((record-printer obj) obj port))
+        (let ((printer (record-printer obj)))
+          (if printer
+            (printer obj port)
+            (default-record-printer obj port))))
       ((vector? obj)
         (let ((length (vector-length obj)))
           (write-string "#(" port)
