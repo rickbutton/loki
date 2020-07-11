@@ -1,6 +1,3 @@
-; reduce to core intrinsics, implement things like map
-; in r7rs.scm
-
 for binding to runtime/expander when wasm:
 either allow for jit imports or special case expander or runtime
 then map globals back to library bindings

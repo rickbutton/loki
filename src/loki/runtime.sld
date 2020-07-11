@@ -14,7 +14,6 @@
 (import (srfi 69))
 
 (export rt:library-dirs
-        rt:map-while
         rt:make-library
         rt:library-name
         rt:library-envs
@@ -50,18 +49,6 @@
                 (util:filter p? (cdr lst)))
           (util:filter p? (cdr lst)))))
 
-(define (rt:map-while f lst k)
-  (cond ((null? lst) (k '() '()))
-        ((pair? lst)
-         (let ((head (f (car lst))))
-           (if head
-               (rt:map-while f
-                          (cdr lst)
-                          (lambda (answer rest)
-                            (k (cons head answer)
-                               rest)))
-               (k '() lst))))
-        (else  (k '() lst))))
 
 (define-record-type <library>
     (make-library-record name envs exports imports builds syntax-defs bound-vars forms build visited? invoked?)
@@ -332,10 +319,9 @@
   (write-u8 u8 (loki-port-output port)))
 
 ;; Register the required runtime primitives
-(rt:runtime-add-primitive 'void (if #f #f))
-(rt:runtime-add-primitive 'rt:map-while rt:map-while)
 (rt:runtime-add-primitive 'rt:import-library rt:import-library)
 
+(rt:runtime-add-primitive '%void (if #f #f))
 (rt:runtime-add-primitive '%add        +)
 (rt:runtime-add-primitive '%sub        -)
 (rt:runtime-add-primitive '%mul        *)

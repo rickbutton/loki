@@ -41,8 +41,6 @@
    include include-ci
    _ ... syntax syntax-case
 
-   void
-      
    ;; Procedures and values defined in core expander:
    
    (rename ex:make-variable-transformer make-variable-transformer)
@@ -81,9 +79,7 @@
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
     ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load ex:features
     ))
-  (begin
-      (define void (if #f #f))
-  )) ;; core primitives
+) ;; core primitives
 
 (define-library (core apply)
   (export (rename %apply apply))
@@ -125,6 +121,7 @@
 (define-library (core let)
   (export let letrec letrec*)
   (import (for (core primitives)        expand run)
+          (for (core intrinsics)        expand run)
           (for (core syntax-rules)      expand run))
   (begin
   
@@ -152,7 +149,7 @@
          (temp1 ...)
          ((var1 init1) ...)
          body ...)
-       (let ((var1 void) ...)
+       (let ((var1 %void) ...)
          (let ((temp1 init1) ...)
            (set! var1 temp1)
            ...
@@ -171,7 +168,7 @@
   (define-syntax letrec*
     (syntax-rules ()
       ((letrec* ((var1 init1) ...) body1 body2 ...)
-       (let ((var1 void) ...)
+       (let ((var1 %void) ...)
          (set! var1 init1)
          ...
          (let () body1 body2 ...)))))

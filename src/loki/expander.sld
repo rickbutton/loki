@@ -98,12 +98,12 @@
         (rename loki-features             ex:features)
     
         (rename expand-file               ex:expand-file)
-        (rename expand-sequence           ex:expand-sequence)
         (rename expand-datum-sequence     ex:expand-datum-sequence)
 
         (rename invalid-form              ex:invalid-form)
         (rename register-macro!           ex:register-macro!)
         (rename syntax-rename             ex:syntax-rename)
+        (rename map-while                 ex:map-while)
         (rename dotted-length             ex:dotted-length)
         (rename dotted-butlast            ex:dotted-butlast)
         (rename dotted-last               ex:dotted-last)
@@ -926,7 +926,7 @@
                                      (emit-body forms 'set!)    ; +++
                                      `(((lambda ,bound-variables
                                           ,@(emit-body forms 'set!))
-                                        ,@(map (lambda (ignore) 'void)
+                                        ,@(map (lambda (ignore) '%void)
                                                bound-variables)))))))))))))
 
 (define (formals? s)
@@ -1108,7 +1108,7 @@
 (define (parse-definition exp syntax-def?)
   (match exp
     ((- (? identifier? id))
-     (values id (rename 'variable 'void)))
+     (values id (rename 'variable '%void)))
     ((- (? identifier? id) e)
      (values id e))
     ((- ((? identifier? id) . (? formals? formals)) body ___)
@@ -1204,7 +1204,7 @@
                       ,fk)                                              ; +++
                  (let ((columns (generate-guid 'cols))
                        (rest    (generate-guid 'rest)))
-                   `(rt:map-while (lambda (,input)
+                   `(ex:map-while (lambda (,input)
                                     ,(process-match input
                                                     p
                                                     `(list ,@mapped-pvars)
@@ -1938,6 +1938,19 @@
 ;;
 ;;=====================================================================
 
+(define (map-while f lst k)
+  (cond ((null? lst) (k '() '()))
+        ((pair? lst)
+         (let ((head (f (car lst))))
+           (if head
+               (map-while f
+                          (cdr lst)
+                          (lambda (answer rest)
+                            (k (cons head answer)
+                               rest)))
+               (k '() lst))))
+        (else  (k '() lst))))
+
 (define (flatten l)
   (cond ((null? l) l)
         ((pair? l) (cons (car l)
@@ -2108,13 +2121,10 @@
    (lambda ()
      (expand-toplevel-sequence (normalize (read-file filename))))))
 
-(define (expand-sequence forms)
+(define (expand-datum-sequence forms)
   (with-toplevel-parameters
    (lambda ()
-        (expand-toplevel-sequence (normalize forms)))))
-
-(define (expand-datum-sequence forms)
-    (expand-sequence (datum->syntax eval-template forms)))
+        (expand-toplevel-sequence (normalize (datum->syntax eval-template forms))))))
 
 ;; Keeps (<library> ...) the same.
 ;; Converts (<library> ... . <toplevel program>)
@@ -2208,6 +2218,7 @@
                    (make-source "<intrinsic>" 1 0)))
 
 (define intrinsics '(
+      %void
       %add %sub %mul %div
       %lt %lte %number-eq %gt %gte
       %number? %finite? %infinite?
@@ -2394,12 +2405,12 @@
 (rt:runtime-add-primitive 'ex:syntax-violation syntax-violation)
 (rt:runtime-add-primitive 'ex:features loki-features)
 (rt:runtime-add-primitive 'ex:expand-file expand-file)
-(rt:runtime-add-primitive 'ex:expand-sequence expand-sequence)
 (rt:runtime-add-primitive 'ex:expand-datum-sequence expand-datum-sequence)
 
 (rt:runtime-add-primitive 'ex:invalid-form invalid-form)
 (rt:runtime-add-primitive 'ex:register-macro! register-macro!)
 (rt:runtime-add-primitive 'ex:syntax-rename syntax-rename)
+(rt:runtime-add-primitive 'ex:map-while map-while)
 (rt:runtime-add-primitive 'ex:dotted-length dotted-length)
 (rt:runtime-add-primitive 'ex:dotted-butlast dotted-butlast)
 (rt:runtime-add-primitive 'ex:dotted-last dotted-last)
