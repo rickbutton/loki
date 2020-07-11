@@ -2403,8 +2403,6 @@
 (rt:runtime-add-primitive 'ex:load loki-load)
 (rt:runtime-add-primitive 'ex:syntax-violation syntax-violation)
 (rt:runtime-add-primitive 'ex:features loki-features)
-(rt:runtime-add-primitive 'ex:expand-file expand-file)
-(rt:runtime-add-primitive 'ex:expand-datum-sequence expand-datum-sequence)
 
 (rt:runtime-add-primitive 'ex:invalid-form invalid-form)
 (rt:runtime-add-primitive 'ex:register-macro! register-macro!)
@@ -2414,9 +2412,5 @@
 (rt:runtime-add-primitive 'ex:dotted-butlast dotted-butlast)
 (rt:runtime-add-primitive 'ex:dotted-last dotted-last)
 (rt:runtime-add-primitive 'ex:free=? free=?)
-
-;; Load the r7rs standard library into the expander
-(with-loki-error-handler (lambda ()
-  (expand-file "src/r7rs.scm" #f)))
 
 ))

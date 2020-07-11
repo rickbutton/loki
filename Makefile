@@ -21,6 +21,9 @@ parse-repl:
 expander:
 	chibi-scheme -A src -T src/expander.scm
 
+compiler:
+	chibi-scheme -A src -T src/loki.scm -- examples/yggdrasil.scm
+
 %.wat: %.scm compiler/src/**
 	chibi-scheme -I src src/loki.scm $< $@
 
