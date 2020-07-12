@@ -13,14 +13,13 @@
         read-error? file-error? make-read-error make-file-error)
 (begin
 
-(define exception-handler (lambda (obj) (%abort obj)))
 
-(define (current-exception-handler) exception-handler)
+(define (current-exception-handler) (%exception-handler))
 (define (current-exception-handler-set! handler)
-  (set! exception-handler handler))
+  (%exception-handler-set! handler))
 
 (define (raise obj)
-  (exception-handler obj))
+  ((%exception-handler) obj))
 
 (define (raise-continuable obj)          ; TODO - this sucks
   (raise (make-exception 'continuable "" (%cons obj '()))))
@@ -49,5 +48,7 @@
 
 (define (make-file-error message irritants)
   (make-exception 'file-error message irritants))
+
+(%exception-handler-set! (lambda (obj) (%abort obj)))
 
 ))

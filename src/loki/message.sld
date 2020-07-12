@@ -46,11 +46,11 @@
     (display ": ")
     (display message)
     (display "\n")
-    (if (eq? type 'error) (raise e))))
+    (unless (eq? type 'continuable) (raise e))))
 
 (define (handle-unexpected-error e)
   (display "unexpected error: ")
-  (display e) (raise e))
+  (raise e))
 
 (define (handle-error e)
         (if (loki-message? e)

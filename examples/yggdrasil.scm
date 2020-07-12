@@ -1,10 +1,19 @@
+(import (scheme base))
 (import (scheme write))
 
-(display "An ash I know there stands,\n")
-(display "Yggdrasill is its name,\n")
-(display "a tall tree, showered\n")
-(display "with shining loam.\n")
-(display "From there come the dews\n")
-(display "that drop in the valleys.\n")
-(display "It stands forever green over\n")
-(display "Urðr's well.\n")
+(define |Völuspá|
+  (list "An ash I know there stands,"
+        "Yggdrasill is its name,"
+        "a tall tree, showered"
+        "with shining loam."
+        "From there come the dews"
+        "that drop in the valleys."
+        "It stands forever green over"
+        "Urðr's well."))
+
+(for-each
+  (lambda (line)
+    (display line)
+    (newline))
+  |Völuspá|)
+

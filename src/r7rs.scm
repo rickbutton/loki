@@ -41,6 +41,8 @@
    include include-ci
    _ ... syntax syntax-case
 
+   (rename let primitive-let)
+
    ;; Procedures and values defined in core expander:
    
    (rename ex:identifier?               identifier?)
@@ -60,7 +62,7 @@
    
    (for (only (core primitive-macros)
      
-     begin if set! and or lambda quote
+     begin if set! and or lambda let quote
      define define-syntax let-syntax letrec-syntax 
      include include-ci
      syntax syntax-case _ ...) run expand)
@@ -127,13 +129,16 @@
   (define-syntax let
     (syntax-rules ()
       ((let ((name val) ...) body1 body2 ...)
-       ((lambda (name ...) body1 body2 ...)
-        val ...))
+       ;((lambda (name ...) body1 body2 ...) val ...))
+       (primitive-let ((name val) ...) body1 body2 ...))
       ((let tag ((name val) ...) body1 body2 ...)
-       ((letrec ((tag (lambda (name ...)
-                        body1 body2 ...)))
-          tag)
-        val ...))))
+       (let ()
+         (define tag (lambda (name ...) body1 body2 ...))
+         (tag val ...)))))
+       ;((letrec ((tag (lambda (name ...)
+        ;                body1 body2 ...)))
+        ;  tag)
+        ;val ...))))
   
   (define-syntax letrec
     (syntax-rules ()

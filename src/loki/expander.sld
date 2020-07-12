@@ -82,6 +82,7 @@
 (import (loki message))
 (import (loki reader))
 (import (loki host))
+(import (loki compiler))
 
 (export (rename identifier?               ex:identifier?)
         (rename bound-identifier=?        ex:bound-identifier=?)
@@ -236,6 +237,10 @@
 (define *trace*            '())
 ;; the current module handler
 (define *module-handler*   #f)
+;; the current 'identifier' being bound
+;; this is used to assign an "identifier" to lambdas
+;; TODO - is this a hack?
+(define *current-identifier-bind* #f)
 ;; whether expanded library introduces identifiers via syntax
 ;; expressions - if not, save lots of space by not including
 ;; env-table in object code
@@ -740,16 +745,6 @@
 ;;
 ;;=========================================================================
 
-(define (make-call trace? operator binding args)
-  (if trace?
-    `(%trace 
-      ,(string-append 
-        (symbol->string (id-name operator))
-        " "
-        (source->string (id-source operator)))
-        ,(binding-name binding) ,@args)
-    `(,(binding-name binding) ,@args)))
-
 (define (expand t)
   (fluid-let ((*trace* (cons t *trace*)))
     (let ((binding (operator-binding t)))
@@ -763,7 +758,7 @@
                                (expand expanded-once))))))
                        ((variable)
                         (if (list? t)
-                            (make-call #f (car t) binding (map expand (cdr t)))
+                            (cons (binding-name binding) (map expand (cdr t)))
                             (binding-name binding)))
                        ((pattern-variable)
                        (begin
@@ -817,7 +812,7 @@
 (define (expand-if exp)
   (match exp
     ((- e1 e2 e3) `(if ,(expand e1) ,(expand e2) ,(expand e3)))
-    ((- e1 e2)    `(if ,(expand e1) ,(expand e2)))))
+    ((- e1 e2)    `(if ,(expand e1) ,(expand e2) %void))))
 
 (define (expand-set! exp)
   (match exp
@@ -854,6 +849,46 @@
                     exps
                     (lambda (forms no-syntax-definitions no-bound-variables)
                       `(begin ,@(map cdr forms)))))))
+
+(define (scan-let-bindings bindings k) 
+  (let loop ((bindings bindings)
+             (formals '())
+             (vals    '()))
+    (if (null? bindings)
+      (k formals vals)
+      (match (car bindings)
+        ((formal val)
+          (loop (cdr bindings)
+                (cons formal formals)
+                (cons val vals)))))))
+
+(define (expand-let exp)
+  (match exp
+    ((- (bindings ___) body ___)
+     (scan-let-bindings bindings
+       (lambda (formals vals)
+         (unless (formals? formals)
+           (syntax-violation 'let "Invalid let formal" formals))
+         (scan-sequence 'expression-sequence
+                        make-local-mapping
+                        vals
+           (lambda (val-forms syntax-definitions bound-variables)
+             (fluid-let ((*usage-env*
+                          (env-extend (map (lambda (formal)
+                                             (make-local-mapping 'variable formal #f))
+                                           (flatten formals))
+                                      *usage-env*)))
+               (let ((formals (dotted-map (lambda (formal) (binding-name (binding formal))) formals)))
+                 ;; Scan-sequence expects the caller to have prepared
+                 ;; the frame to which to destructively add bindings.
+                 ;; Let bodies need a fresh frame.
+                 (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
+                   (scan-sequence 'lambda
+                                  make-local-mapping
+                                  body
+                                  (lambda (body-forms syntax-definitions bound-variables)
+                                    `(let ,(map (lambda (formal val) (list formal (cdr val))) formals val-forms)
+                                       ,@(emit-body body-forms 'define))))))))))))))
 
 ;; Expression let(rec)-syntax:
 
@@ -903,6 +938,14 @@
 ;;
 ;;=========================================================================
 
+(define (make-lambda-trace id)
+  (if id
+    (list
+      `(%trace ,(string-append (symbol->string (id-name id))
+                               " "
+                               (source->string (id-source id)))))
+    '()))
+
 (define (expand-lambda exp)
   (match exp
     ((- (? formals? formals) body ___)
@@ -921,10 +964,11 @@
                           body
                           (lambda (forms syntax-definitions bound-variables)
                             `(lambda ,formals
+                               ,@(make-lambda-trace *current-identifier-bind*)                       
                                ,@(if (null? bound-variables)                ; +++
-                                     (emit-body forms 'set!)    ; +++
+                                     (emit-body forms 'define)    ; +++
                                      `(((lambda ,bound-variables
-                                          ,@(emit-body forms 'set!))
+                                          ,@(emit-body forms 'define))
                                         ,@(map (lambda (ignore) '%void)
                                                bound-variables)))))))))))))
 
@@ -953,10 +997,15 @@
 ;; Wraps are only used internally in processing of bodies,
 ;; and are never seen by user macros.
 
-(define (make-wrap env exp)
-  (cons env exp))
-(define wrap-env car)
-(define wrap-exp cdr)
+(define (make-wrap env exp id)
+  (vector env exp id))
+(define (wrap-env wrap)
+  (vector-ref wrap 0))
+(define (wrap-exp wrap)
+  (vector-ref wrap 1))
+(define (wrap-id wrap)
+  (vector-ref wrap 2))
+
 
 ;; The continuation k is evaluated in the body environment.  This is
 ;; used for example by expand-library to obtain the correct bindings of
@@ -977,12 +1026,13 @@
   ;; Returns ((<symbol | #f> . <s-expr>) ...)
 
   (define (expand-deferred forms)
-    (map (lambda (form)
+      (map (lambda (form)
            (cons (car form)
                  (let ((deferred? (cadr form))
                        (exp       (caddr form)))
                    (if deferred?
-                       (fluid-let ((*usage-env* (wrap-env exp)))
+                       (fluid-let ((*usage-env* (wrap-env exp))
+                                   (*current-identifier-bind* (wrap-id exp)))
                          (expand (wrap-exp exp)))
                        exp))))
          forms))
@@ -993,7 +1043,7 @@
     ;; so we can detect redefinitions violating lexical scope.
     (add-fresh-used-frame!)
 
-    (let loop ((ws (map (lambda (e) (make-wrap common-env e))
+    (let loop ((ws (map (lambda (e) (make-wrap common-env e #f))
                         body-forms))
                (forms           '())
                (syntax-defs     '())
@@ -1035,7 +1085,7 @@
                        (loop (cdr ws)
                              (cons (list (binding-name (binding id))
                                          #t
-                                         (make-wrap *usage-env* rhs))
+                                         (make-wrap *usage-env* rhs id))
                                    forms)
                              syntax-defs
                              (cons (binding-name (binding id)) bound-variables)))))
@@ -1057,7 +1107,7 @@
                    (or (list? form)
                        (invalid-form form))
                    (loop (append (map (lambda (exp)
-                                        (make-wrap *usage-env* exp))
+                                        (make-wrap *usage-env* exp #f))
                                       (cdr form))
                                  (cdr ws))
                          forms
@@ -1084,7 +1134,7 @@
                                      (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                    usage-diff
                                    macros)
-                         (loop (append (map (lambda (form) (make-wrap extended-env form))
+                         (loop (append (map (lambda (form) (make-wrap extended-env form #f))
                                             body)
                                        (cdr ws))
                                forms
@@ -1092,7 +1142,7 @@
                                bound-variables)))))
                   (else
                    (loop (cdr ws)
-                         (cons (list #f #t (make-wrap *usage-env* form))
+                         (cons (list #f #t (make-wrap *usage-env* form #f))
                                forms)
                          syntax-defs
                          bound-variables))))))))))))
@@ -1533,7 +1583,7 @@
                                                (current-builds imported-libraries)
                                                syntax-definitions
                                                bound-variables
-                                               (emit-body forms 'set!)
+                                               (emit-body forms 'define)
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
                                     (if *module-handler*
@@ -2073,11 +2123,12 @@
       (thunk))))
 
 (define (expand-toplevel-sequence forms)
-  (scan-sequence 'toplevel
-                 make-toplevel-mapping
-                 (source->syntax toplevel-template forms)
-                 (lambda (forms syntax-definitions bound-variables)
-                   (emit-body forms 'define))))
+  (rt:with-exception-handler (lambda ()
+    (scan-sequence 'toplevel
+                   make-toplevel-mapping
+                   (source->syntax toplevel-template forms)
+                   (lambda (forms syntax-definitions bound-variables)
+                     (emit-body forms 'define))))))
 
 (define (library-name-part->string p)
   (if (symbol? p) (symbol->string p)
@@ -2217,44 +2268,6 @@
                    `(anonymous)
                    (make-source "<intrinsic>" 1 0)))
 
-(define intrinsics '(
-      %void
-      %add %sub %mul %div
-      %lt %lte %number-eq %gt %gte
-      %number? %finite? %infinite?
-      %nan? %floor %ceiling %truncate
-      %round %sqrt %expt
-      %cons %pair? %null? %list? %car %cdr
-      %set-car! %set-cdr!
-      %vector? %vector-set! %vector-ref
-      %vector-length %make-vector
-      %bytevector %bytevector-u8-ref %bytevector-u8-set!
-      %bytevector-length %make-bytevector %bytevector?
-      %char->integer %integer->char %char-foldcase
-      %char-upcase %char-downcase %char? %call/cc %apply
-      %string-set! %string-ref %make-string %string-length
-      %string-downcase %string-upcase %string-foldcase
-      %string->symbol %symbol->string %string-cmp
-      %abort %make-exception %exception? %exception-type
-      %exception-message %exception-irritants
-      %procedure? %symbol? %string? %eq? %eqv? %equal?
-      %command-line %environment-variables %emergency-exit
-
-      %port? %eof-object %eof-object? %port-input %port-output
-      %port-type %port-ready? %input-port-open? %output-port-open?
-      %close-input-port %close-output-port %delete-file %file-exists?
-      %get-output-string %get-output-bytevector
-      %open-output-string %open-input-string %open-input-bytevector
-      %open-output-bytevector %open-output-file %open-input-file
-      %open-binary-input-file %open-binary-output-file
-      %stderr %stdin %stdout %flush-output-port
-      %peek-u8 %peek-char
-      %read-bytevector! %read-bytevector %read-string %read-char
-      %read-line %read-u8 %write-bytevector %write-string
-      %write-char %write-u8
-      %hash-by-identity %current-jiffy %current-second %jiffies-per-second
-      %number->string %string->number))
-
 ;;==========================================================================
 ;;
 ;; Toplevel bootstrap:
@@ -2313,6 +2326,7 @@
           (if            . ,expand-if)
           (set!          . ,expand-set!)
           (begin         . ,expand-begin)
+          (let           . ,expand-let)
           (syntax        . ,expand-syntax)
           (quote         . ,expand-quote)
           (let-syntax    . ,expand-local-syntax)
@@ -2363,7 +2377,7 @@
    ;; exports
    (map (lambda (intrinsic)
           (cons intrinsic (make-binding 'variable intrinsic '(0) #f '())))
-        intrinsics)
+        compiler-intrinsics)
    ;; imported-libraries
    '()
    ;; builds

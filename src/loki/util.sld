@@ -3,6 +3,10 @@
     (import (scheme base))
     (import (scheme eval))
     (import (scheme write))
+    (cond-expand
+      (chibi
+        (import (chibi show))
+        (import (chibi show pretty))))
     (export 
         map-vector
         unique
@@ -87,7 +91,7 @@
 
 (define (debug . args)
     (for-all (lambda (a)
-        (display a)
+       (display a)
        (display " ")) args)
     (display "\n\n"))
 

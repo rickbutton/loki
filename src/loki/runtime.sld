@@ -36,6 +36,7 @@
         rt:lookup-library
         rt:lookup-library/false
         rt:runtime-add-primitive
+        rt:with-exception-handler
         rt:runtime-eval)
 (begin
 
@@ -127,9 +128,7 @@
 
 (define rt:invoke-library!
     (lambda (library)
-        (rt:runtime-eval `(begin
-                      ,@(map (lambda (var) `(define ,var '(if #f #f))) (rt:library-bound-vars library))
-                      ,@(rt:library-forms library)))))
+        (map rt:runtime-eval (rt:library-forms library))))
 
 (define rt:lookup-library 
     (lambda (name)
@@ -170,9 +169,22 @@
 (define (rt:runtime-add-primitive name value)
   (rt:runtime-eval `(define ,name ,value)))
 
+(define (rt:with-exception-handler thunk)
+  (with-exception-handler
+    (lambda (err)
+      (unless current-exception-handler
+        (display "no current-exception-handler, this shouldn't happen!")
+        (display err)
+        (raise err))
+      (current-exception-handler err))
+    thunk))
+
+
 (define (rt:runtime-eval e)
   (if (not runtime-env) (runtime-env-init!))
-  (host:eval e runtime-env))
+  (rt:with-exception-handler
+    (lambda ()
+      (host:eval e runtime-env))))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
@@ -185,17 +197,29 @@
   (message exception-message)
   (irritants exception-irritants))
 
+(define current-exception-handler #f)
+(define (exception-handler) current-exception-handler)
+(define (exception-handler-set! handler)
+  (set! current-exception-handler handler))
+
 ; root abort
 (define (abort obj)
-  (for-each (lambda (trace) 
-    (debug "trace:" trace)) traces)
-  (raise obj))
+  (display "ABORT!\n")
+  (display obj)
+  (display "\n")
+  (vector-for-each (lambda (trace) 
+    (if trace
+      (debug "trace:" trace))) traces)
+  (exit 1))
 
-(define traces '())
-(define (trace src proc . args)
-  (debug "TRACE" src)
-  (set! traces (cons src traces))
-  (apply proc args))
+(define max-traces 100)
+(define traces (make-vector max-traces #f))
+(define next-trace 0)
+(define (trace src)
+  (vector-set! traces next-trace src)
+  (if (= next-trace (- max-traces 1))
+    (set! next-trace 0)
+    (set! next-trace (+ next-trace 1))))
 
 (define (string-cmp a b ci?)
   (if ci?
@@ -377,6 +401,8 @@
 (rt:runtime-add-primitive '%exception-type      exception-type)
 (rt:runtime-add-primitive '%exception-message   exception-message)
 (rt:runtime-add-primitive '%exception-irritants exception-irritants)
+(rt:runtime-add-primitive '%exception-handler   exception-handler)
+(rt:runtime-add-primitive '%exception-handler-set! exception-handler-set!)
 (rt:runtime-add-primitive '%procedure?          procedure?)
 (rt:runtime-add-primitive '%symbol?             symbol?)
 (rt:runtime-add-primitive '%string?             string?)

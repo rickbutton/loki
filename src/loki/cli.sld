@@ -5,6 +5,7 @@
 (import (loki util))
 (import (loki message))
 (import (loki expander))
+(import (loki compiler))
 (import (loki runtime))
 (import (srfi 37))
 (export run-loki-cli)
@@ -46,13 +47,15 @@
 (define (emit-library library invoke?)
   (display "emiting library ")
   (display (rt:library-name library))
-  (display "!\n"))
+  (display "!\n")
+  (when invoke?
+    (display (compile library))
+    (display "\n")))
 
 ;; Load the r7rs standard library into the expander
 (define (load-stdlib)
-  (with-loki-error-handler (lambda ()
-    (debug "expanding r7rs.scm")
-    (ex:expand-file "src/r7rs.scm" emit-library))))
+  (debug "expanding r7rs.scm")
+  (ex:expand-file "src/r7rs.scm" emit-library))
 
 (define (run-loki-cli arguments)
   (let ((options (parse-options arguments)))

@@ -2,6 +2,7 @@
 (import (scheme base))
 (import (scheme time))
 (import (scheme eval))
+(import (scheme write))
 (cond-expand 
   (chibi
     (import (chibi time))
