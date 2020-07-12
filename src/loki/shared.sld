@@ -4,7 +4,6 @@
     (import (scheme process-context))
     (import (srfi 69))
     (import (loki util))
-    (import (loki host))
     (import (loki writer))
     (export 
         make-comment

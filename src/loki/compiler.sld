@@ -1,9 +1,10 @@
 (define-library (loki compiler)
 (import (scheme base))
+(import (scheme time))
 (import (loki util))
 (import (loki runtime))
 (import (loki match))
-(export compiler-intrinsics compile)
+(export compiler-intrinsics compile generate-guid)
 (begin
 
 (define compiler-intrinsics '(
@@ -45,122 +46,184 @@
       %hash-by-identity %current-jiffy %current-second %jiffies-per-second
       %number->string %string->number))
 
-(define compiler-primitives '(begin if lambda quote set! define))
 
 (define (intrinsic? i)
-  (if (member i compiler-intrinsics) #t #f))
+  (member i compiler-intrinsics))
 
-(define rvid (make-anon-id "$rv_"))
-(define kid (make-anon-id "$k_"))
 
-(define (constant? x)
-    (or
-        (boolean? x)
-        (char? x)
-        (null? x)
-        (symbol? x)
-        ;(bytevector? x)
-        (number? x)
-        (string? x)
-        ;(vector? x)
-        ))
+;; Generate-guid returns a fresh symbol that has a globally
+;; unique external representation and is read-write invariant.
+;; Your local gensym will probably not satisfy both conditions.
+;; Prefix makes it disjoint from all builtins.
+;; Uniqueness is important for incremental and separate expansion.
 
-(define (quote? x) (and (list? x) (eq? (car x) 'quote)))
+(define guid-prefix "&")
+(define (unique-token)
+  (number->string (current-jiffy) 32))
+(define generate-guid
+  (let ((token (unique-token))
+        (ticks 0))
+    (lambda (symbol)
+      (set! ticks (+ ticks 1))
+      (string->symbol
+       (string-append guid-prefix
+                      (symbol->string symbol)
+                      "~"
+                      token
+                      "~"
+                      (number->string ticks))))))
 
-; cps conversion gleefully lifted from:
-; http://matt.might.net/articles/cps-conversion/
-(define (aexpr? expr)
-    (match expr
-        ((or ('lambda (_ ...) _)
-             'call/cc
-             (? symbol?)
-             (? intrinsic?)
-             (? quote?)
-             (? constant?)) #t)
-        (else #f)))
+(define compiler-primitives '(begin if let lambda quote set! define))
+;; anormalize: A simple A-Normalizer for a subset of Scheme
 
-(define (T-k expr k)
-    (match expr
-        ((? aexpr?) (k (M expr)))
-        (('begin expr) 
-            (T-k expr k))
-        (('begin expr exprs ...) 
-            (T-k expr (lambda (_) (T-k `(begin ,@exprs) k))))
-        (('if expr-cond expr-cons expr-alt)
-            (let* (($rv (rvid)) (cont `(lambda (,$rv) ,(k $rv))))
-                (T-k expr-cond (lambda (aexp)
-                    `(if ,aexp
-                         ,(T-c expr-cons cont)
-                         ,(T-c expr-alt cont))))))
-        (('set! var expr) (T-k expr (lambda (aexp) 
-            (k `(set! ,var ,aexp)))))
-        (('define var expr) (T-k expr (lambda (aexp) 
-            (k `(define ,var ,aexp)))))
-        ((_ _ ...)
-            (let* (($rv (rvid)) (cont `(lambda (,$rv) ,(k $rv))))
-                (T-c expr cont)))))
+;; Author: Matt Might
+;; Site:   http://matt.might.net/
 
-(define (T-c expr c)
-    (match expr
-        ((? aexpr?) `(,c ,(M expr)))
-        (('begin expr) (T-c expr c))
-        (('begin expr exprs ...)
-            (T-k expr (lambda (_) (T-c `(begin ,@exprs) c))))
-        (('if expr-cond expr-cons expr-alt)
-            (let (($k (kid)))
-                `((lambda (,$k)
-                    ,(T-k expr-cond (lambda (aexp) 
-                        `(if ,aexp
-                             ,(T-c expr-cons $k)
-                             ,(T-c expr-alt $k)))))
-                ,c)))
-        (('set! var expr) (T-k expr (lambda (aexp) 
-            `(,c (set! ,var ,aexp)))))
-        (('define var expr) (T-k expr (lambda (aexp) 
-            `(,c (define ,var ,aexp)))))
-        (((? intrinsic? i) es ...)
-            (T*-k es (lambda ($es)
-                `(intrinsic ,i ,@$es ,c))))
-        ((f es ...)
-            (T-k f (lambda ($f)
-                (T*-k es (lambda ($es)
-                    `(,$f ,@$es ,c))))))))
+;; Input language:
 
-(define (T*-k exprs k)
-    (cond
-        ((null? exprs) (k '()))
-        ((pair? exprs) (T-k (car exprs) 
-            (lambda (hd) (T*-k (cdr exprs) 
-                (lambda (tl) (k (cons hd tl)))))))))
+;; <prog> ::= <dec> ...
 
-; for call/cc
-; TODO - clean this up?
-(define fid (make-anon-id "$f_"))
-(define ccid (make-anon-id "$cc_"))
-(define xid (make-anon-id "$x_"))
-(define emptyid (make-anon-id "$__"))
+;; <dec> ::= (define <var> <exp>)
+;;        |  <exp>
 
-(define (M aexpr)
-    (match aexpr
-        (('lambda (vars ...) body)
-            (let (($k (kid)))
-                `(lambda (,@vars ,$k) ,(T-c body $k))))
-        ('%call/cc 
-            (let ((f (fid))
-                  (cc (ccid))
-                  (x (xid))
-                  (_ (emptyid)))
-                `(lambda (,f ,cc) (,f (lambda (,x ,_) (,cc ,x)) ,cc))))
-        ((? constant?) aexpr)
-        ((? symbol?) aexpr)
-        ((? quote?) aexpr)
-        (else (error "invalid aexpr" aexpr))))
+;; <f>   ::= <var> | (<var> ...) | (<var> ... . <var>)
+;; <exp> ::= (begin <exp> <exp> ...)
+;;        |  (let ((<var> <exp>) ...) <exp> ...)
+;;        |  (if <exp> <exp> <exp>)
+;;        |  (lambda <f> <exp> ...)
+;;        |  (set! <var> <exp>)
+;;        |  (define <var> <exp>)
+;;        |  (quote <exp>)
+;;        |  (<exp> <exp> ...)
+;;        |  <number>
+;;        |  <boolean>
+;;        |  <string>
+;;        |  <var>
 
-(define (scheme2cps x) (T-c x '(%blackhole)))
+
+;; Output language:
+
+
+;; <aexp> ::= (lambda (<name> ...) <exp>)
+;;         |  (set! <var> <var>)
+;;         |  (quote exp)
+;;         |  <number>
+;;         |  <boolean>
+;;         |  <string>
+;;         |  <var>
+
+;; <cexp> ::= (<aexp> <aexp> ...)
+;;         |  (if <aexp> <exp> <exp>)
+
+;; <exp>  ::= (let ((<var> <cexp>)) <exp> ...)
+;;         |  (begin <exp> <exp> ...)
+;;         |  <aexp>
+;;         |  <cexp>
+
+;; <prog> ::= <exp> ...
+
+(define (atomic? exp)
+  (match exp
+    (('quote _)          #t)
+    ((? number?)         #t)
+    ((? boolean?)        #t)
+    ((? string?)         #t)
+    ((? char?)           #t)
+    ((? symbol?)         #t)
+    ((? intrinsic?)      #t)
+    (else                #f)))
+
+
+;; Expression normalization:
+(define (normalize-term exp) (normalize exp (lambda (x) x)))
+(define (normalize-terms exps)
+  (map (lambda (exp) (normalize exp (lambda (x) x))) exps))
+
+(define (normalize exp k)
+  (let ((out (match exp
+
+    (('begin exp . exp*)
+     (k `(begin ,(normalize-term exp)
+                ,@(normalize-terms exp*))))
+
+     (('let () exp . exp*)
+      (if (null? exp*)
+        (normalize exp k)
+        (k `(begin
+          ,(normalize-term exp)
+          ,@(normalize-terms exp*)))))
+
+     (('let ((formal value) . clause) exp . exp*) 
+      (normalize value (lambda (aexp-value) 
+       `(let ((,formal ,aexp-value))
+         ,(normalize `(let (,@clause) ,exp ,@exp*) k)))))
+
+    (('if exp1 exp2 exp3)    
+      (normalize-name exp1 (lambda (t) 
+       (k `(if ,t ,(normalize-term exp2) 
+                  ,(normalize-term exp3))))))
+
+    (('lambda params body . body*)   
+      (k `(lambda ,params
+        ,(normalize-term body)
+        ,@(normalize-terms body*))))
+    
+    (('set! v exp)
+      (normalize-name exp (lambda (t)
+        (k `(set! ,v ,t)))))
+
+    (('define v exp)
+      (normalize-name exp (lambda (t)
+        (k `(set! ,v ,t)))))
+
+    ((? atomic?)            
+     (k exp))
+
+    ((f . e*) 
+      (normalize-name f (lambda (t) 
+       (normalize-name* e* (lambda (t*)
+        (k `(,t . ,t*))))))))))
+  out))
+    
+
+(define (normalize-name exp k)
+  (normalize exp (lambda (aexp) 
+    (if (atomic? aexp) (k aexp) 
+        (let ((t (generate-guid 't))) 
+         `(let ((,t ,aexp)) ,(k t)))))))
+
+(define (normalize-name* exp* k)
+  (if (null? exp*)
+      (k '())
+      (normalize-name (car exp*) (lambda (t) 
+       (normalize-name* (cdr exp*) (lambda (t*) 
+        (k `(,t . ,t*))))))))
+
+
+(define (flatten-top exp v)
+  (match exp
+    (('let ((x cexp)) exp)
+     (cons `(define ,x ,cexp) 
+            (flatten-top exp v)))
+    
+    (else
+     `((define ,v ,exp)))))
+
+
+(define (normalize-program decs)
+  (match decs
+    ('() 
+     '())
+    
+    ((exp . rest)
+     (cons (normalize-term exp)
+           (normalize-program rest)))))
 
 (define (compile library)
-  (let ((forms (rt:library-forms library)))
-    (debug forms)
-    (scheme2cps forms)))
+  (let* ((forms (rt:library-forms library))
+         (normalized (normalize-program forms)))
+    (debug "forms" forms)
+    (debug "normalized" normalized)
+    forms))
 
 ))

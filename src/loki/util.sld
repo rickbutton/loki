@@ -91,7 +91,9 @@
 
 (define (debug . args)
     (for-all (lambda (a)
-       (display a)
+        (cond-expand
+          (chibi (display (show #f (pretty a))))
+          (else (display a)))
        (display " ")) args)
     (display "\n\n"))
 

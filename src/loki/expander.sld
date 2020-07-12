@@ -81,7 +81,6 @@
 (import (loki util))
 (import (loki message))
 (import (loki reader))
-(import (loki host))
 (import (loki compiler))
 
 (export (rename identifier?               ex:identifier?)
@@ -112,7 +111,6 @@
 
 
 ;; Single-character symbol prefixes.
-(define guid-prefix "&")
 (define free-prefix "~")
 (define library-prefix "#")
 
@@ -310,25 +308,6 @@
 ;; Infrastructure for generated names:
 ;;
 ;;==========================================================================
-
-;; Generate-guid returns a fresh symbol that has a globally
-;; unique external representation and is read-write invariant.
-;; Your local gensym will probably not satisfy both conditions.
-;; Prefix makes it disjoint from all builtins.
-;; Uniqueness is important for incremental and separate expansion.
-
-(define generate-guid
-  (let ((token (host:unique-token))
-        (ticks 0))
-    (lambda (symbol)
-      (set! ticks (+ ticks 1))
-      (string->symbol
-       (string-append guid-prefix
-                      (symbol->string symbol)
-                      "~"
-                      token
-                      "~"
-                      (number->string ticks))))))
 
 ;; Used to generate user program toplevel names.
 ;; Prefix makes it disjoint from all builtins.
@@ -2201,7 +2180,7 @@
                            `(,(datum->syntax toplevel-template 'program)
                              (,(datum->syntax toplevel-template (generate-guid 'program)))
                              ,@imports
-                             (,(datum->syntax toplevel-template 'begin) ,@toplevel))
+                             (,(datum->syntax toplevel-template 'begin) ,@(reverse toplevel)))
                            '())))
         (append (reverse (cons program libraries))))
       (let ((exp (car exps)))

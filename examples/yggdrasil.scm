@@ -11,9 +11,9 @@
         "It stands forever green over"
         "Urðr's well."))
 
-(for-each
-  (lambda (line)
-    (display line)
-    (newline))
-  |Völuspá|)
+(let ((print
+        (lambda (line)
+          (display line)
+          (newline))))
+  (for-each print |Völuspá|))
 

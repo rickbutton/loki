@@ -9,7 +9,6 @@
 (import (scheme process-context))
 (import (loki util))
 (import (loki shared))
-(import (loki host))
 (import (loki reader))
 (import (srfi 69))
 
@@ -184,7 +183,7 @@
   (if (not runtime-env) (runtime-env-init!))
   (rt:with-exception-handler
     (lambda ()
-      (host:eval e runtime-env))))
+      (eval e runtime-env))))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
@@ -208,8 +207,9 @@
   (display obj)
   (display "\n")
   (vector-for-each (lambda (trace) 
-    (if trace
-      (debug "trace:" trace))) traces)
+    (when trace
+      (display trace)
+      (display "\n"))) traces)
   (exit 1))
 
 (define max-traces 100)
