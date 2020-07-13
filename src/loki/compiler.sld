@@ -4,6 +4,7 @@
 (import (loki util))
 (import (loki runtime))
 (import (loki match))
+(import (loki hamt))
 (export compiler-intrinsics compile generate-guid)
 (begin
 
@@ -199,19 +200,8 @@
        (normalize-name* (cdr exp*) (lambda (t*) 
         (k `(,t . ,t*))))))))
 
-
-(define (flatten-top exp v)
-  (match exp
-    (('let ((x cexp)) exp)
-     (cons `(define ,x ,cexp) 
-            (flatten-top exp v)))
-    
-    (else
-     `((define ,v ,exp)))))
-
-
-(define (normalize-program decs)
-  (match decs
+(define (normalize-program prog)
+  (match prog
     ('() 
      '())
     
@@ -219,11 +209,40 @@
      (cons (normalize-term exp)
            (normalize-program rest)))))
 
+(define (cps-exp exp k)
+  (match exp
+    (('let ((formal val)) body)
+      '())
+    (('let ((formal val)) body body* ...)
+      '())
+    (('begin body)
+      '())
+    (('begin body body* ...)
+      '())
+    (('if aexp expt expf)
+      '())
+    ((f args ...)
+      '())
+    ((? atomic?)
+      '())))
+
+(define (cps-program* prog k)
+  (match prog
+    ('() 
+     k)
+    ((exp . rest)
+     (cps-exp exp (cps-program* rest k)))))
+
+(define (cps-program prog)
+  (cps-program* prog '(%blackhole)))
+
 (define (compile library)
   (let* ((forms (rt:library-forms library))
-         (normalized (normalize-program forms)))
+         (normalized (normalize-program forms))
+         (cps (cps-program normalized)))
     (debug "forms" forms)
     (debug "normalized" normalized)
-    forms))
+    (debug "cps" cps)
+    cps))
 
 ))

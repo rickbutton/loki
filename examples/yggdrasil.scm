@@ -11,9 +11,12 @@
         "It stands forever green over"
         "Urðr's well."))
 
+
 (let ((print
         (lambda (line)
           (display line)
           (newline))))
   (for-each print |Völuspá|))
+
+((lambda (x) (display x)) "loki!\n")
 
