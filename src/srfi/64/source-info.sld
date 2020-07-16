@@ -1,0 +1,7 @@
+(define-library (srfi 64 source-info)
+  (import (scheme base))
+  (import (srfi 64 test-runner))
+  (import (for (core primitives) run expand))
+  (import (for (core quasisyntax) expand))
+  (export source-info set-source-info!)
+  (include "source-info.body.scm"))

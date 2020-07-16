@@ -9,11 +9,17 @@
 (begin
 
 (define compiler-intrinsics '(
+      %trace %pop-trace %call-with-values %values
+
       %void %blackhole
       %add %sub %mul %div
       %lt %lte %number-eq %gt %gte
+      %bit-not %bit-and %bit-ior   
+      %bit-xor %bit-shift %bit-count 
+      %bit-length
       %number? %finite? %infinite?
       %nan? %floor %ceiling %truncate
+      %remainder %quotient
       %round %sqrt %expt
       %cons %pair? %null? %list? %car %cdr
       %set-car! %set-cdr!
@@ -43,7 +49,7 @@
       %peek-u8 %peek-char
       %read-bytevector! %read-bytevector %read-string %read-char
       %read-line %read-u8 %write-bytevector %write-string
-      %write-char %write-u8
+      %write-char %write-u8 %current-directory
       %hash-by-identity %current-jiffy %current-second %jiffies-per-second
       %number->string %string->number))
 

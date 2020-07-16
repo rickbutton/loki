@@ -13,7 +13,7 @@ example-debug: examples/test.wasm examples/test.wat
 	node --inspect-brk $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
 
 test:
-	chibi-scheme -I src src/tests.scm
+	chibi-scheme -A src -T src/loki.scm -- src/tests.scm
 
 parse-repl:
 	chibi-scheme -I src src/parse-repl.scm

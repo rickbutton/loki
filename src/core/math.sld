@@ -2,6 +2,7 @@
 (import (core primitives))
 (import (core derived))
 (import (core apply))
+(import (core values))
 (import (core let))
 (import (core list))
 (import (core bool))
@@ -16,6 +17,8 @@
                                   (%floor      floor)
                                   (%ceiling    ceiling)
                                   (%truncate   truncate)
+                                  (%quotient   quotient)
+                                  (%remainder   remainder)
                                   (%round      round)
                                   (%sqrt       sqrt)
                                   (%expt       expt)
@@ -74,13 +77,7 @@
               (cdr ls))))
   (min2 x rest))
 
-(define-missing floor/
-                floor-quotient
-                floor-remainder modulo
-                truncate/
-                truncate-quotient quotient
-                truncate-remainder remainder
-                rationalize
+(define-missing rationalize
                 exp log sin cos tan asin acos atan 
                 exact-integer-sqrt
                 make-rectangular make-polar)
@@ -96,6 +93,12 @@
 
 (define magnitude abs)
 (define (angle z) (if (< z 0) 3.141592653589793 0))
+
+(define (modulo a b)
+  (let ((res (remainder a b)))
+    (if (< b 0)
+        (if (<= res 0) res (+ res b))
+        (if (>= res 0) res (+ res b)))))
 
 (define (gcd2 a b)
   (if (= b 0)
@@ -116,5 +119,20 @@
       1
       (let lp ((x (car args)) (ls (cdr args)))
         (if (null? ls) x (lp (lcm2 x (car ls)) (cdr ls))))))
+
+(define truncate-quotient quotient)
+(define truncate-remainder remainder)
+(define (truncate/ n m)
+  (values (truncate-quotient n m) (truncate-remainder n m)))
+
+(define (floor-quotient n m)
+  (let ((res (floor (/ n m))))
+    (if (and (exact? n) (exact? m))
+        (exact res)
+        res)))
+(define (floor-remainder n m)
+  (- n (* m (floor-quotient n m))))
+(define (floor/ n m)
+  (values (floor-quotient n m) (floor-remainder n m)))
 
 ))

@@ -3,7 +3,9 @@
 (import (core apply))
 (import (core intrinsics))
 (import (core case-lambda))
-(export + * - / < <= = > >= zero? positive? negative? abs)
+(export + * - / < <= = > >= zero? positive? negative? abs
+        bitwise-not bitwise-and bitwise-ior bitwise-xor
+        arithmetic-shift bit-count integer-length)
 (begin
 
 (define +
@@ -63,5 +65,30 @@
 (define (negative? x) (< x 0))
 
 (define (abs x) (if (< x 0) (- x) x))
+
+(define (bitwise-not i)
+  (%bit-not i))
+
+(define bitwise-and
+  (case-lambda
+    (() -1)
+    ((a b) (%bit-and a b))
+    ((a b . rest) (%bit-and a (apply bitwise-and b rest)))))
+
+(define bitwise-ior
+  (case-lambda
+    (() 0)
+    ((a b) (%bit-ior a b))
+    ((a b . rest) (%bit-ior a (apply bitwise-ior b rest)))))
+
+(define bitwise-xor
+  (case-lambda
+    (() 0)
+    ((a b) (%bit-xor a b))
+    ((a b . rest) (%bit-xor a (apply bitwise-xor b rest)))))
+
+(define (arithmetic-shift i count) (%bit-shift i count))
+(define (bit-count i) (%bit-count i))
+(define (integer-length i) (%bit-length i))
 
 ))

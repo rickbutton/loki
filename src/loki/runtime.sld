@@ -10,7 +10,10 @@
 (import (loki util))
 (import (loki shared))
 (import (loki reader))
+(import (loki core fs))
+(import (srfi 1))
 (import (srfi 69))
+(import (srfi 151))
 
 (export rt:library-dirs
         rt:make-library
@@ -35,7 +38,6 @@
         rt:lookup-library
         rt:lookup-library/false
         rt:runtime-add-primitive
-        rt:with-exception-handler
         rt:runtime-eval)
 (begin
 
@@ -168,22 +170,26 @@
 (define (rt:runtime-add-primitive name value)
   (rt:runtime-eval `(define ,name ,value)))
 
-(define (rt:with-exception-handler thunk)
-  (with-exception-handler
-    (lambda (err)
-      (unless current-exception-handler
-        (display "no current-exception-handler, this shouldn't happen!")
-        (display err)
-        (raise err))
-      (current-exception-handler err))
-    thunk))
-
-
 (define (rt:runtime-eval e)
   (if (not runtime-env) (runtime-env-init!))
-  (rt:with-exception-handler
-    (lambda ()
-      (eval e runtime-env))))
+  (with-exception-handler
+    (lambda (err)
+      (current-exception-handler err))
+    (lambda () (eval e runtime-env))))
+
+(define-record-type <loki-values>
+  (make-loki-values values)
+  loki-values?
+  (values loki-values-values))
+(define (loki-values . args)
+  (make-loki-values args))
+(define (loki-call-with-values producer consumer)
+  (let ((res (producer)))
+    (if (loki-values? res)
+      (apply consumer (loki-values-values res))
+      (consumer res))))
+(define (loki-apply . args)
+  (apply apply args))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
@@ -206,20 +212,17 @@
   (display "ABORT!\n")
   (display obj)
   (display "\n")
-  (vector-for-each (lambda (trace) 
-    (when trace
-      (display trace)
-      (display "\n"))) traces)
+  (for-each (lambda (trace) 
+    (display trace)
+    (display "\n")) traces)
   (exit 1))
 
-(define max-traces 100)
-(define traces (make-vector max-traces #f))
-(define next-trace 0)
+(define traces '())
 (define (trace src)
-  (vector-set! traces next-trace src)
-  (if (= next-trace (- max-traces 1))
-    (set! next-trace 0)
-    (set! next-trace (+ next-trace 1))))
+  (set! traces (cons src traces)))
+(define (pop-trace)
+  (if (null? traces) (error "pop-trace, but no traces, this shouldn't happen"))
+  (set! traces (cdr traces)))
 
 (define (string-cmp a b ci?)
   (if ci?
@@ -353,6 +356,13 @@
 (rt:runtime-add-primitive '%number-eq  =)
 (rt:runtime-add-primitive '%gt         >)
 (rt:runtime-add-primitive '%gte       >=)
+(rt:runtime-add-primitive '%bit-not    bitwise-not)
+(rt:runtime-add-primitive '%bit-and    bitwise-and)
+(rt:runtime-add-primitive '%bit-ior    bitwise-ior)
+(rt:runtime-add-primitive '%bit-xor    bitwise-xor)
+(rt:runtime-add-primitive '%bit-shift  arithmetic-shift)
+(rt:runtime-add-primitive '%bit-count  bit-count)
+(rt:runtime-add-primitive '%bit-length integer-length)
 
 (rt:runtime-add-primitive '%cons      cons)
 (rt:runtime-add-primitive '%pair?     pair?)
@@ -394,7 +404,6 @@
 (rt:runtime-add-primitive '%number->string number->string)
 (rt:runtime-add-primitive '%string->number string->number)
 
-(rt:runtime-add-primitive '%apply               apply)
 (rt:runtime-add-primitive '%abort               abort)
 (rt:runtime-add-primitive '%make-exception      make-exception)
 (rt:runtime-add-primitive '%exception?          exception?)
@@ -419,6 +428,8 @@
 (rt:runtime-add-primitive '%floor      floor)
 (rt:runtime-add-primitive '%ceiling    ceiling)
 (rt:runtime-add-primitive '%truncate   truncate)
+(rt:runtime-add-primitive '%quotient   quotient)
+(rt:runtime-add-primitive '%remainder  remainder)
 (rt:runtime-add-primitive '%round      round)
 (rt:runtime-add-primitive '%sqrt       sqrt)
 (rt:runtime-add-primitive '%expt       expt)
@@ -473,8 +484,14 @@
 (rt:runtime-add-primitive '%current-second        current-second)
 (rt:runtime-add-primitive '%jiffies-per-second    jiffies-per-second)
 
+(rt:runtime-add-primitive '%apply loki-apply)
+(rt:runtime-add-primitive '%values loki-values)
+(rt:runtime-add-primitive '%call-with-values loki-call-with-values)
+(rt:runtime-add-primitive '%call/cc call/cc)
 (rt:runtime-add-primitive '%hash-by-identity hash-by-identity)
+(rt:runtime-add-primitive '%current-directory current-directory)
 (rt:runtime-add-primitive '%trace trace)
+(rt:runtime-add-primitive '%pop-trace pop-trace)
 
 
 ;; Only instantiate part of the bootstrap library 

@@ -7,7 +7,11 @@
 (import (loki expander))
 (import (loki compiler))
 (import (loki runtime))
+(import (loki path))
 (import (srfi 37))
+(cond-expand
+  (chibi (import (chibi ast)))
+  (loki (import (core exception))))
 (export run-loki-cli)
 (begin
 
@@ -45,32 +49,31 @@
     (default-options)))
 
 (define (emit-library library invoke?)
-  (display "emiting library ")
+  (display "emiting library")
   (display (rt:library-name library))
   (display "!\n")
   (when invoke?
-    (display "\n\n\n")
     (compile library)
-    (display "\n\n\n")
-    (debug (rt:library-bound-vars library))
-    (rt:import-library (rt:library-name library))
-    (display "\n")))
+    (rt:import-library (rt:library-name library))))
 
 ;; Load the r7rs standard library into the expander
 (define (load-stdlib)
-  (debug "expanding r7rs.scm")
-  (ex:expand-file "src/r7rs.scm" emit-library))
+  (debug "expanding r7rs/lang.scm")
+  (ex:expand-file (make-path "src/r7rs/lang.scm") emit-library))
 
 (define (run-loki-cli arguments)
-  (let ((options (parse-options arguments)))
-    (if (null? options)
-      (error "target required"))
-
-    (load-stdlib)
-
-    (for-each
-      (lambda (target)
-        (ex:expand-file target emit-library))
-      (loki-options-targets options))))
+  (with-exception-handler
+    (lambda (err)
+      (display err)
+      (exit 1))
+    (lambda ()
+      (let ((options (parse-options arguments)))
+        (if (null? options)
+          (error "target required"))
+        (load-stdlib)
+        (for-each
+          (lambda (target)
+            (ex:expand-file (make-path target) emit-library))
+          (loki-options-targets options))))))
 
 ))

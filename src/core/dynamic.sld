@@ -1,7 +1,9 @@
 (define-library (core dynamic)
 (import (core primitives))
 (import (core let))
+(import (core apply))
 (import (core derived))
+(import (core case-lambda))
 (import (core intrinsics))
 (import (core bool))
 (import (core number))
@@ -11,28 +13,20 @@
 (import (core records))
 (import (for (core syntax-rules) expand))
 (export make-parameter parameterize guard dynamic-wind
-        call-with-current-continuation
-        (rename call-with-current-continuation call/cc)
+        call/cc
+        (rename call/cc call-with-current-continuation)
         with-exception-handler)
 (begin
 
-(define <param-set!> (cons 'param-set! '()))
-(define <param-convert> (cons 'param-convert '()))
-
-(define (make-parameter init . o)
-  (let* ((converter
-          (if (pair? o) (car o) (lambda (x) x)))
-         (value (converter init)))
-    (lambda args
-      (cond
-       ((null? args)
-        value)
-       ((eq? (car args) <param-set!>)
-        (set! value (cadr args)))
-       ((eq? (car args) <param-convert>)
-        converter)
-       (else
-        (error "bad parameter syntax"))))))
+(define make-parameter
+  (case-lambda
+    ((init)
+      (make-parameter init (lambda (x) x)))
+    ((init converter)
+      (let ((value (converter init)))
+        (case-lambda
+          (() value)
+          ((val) (set! value (converter val)) value))))))
 
 (define-syntax parameterize
   (syntax-rules ()
@@ -41,12 +35,11 @@
                    ()
                    body)
      (let ((p param) ...)
-       (let ((old (p)) ...
-             (new ((p <param-convert>) value)) ...)
+       (let ((old (p)) ...)
          (dynamic-wind
-          (lambda () (p <param-set!> new) ...)
+          (lambda () (p value) ...)
           (lambda () . body)
-          (lambda () (p <param-set!> old) ...)))))
+          (lambda () (p old) ...)))))
     ((parameterize ("step")
                    args
                    ((param value) . rest)
@@ -69,22 +62,19 @@
          (with-exception-handler
           (lambda (condition)
             ((call/cc
-               (lambda (handler-k)
-                 (guard-k
-                  (lambda ()
-                    (let ((var condition))
-                      (guard-aux
-                        (handler-k
-                          (lambda ()
-                            (raise-continuable condition)))
-                        clause ...))))))))
-          (lambda ()
-            (call-with-values
-             (lambda () e1 e2 ...)
-             (lambda args
-               (guard-k
+              (lambda (handler-k)
+                (guard-k
                  (lambda ()
-                   (apply values args)))))))))))))
+                   (let ((var condition))      ; clauses may SET! var
+                     (guard-aux (handler-k (lambda ()
+                                             ;; must be raise-continuable
+                                             ;; in case the original
+                                             ;; exception was continuable
+                                             (raise-continuable condition)))
+                                clause ...))))))))
+          (lambda ()
+            (let ((res (let () e1 e2 ...)))
+              (guard-k (lambda () res)))))))))))
 
 (define-syntax guard-aux
   (syntax-rules (else =>)
@@ -92,33 +82,20 @@
      (begin result1 result2 ...))
     ((guard-aux reraise (test => result))
      (let ((temp test))
-       (if temp
-           (result temp)
-           reraise)))
-    ((guard-aux reraise (test => result)
-                clause1 clause2 ...)
+       (if temp (result temp) reraise)))
+    ((guard-aux reraise (test => result) clause1 clause2 ...)
      (let ((temp test))
-       (if temp
-           (result temp)
-           (guard-aux reraise clause1 clause2 ...))))
+       (if temp (result temp) (guard-aux reraise clause1 clause2 ...))))
     ((guard-aux reraise (test))
      (or test reraise))
     ((guard-aux reraise (test) clause1 clause2 ...)
-     (let ((temp test))
-       (if temp
-           temp
-           (guard-aux reraise clause1 clause2 ...))))
+     (or test (guard-aux reraise clause1 clause2 ...)))
     ((guard-aux reraise (test result1 result2 ...))
-     (if test
-         (begin result1 result2 ...)
-         reraise))
-    ((guard-aux reraise
-                (test result1 result2 ...)
-                clause1 clause2 ...)
+     (if test (begin result1 result2 ...) reraise))
+    ((guard-aux reraise (test result1 result2 ...) clause1 clause2 ...)
      (if test
          (begin result1 result2 ...)
          (guard-aux reraise clause1 clause2 ...)))))
-
 
 (define-record-type <point>
   (%make-point depth in out parent)
@@ -168,7 +145,7 @@
     (%dk point)
     (cont (values res))))
 
-(define (call-with-current-continuation proc)
+(define (call/cc proc)
   (%call/cc
    (lambda (cont)
      (proc (continuation->procedure cont (%dk))))))

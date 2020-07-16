@@ -76,12 +76,14 @@
 (import (scheme cxr))
 (import (scheme process-context))
 (import (scheme case-lambda))
+(import (srfi 1))
 (import (loki shared))
 (import (loki runtime))
 (import (loki util))
 (import (loki message))
 (import (loki reader))
 (import (loki compiler))
+(import (loki path))
 
 (export (rename identifier?               ex:identifier?)
         (rename bound-identifier=?        ex:bound-identifier=?)
@@ -576,7 +578,7 @@
                                (id-transformer-envs id))
                        ,(- (- *phase* (id-displacement id)) 1)
                        ',(id-library id)
-                       ,(source-filename source)
+                       ,(path->string (source-path source))
                        ,(source-line source)
                        ,(source-column source))))
 
@@ -586,7 +588,7 @@
                    transformer-envs
                    (- *phase* transformer-phase)
                    source-library
-                   (make-source filename line column)))
+                   (make-source (make-path filename) line column)))
 
 ;;=====================================================================
 ;;
@@ -694,7 +696,7 @@
 (define (binding->macro binding t)
   (cond ((assq (binding-name binding) *macro-table*) => cdr)
         (else
-         (raise-loki-error t "Reference to macro keyword out of context"))))
+         (raise (make-loki-error t "Reference to macro keyword out of context")))))
 
 ;; Registering macro.
 
@@ -718,6 +720,16 @@
   (set! *color* (generate-color))
   ((macro-proc macro) t))
 
+(define (make-call-trace id)
+  (if id
+    (list
+      `(%trace
+        ,(string-append
+          (symbol->string (id-name id))
+          " "
+          (source->string (id-source id)))))
+    '()))
+
 ;;=========================================================================
 ;;
 ;; Expander dispatch:
@@ -737,7 +749,11 @@
                                (expand expanded-once))))))
                        ((variable)
                         (if (list? t)
-                            (cons (binding-name binding) (map expand (cdr t)))
+                            `(begin
+                              ,@(make-call-trace (car t))
+                              (let ((ret ,(cons (binding-name binding) (map expand (cdr t)))))
+                                (%pop-trace)
+                                ret))
                             (binding-name binding)))
                        ((pattern-variable)
                        (begin
@@ -894,16 +910,21 @@
      `(let ((x ,(expand e)))
         (if x x ,(expand `(,or ,@es)))))))
 
-(define (check-valid-include type exp file) 
+(define (check-valid-include type file) 
  (unless (string? file)
         (syntax-violation type
-          "Invalid include syntax, requires string litreral" exp file)))
+          "Invalid include syntax, requires string literal" file)))
+(define (resolve-include-path id path)
+  (let* ((source (id-source id))
+         (root (if source (source-path source) (make-path ""))))
+    (path-join (path-parent root) path)))
+
 (define (expand-include-file exp fold-case?)
   (match exp
     ((include) (syntax-violation (syntax->datum include) "Invalid include syntax" exp include))
     ((include file)
-      (check-valid-include (syntax->datum include) exp file)
-      (let ((content (read-file file fold-case?)))
+      (check-valid-include (syntax->datum include) file)
+      (let ((content (read-file (resolve-include-path include (syntax->datum file)) fold-case?)))
         (expand `(,(rename 'macro 'begin) ,@(source->syntax include content)))))
     ((include file files ___)
         (expand `(,(rename 'macro 'begin) (,include ,file) (,include ,@files))))))
@@ -917,13 +938,6 @@
 ;;
 ;;=========================================================================
 
-(define (make-lambda-trace id)
-  (if id
-    (list
-      `(%trace ,(string-append (symbol->string (id-name id))
-                               " "
-                               (source->string (id-source id)))))
-    '()))
 
 (define (expand-lambda exp)
   (match exp
@@ -943,7 +957,6 @@
                           body
                           (lambda (forms syntax-definitions bound-variables)
                             `(lambda ,formals
-                               ,@(make-lambda-trace *current-identifier-bind*)                       
                                ,@(if (null? bound-variables)                ; +++
                                      (emit-body forms 'define)    ; +++
                                      `(((lambda ,bound-variables
@@ -1638,6 +1651,22 @@
                       exports
                       body-forms)
                   (scan-cond-expand-clauses (cdr clauses))))))))
+        (define (scan-include-library-declarations op includes)
+          (if (null? includes)
+            (loop (cdr declarations)
+                  imported-libraries
+                  imports
+                  exports
+                  body-forms)
+            (let* ((include (car includes))
+                   (str (syntax->datum include)))
+              (check-valid-include 'include-library-declarations str)
+              (let ((content (read-file (resolve-include-path op str) #f)))
+                (loop (append (source->syntax op content) (cdr declarations))
+                      imported-libraries
+                      imports
+                      exports
+                      body-forms)))))
 
         (if (null? declarations)
             (let ()
@@ -1661,6 +1690,20 @@
                       body-forms))
             (((syntax cond-expand) clauses ___)
                 (scan-cond-expand-clauses clauses))
+            (((syntax include) includes ___)
+                (loop (cdr declarations)
+                      imported-libraries
+                      imports
+                      exports
+                      (append (apply append (scan-includes (caar declarations) includes #f)) body-forms)))
+            (((syntax include-ci) includes ___)
+                (loop (cdr declarations)
+                      imported-libraries
+                      imports
+                      exports
+                      (append (apply append (scan-includes (caar declarations) includes #t)) body-forms)))
+            (((syntax include-library-declarations) includes ___)
+                (scan-include-library-declarations (caar declarations) includes))
             (((syntax begin) forms ___)
                 (loop (cdr declarations)
                       imported-libraries
@@ -1671,6 +1714,15 @@
                 (syntax-violation 'define-library "Invalid declaration" (car declarations)))))))
 
 ;; Returns ((<rename-identifier> <identifier> <level> ...) ...)
+
+(define (scan-includes op includes fold-case?)
+  (if (null? includes)
+    '()
+    (let* ((include (car includes))
+           (str (syntax->datum include)))
+      (check-valid-include (syntax->datum op) str)
+      (let ((content (read-file (resolve-include-path op str) fold-case?)))
+        (cons (source->syntax op content) (scan-includes op (cdr includes) fold-case?))))))
 
 (define (scan-exports sets)
   (apply append (map scan-export-set sets)))
@@ -1870,7 +1922,7 @@
 (define (library-ref-helper e)
   (match e
     (((? library-name-part? ids) ___) ids)
-    (- (raise-loki-error e "Invalid library reference."))))
+    (- (raise (make-loki-error e "Invalid library reference.")))))
 
 ;;==========================================================================
 ;;
@@ -1885,17 +1937,17 @@
                         (car maybe-subform))
                        (else (error "syntax-violation: Invalid subform in syntax violation"
                                     maybe-subform))))
-        (form-source (syntax->closest-source form))
-        (subform-source (syntax->closest-source subform)))
+        (form-source (syntax->source form))
+        (subform-source (syntax->source subform)))
     
-    (raise-loki-error (or form-source subform-source) 
+    (raise (make-loki-error (or form-source subform-source)
         (call-with-string-output-port (lambda (out)
             ; TODO use *trace*
             (if who (display who out))
             (if who (display " - " out))
             (display message out)
             (display "\n" out)
-            (display form out))))))
+            (display form out)))))))
 
 ;;==========================================================================
 ;;
@@ -2102,43 +2154,35 @@
       (thunk))))
 
 (define (expand-toplevel-sequence forms)
-  (rt:with-exception-handler (lambda ()
-    (scan-sequence 'toplevel
-                   make-toplevel-mapping
-                   (source->syntax toplevel-template forms)
-                   (lambda (forms syntax-definitions bound-variables)
-                     (emit-body forms 'define))))))
+  (scan-sequence 'toplevel
+                 make-toplevel-mapping
+                 (source->syntax toplevel-template forms)
+                 (lambda (forms syntax-definitions bound-variables)
+                   (emit-body forms 'define))))
 
 (define (library-name-part->string p)
   (if (symbol? p) (symbol->string p)
                   (number->string p)))
 
-(define (library-name->filename name)
-  (or (find file-exists?
-        (map (lambda (dir)
-            (string-append 
-                (string-join (cons dir (reverse (map library-name-part->string name))) "/") ".sld"))
-            rt:library-dirs))
-      (syntax-violation #f (string-join (cons "File not found for library: "
-                                          (reverse (map library-name-part->string name))) " ") name)))
+(define (library-name->path library-name)
+  (let ((name (map library-name-part->string library-name)))
+    (let ((options (map (lambda (dir)
+                 (let ((absolute (path-join (current-working-path) dir)))
+                   (path-with-suffix (apply path-join absolute name) "sld")))
+               rt:library-dirs)))
+      (or (find (lambda (path) (file-exists? (path->string path))) options)
+          (syntax-violation #f (string-append "File not found for library: " (write-to-string name)) name)))))
 
 (define (load-library name)
-    (or
-        (rt:lookup-library/false name)
-        (begin (loki-load (library-name->filename name))
-               (rt:lookup-library name))))
+  (or
+    (rt:lookup-library/false name)
+    (begin (loki-load (library-name->path name))
+           (rt:lookup-library name))))
 
 (define (loki-load filename)
-  (with-toplevel-parameters
-   (lambda (library invoke?)
-     (if invoke?
-       (rt:import-library (rt:library-name library))))
-   (lambda ()
-     (for-each (lambda (exp)
-                 (for-each (lambda (exp)
-                             (rt:runtime-eval exp))
-                           (expand-toplevel-sequence (list exp))))
-               (read-file filename)))))
+  (expand-file (wrap-path filename)
+    (lambda (library invoke?)
+      (rt:import-library (rt:library-name library)))))
   
 ;; This may be used as a front end for the compiler.
 ;; It expands a file consisting of a possibly empty sequence
@@ -2146,10 +2190,11 @@
 ;; The result is a sequence of vanilla r5rs-like toplevel
 ;; definitions and expressions.
 
-(define (expand-file filename module-handler)
+(define (expand-file path module-handler)
   (with-toplevel-parameters module-handler
-   (lambda ()
-    (expand-toplevel-sequence (normalize (read-file filename))))))
+    (lambda ()
+      (let ((content (read-file path #f)))
+        (expand-toplevel-sequence (normalize content))))))
 
 (define (expand-datum-sequence forms module-handler)
   (with-toplevel-parameters module-handler
@@ -2219,18 +2264,19 @@
            ((program)
               (loop (cdr exps) 'program libraries imports (cons exp toplevel))))))))
 
-(define read-file
-  (case-lambda
-    ((fn) (read-file fn #f))
-    ((fn fold-case?)
-      (let* ((p (open-input-file fn))
-             (reader (make-reader p fn)))
-        (reader-fold-case?-set! reader #t)
-        (let f ((x (read-annotated reader)))
-          (if (and (annotation? x)
-                   (eof-object? (annotation-expression x)))
-              '()
-              (cons x (f (read-annotated reader)))))))))
+(define (read-file-from-reader reader)
+  (let f ((x (read-annotated reader)))
+    (if (and (annotation? x) (eof-object? (annotation-expression x)))
+      '()
+      (cons x (f (read-annotated reader))))))
+
+(define (read-file fn fold-case?)
+  (let* ((path (wrap-path fn))
+         (str (path->string path))
+         (p (open-input-file str))
+         (reader (make-reader p path)))
+    (reader-fold-case?-set! reader fold-case?)
+    (read-file-from-reader reader)))
 
 ;;==========================================================================
 ;;
@@ -2271,7 +2317,9 @@
 ;;===================================================================
 
 (define library-language-names
-  `(program define-library export import cond-expand begin for run expand meta only
+  `(program define-library export import cond-expand
+    include-library-declarations
+    include include-ci begin for run expand meta only
             except prefix rename primitives))
 
 (define (make-library-language)
@@ -2288,7 +2336,8 @@
 (define static-features '(
   loki
   wasm
-  r7rs))
+  r7rs
+  posix))
 (define (loki-features) (list-copy static-features))
 (define (feature? feature)
   (and (symbol? feature) (member feature static-features)))
@@ -2390,6 +2439,10 @@
 (rt:runtime-add-primitive 'ex:generate-temporaries generate-temporaries)
 (rt:runtime-add-primitive 'ex:datum->syntax datum->syntax)
 (rt:runtime-add-primitive 'ex:syntax->datum syntax->datum)
+(rt:runtime-add-primitive 'ex:syntax->source syntax->source)
+(rt:runtime-add-primitive 'ex:source-path source-path)
+(rt:runtime-add-primitive 'ex:source-line source-line)
+(rt:runtime-add-primitive 'ex:source-column source-column)
 (rt:runtime-add-primitive 'ex:environment environment)
 (rt:runtime-add-primitive 'ex:environment-bindings environment-bindings)
 (rt:runtime-add-primitive 'ex:eval loki-eval)

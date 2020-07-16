@@ -33,10 +33,10 @@
         (define bitwise-ior  (make-nary bit-ior   0))
         (define bitwise-xor  (make-nary bit-xor   0))))
 
-    (else (include "bitwise-core.scm")))
+    (loki (import (core number))))
 
   ;; Stable part of the implementation
-  (include "bitwise-33.scm")
-  (include "bitwise-60.scm")
-  (include "bitwise-other.scm")
+  (include "151/bitwise-33.scm")
+  (include "151/bitwise-60.scm")
+  (include "151/bitwise-other.scm")
 )

@@ -32,6 +32,7 @@
 (import (scheme char))
 (import (scheme case-lambda))
 (import (loki writer))
+(import (loki path))
 (import (srfi 69))
 (cond-expand
   (chibi
@@ -40,11 +41,11 @@
     (import (core exception))))
 (export make-reader read-annotated read-datum
         reader-fold-case?-set!
-        <source> make-source source?  source-filename source-line
+        <source> make-source source?  source-path source-line
         source-column source->string
         <annotation> annotate annotation?  annotation-type?
         annotation-expression annotation-source unwrap-annotation
-        syntax->closest-source
+        syntax->source
         <identifier-context> identifier?  make-identifier id-source
         id-name id-colors id-transformer-envs id-displacement
         id-maybe-library integer-syntax?
@@ -65,14 +66,14 @@
     (get-output-string port))
 
 (define-record-type <source>
-    (make-source filename line column)
+    (make-source path line column)
     source?
-    (filename source-filename)
+    (path source-path)
     (line source-line)
     (column source-column))
 (define (source->string s)
     (string-append 
-        (source-filename s)
+        (path->string (source-path s))
         " ["
         (number->string (source-line s))
         ":"
@@ -145,7 +146,9 @@
 (define (id-name i)
     (assert (eq? 'identifier (annotation-type i)))
     (annotation-expression i))
-(define (id-colors i) (identifier-context-colors (annotation-context i)))
+(define (id-colors i)
+  (unless (annotation-context i) (error "id-colors: not an identifier" i))
+  (identifier-context-colors (annotation-context i)))
 (define (id-transformer-envs i) (identifier-context-transformer-envs (annotation-context i)))
 (define (id-displacement i) (identifier-context-displacement (annotation-context i)))
 (define (id-maybe-library i) (identifier-context-maybe-library (annotation-context i)))
@@ -153,12 +156,12 @@
 (define (unwrap-annotation a)
     (if (annotation? a) (annotation-expression a) a))
 
-(define (syntax->closest-source s)
+(define (syntax->source s)
     (cond
         ((annotation? s) (annotation-source s))
         ((and (pair? s) (annotation? (car s)))
             (annotation-source (car s)))
-        ((pair? s) (syntax->closest-source (cdr s)))
+        ((pair? s) (syntax->source (cdr s)))
         (else #f)))
 (define (integer-syntax? x) (and (annotation-type? 'value x) (integer? (annotation-expression x))))
 
@@ -191,7 +194,7 @@
 ;; Detects the (intended) type of Scheme source: r7rs-library,
 ;; r7rs-program, empty or unknown.
 (define (detect-scheme-file-type port)
-  (let ((reader (make-reader port "<unknown>")))
+  (let ((reader (make-reader port #f)))
     (let-values (((type lexeme) (get-lexeme reader)))
       (case type
         ((eof)
@@ -209,10 +212,10 @@
 
 (define-record-type <reader>
     (make-reader-record 
-        port filename next-char line column saved-line saved-column fold-case? tolerant?)
+        port path next-char line column saved-line saved-column fold-case? tolerant?)
     reader?
     (port reader-port)
-    (filename reader-filename)
+    (path reader-path)
     (next-char reader-next-char reader-next-char-set!)
     (line reader-line reader-line-set!)
     (column reader-column reader-column-set!)
@@ -220,15 +223,15 @@
     (saved-column reader-saved-column reader-saved-column-set!)
     (fold-case? reader-fold-case? reader-fold-case?-set!)
     (tolerant? reader-tolerant? reader-tolerant?-set!))
-(define (make-reader port filename)
-    (make-reader-record port filename #f 1 0 1 0 #f #f))
+(define (make-reader port path)
+    (make-reader-record port path #f 1 0 1 0 #f #f))
 
 (define (reader-mark reader)
   (reader-saved-line-set! reader (reader-line reader))
   (reader-saved-column-set! reader (reader-column reader)))
 
 (define (reader-source reader)
-  (make-source (reader-filename reader)
+  (make-source (reader-path reader)
           (reader-saved-line reader)
           (reader-saved-column reader)))
 
@@ -274,14 +277,14 @@
 
 (define (reader-error reader msg . irritants)
   ;; Non-recoverable errors.
-  (raise (make-read-error msg irritants)))
+  (raise (make-read-error msg (cons (reader-source reader) irritants))))
 
 (define (reader-warning reader msg . irritants)
   ;; Recoverable if the reader is tolerant.
   (if (reader-tolerant? reader)
     (raise-continuable
-      (make-read-error msg irritants))
-    (raise (make-read-error msg irritants))))
+      (make-read-error msg (cons (reader-source reader) irritants)))
+    (raise (make-read-error msg (cons (reader-source reader) irritants)))))
 
 (define (eof-warning reader)
   (reader-warning reader "Unexpected EOF" (eof-object)))
@@ -888,7 +891,7 @@
   (lambda (x out) 
     (display (string-append
       (string-append
-        (source-filename x) ":"
+        (path->string (source-path x)) ":"
         (number->string (source-line x)) ":"
         (number->string (source-column x)))) out)))
 
@@ -905,7 +908,7 @@
                 (if source
                     (string-append
                         ":"
-                        (source-filename source) ":"
+                        (path->string (source-path source)) ":"
                         (number->string (source-line source)) ":"
                         (number->string (source-column source)) " ")
                     " ")

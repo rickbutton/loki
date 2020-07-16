@@ -3,17 +3,9 @@
     (import (scheme base))
     (import (scheme eval))
     (import (scheme write))
-    (cond-expand
-      (chibi
-        (import (chibi show))
-        (import (chibi show pretty))))
     (export 
         map-vector
-        unique
-        filter
         fold-left
-        fold-right
-        last
         all-but-last
         index
         contains?
@@ -25,28 +17,11 @@
         assert
         memp
         for-all
-        find
-        string-join)
+        write-to-string)
 (begin
 
 (define (map-vector fn vec)
     (list->vector (map fn (vector->list vec))))
-
-(define (unique lst)
-  (fold-right (lambda (e a)
-        (if (not (member e a))
-            (cons e a)
-            a))
-        '()
-         lst))
-
-(define (filter p? lst)
-  (if (null? lst)
-      '()
-      (if (p? (car lst))
-          (cons (car lst)
-                (filter p? (cdr lst)))
-          (filter p? (cdr lst)))))
 
 (define (fold-left f init seq) 
     (if (null? seq) 
@@ -54,17 +29,6 @@
         (fold-left f 
                     (f (car seq) init) 
                     (cdr seq)))) 
-
-(define (fold-right f init seq) 
-    (if (null? seq) 
-        init 
-        (f (car seq) 
-            (fold-right f init (cdr seq))))) 
-
-(define (last l)
-    (cond ((null? l) '())
-        ((null? (cdr l)) (car l))
-        (else (last (cdr l)))))
 
 (define (all-but-last l) (reverse (cdr (reverse l))))
 
@@ -91,9 +55,7 @@
 
 (define (debug . args)
     (for-all (lambda (a)
-        (cond-expand
-          (chibi (display (show #f (pretty a))))
-          (else (display a)))
+       (display a)
        (display " ")) args)
     (display "\n\n"))
 
@@ -137,17 +99,9 @@
       (and (apply proc (car l) (map car ls))
            (apply for-all proc (cdr l) (map cdr ls)))))
 
-(define (find pred list)
-    (if (null? list) #f
-        (if (pred (car list))
-            (car list)
-            (find pred (cdr list)))))
-
-(define (string-join strings delimiter)
-  (if (null? strings)
-      ""
-      (fold-right (lambda (s so-far) (string-append so-far delimiter s))
-            (car strings)
-            (cdr strings))))
+(define (write-to-string obj)
+  (let ((port (open-output-string)))
+    (write obj port)
+    (get-output-string port)))
 
 ))

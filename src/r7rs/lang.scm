@@ -51,6 +51,10 @@
    (rename ex:generate-temporaries      generate-temporaries)
    (rename ex:datum->syntax             datum->syntax)
    (rename ex:syntax->datum             syntax->datum)
+   (rename ex:syntax->source            syntax->source)
+   (rename ex:source-path               source-path)
+   (rename ex:source-line               source-line)
+   (rename ex:source-column             source-column)
    (rename ex:syntax-violation          syntax-violation)
    (rename ex:features                  features)
    (rename ex:environment               environment)
@@ -78,12 +82,18 @@
     
     ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
+    ex:syntax->source ex:source-path ex:source-line ex:source-column
     ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load ex:features
     ))
 ) ;; core primitives
 
 (define-library (core apply)
   (export (rename %apply apply))
+  (import (core intrinsics)))
+
+(define-library (core values)
+  (export (rename %values values)
+          (rename %call-with-values call-with-values))
   (import (core intrinsics)))
 
 (define-library (core with-syntax)
@@ -152,7 +162,7 @@
          (let ((temp1 init1) ...)
            (set! var1 temp1)
            ...
-           body ...)))
+           (let () body ...))))
       ((letrec "generate_temp_names"
          (x y ...)
          (temp ...)
@@ -835,27 +845,6 @@
       (syntax-violation 'unquote-splicing "Invalid expression" e)))
   ))
 
-(define-library (core values)
-  (export values call-with-values)
-  (import (core primitives)
-          (core apply)
-          (core bool)
-          (core let)
-          (core list)
-          (core intrinsics))
-  (begin
-    (define *values-tag* (list 'values))
-    
-    (define (values . ls)
-      (if (and (pair? ls) (null? (cdr ls)))
-          (car ls)
-          (cons *values-tag* ls)))
-    
-    (define (call-with-values producer consumer)
-      (let ((res (producer)))
-        (if (and (pair? res) (eq? *values-tag* (car res)))
-            (apply consumer (cdr res))
-            (consumer res))))))
 
 (define-library (core let-values)
   (export let-values let*-values define-values)
@@ -942,6 +931,76 @@
                            list)))))
   
   )) ; core let-values
+
+(define-library (scheme base)
+    (import (for (except (core primitives) _ ... environment eval load) run expand)
+            (for (core intrinsics)              expand run)
+            (for (core let)                     expand run)
+            (for (core control)                 expand run)
+            (for (core records)                 expand run)
+            (for (core derived)                 expand run)
+            (for (core quasiquote)              expand run)
+            (for (core let-values)              expand run)
+            (for (core syntax-rules)            expand run) 
+            (for (only (core primitives) _ ... set!) expand)
+            (for (core number)                  expand run)
+            (for (core bool)                    expand run)
+            (for (core list)                    expand run)
+            (for (core vector)                  expand run)
+            (for (core string)                  expand run)
+            (for (core char)                    expand run)
+            (for (core cond-expand)             expand run)
+            (for (core values)                  expand run)
+            (for (core apply)                   expand run)
+            (for (core math)                    expand run)
+            (for (core string)                  expand run)
+            (for (core exception)               expand run)
+            (for (core syntax-error)            expand run)
+            (for (core dynamic)                 expand run)
+            (for (core io)                      expand run))
+    (export 
+          * + - ... / < <= = => > >= _ abs and append apply assoc assq
+          assv begin binary-port?  boolean=?  boolean?  bytevector
+          bytevector-append bytevector-copy bytevector-copy! bytevector-length
+          bytevector-u8-ref bytevector-u8-set!  bytevector?  caar cadr
+          call-with-current-continuation call-with-port call-with-values call/cc
+          car case cdar cddr cdr ceiling char->integer char-ready?  char<=?
+          char<?  char=?  char>=?  char>?  char?  close-input-port
+          close-output-port close-port complex?  cond cond-expand
+          cons current-error-port current-input-port current-output-port
+          define define-record-type define-syntax define-values
+          denominator do
+          dynamic-wind else eof-object?  equal?  error error-object-message
+          even?  exact-integer-sqrt exact?  features
+          floor floor-remainder
+          flush-output-port gcd get-output-string if include-ci inexact?
+          input-port?  integer?  lcm let let*-values let-values letrec* list
+          list->vector list-ref list-tail make-bytevector make-parameter
+          make-vector max memq min negative?  not number->string numerator
+          open-input-bytevector open-output-bytevector or output-port?
+          parameterize peek-u8 positive?  quasiquote quotient raise-continuable
+          rationalize read-bytevector!  read-error?  read-string reverse
+          set!  set-cdr!  string string->number string->utf8 string-append
+          eof-object eq?  eqv?  error-object-irritants error-object?  exact
+          exact-integer?  expt file-error?  floor-quotient floor/ for-each
+          get-output-bytevector guard include inexact input-port-open?
+          integer->char lambda length let* let-syntax
+          letrec letrec-syntax
+          list->string list-copy list-set!  list?  make-list make-string map
+          member memv modulo newline null?  number?  odd?  open-input-string
+          open-output-string output-port-open?  pair?  peek-char port?
+          procedure?  quote raise rational?  read-bytevector read-char read-line
+          read-u8 real? remainder round set-car!  square string->list string->symbol
+          string->vector string-copy string-copy!  string-for-each string-map
+          string-set!  string<?  string>=?  string?  symbol->string symbol?
+          syntax-rules truncate truncate-remainder u8-ready?  unquote
+          utf8->string vector vector->string vector-copy vector-fill!
+          vector-length vector-ref vector?  with-exception-handler
+          write-char write-u8 string-fill!  string-length string-ref string<=?
+          string=?  string>?  substring symbol=?  syntax-error textual-port?
+          truncate-quotient truncate/ unless unquote-splicing values
+          vector->list vector-append vector-copy!  vector-for-each vector-map
+          vector-set!  when write-bytevector write-string zero?))
 
 (define-library (scheme case-lambda)
   (export case-lambda)
@@ -1103,87 +1162,7 @@
             (rename %current-second current-second)
             (rename %jiffies-per-second jiffies-per-second)))
 
-(define-library (scheme base)
-    (import (for (except (core primitives) _ ... environment eval load) run expand)
-            (for (core intrinsics)              expand run)
-            (for (core let)                     expand run)
-            (for (core control)                 expand run)
-            (for (core records)                 expand run)
-            (for (core derived)                 expand run)
-            (for (core quasiquote)              expand run)
-            (for (core let-values)              expand run)
-            (for (core syntax-rules)            expand run) 
-            (for (only (core primitives) _ ... set!) expand)
-            (for (core number)                  expand run)
-            (for (core bool)                    expand run)
-            (for (core list)                    expand run)
-            (for (core vector)                  expand run)
-            (for (core string)                  expand run)
-            (for (core char)                    expand run)
-            (for (core cond-expand)             expand run)
-            (for (core values)                  expand run)
-            (for (core apply)                   expand run)
-            (for (core math)                    expand run)
-            (for (core string)                  expand run)
-            (for (core exception)               expand run)
-            (for (core syntax-error)            expand run)
-            (for (core dynamic)                 expand run)
-            (for (core io)                      expand run)
-            (scheme case-lambda)
-            (scheme char)
-            (scheme complex)
-            (scheme cxr)
-            (scheme eval)
-            (scheme file)
-            (scheme inexact)
-            (scheme lazy)
-            (scheme load)
-            (scheme process-context)
-            (scheme repl)
-            (scheme time))
-    (export 
-          * + - ... / < <= = => > >= _ abs and append apply assoc assq
-          assv begin binary-port?  boolean=?  boolean?  bytevector
-          bytevector-append bytevector-copy bytevector-copy! bytevector-length
-          bytevector-u8-ref bytevector-u8-set!  bytevector?  caar cadr
-          call-with-current-continuation call-with-port call-with-values call/cc
-          car case cdar cddr cdr ceiling char->integer char-ready?  char<=?
-          char<?  char=?  char>=?  char>?  char?  close-input-port
-          close-output-port close-port complex?  cond cond-expand
-          cons current-error-port current-input-port current-output-port
-          define define-record-type define-syntax define-values
-          denominator do
-          dynamic-wind else eof-object?  equal?  error error-object-message
-          even?  exact-integer-sqrt exact?  features
-          floor floor-remainder
-          flush-output-port gcd get-output-string if include-ci inexact?
-          input-port?  integer?  lcm let let*-values let-values letrec* list
-          list->vector list-ref list-tail make-bytevector make-parameter
-          make-vector max memq min negative?  not number->string numerator
-          open-input-bytevector open-output-bytevector or output-port?
-          parameterize peek-u8 positive?  quasiquote quotient raise-continuable
-          rationalize read-bytevector!  read-error?  read-string reverse
-          set!  set-cdr!  string string->number string->utf8 string-append
-          eof-object eq?  eqv?  error-object-irritants error-object?  exact
-          exact-integer?  expt file-error?  floor-quotient floor/ for-each
-          get-output-bytevector guard include inexact input-port-open?
-          integer->char lambda length let* let-syntax
-          letrec letrec-syntax
-          list->string list-copy list-set!  list?  make-list make-string map
-          member memv modulo newline null?  number?  odd?  open-input-string
-          open-output-string output-port-open?  pair?  peek-char port?
-          procedure?  quote raise rational?  read-bytevector read-char read-line
-          read-u8 real? remainder round set-car!  square string->list string->symbol
-          string->vector string-copy string-copy!  string-for-each string-map
-          string-set!  string<?  string>=?  string?  symbol->string symbol?
-          syntax-rules truncate truncate-remainder u8-ready?  unquote
-          utf8->string vector vector->string vector-copy vector-fill!
-          vector-length vector-ref vector?  with-exception-handler
-          write-char write-u8 string-fill!  string-length string-ref string<=?
-          string=?  string>?  substring symbol=?  syntax-error textual-port?
-          truncate-quotient truncate/ unless unquote-splicing values
-          vector->list vector-append vector-copy!  vector-for-each vector-map
-          vector-set!  when write-bytevector write-string zero?))
+
 (define-library (scheme read)
   (import (core primitives))
   (import (only (loki reader) read-datum))
