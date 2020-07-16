@@ -189,6 +189,9 @@
  (triv-runner (lambda () (test-assert "a" #t) (test-assert "a" #t))))
 
 
+#|
+; Oh, I get it! Thanks for testing, it works.
+
 (test-equal
  "1.1.4. One way to FAIL is to throw an error"
  '(() ("a") () () () (0 1 0 0 0))
@@ -197,6 +200,7 @@
 (test-end);1.1
 
 (test-begin "1.2. test-eqv")
+|#
 
 
 (test-equal
@@ -641,7 +645,6 @@
     (test-end "b")
     (test-end "a"))))
 
-(test-expect-fail 1) ;; ???
 (test-equal
  "6.4.3.2. Introduced using 'test-group'"
  '(() () () () () (0 0 0 0 1))

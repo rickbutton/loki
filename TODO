@@ -2,3 +2,6 @@ for binding to runtime/expander when wasm:
 either allow for jit imports or special case expander or runtime
 then map globals back to library bindings
 maybe some loki-current-expander fake imports
+
+setup a test logger for CI?
+maybe-install-default-runner -> %test-runner-log-file!
