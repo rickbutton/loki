@@ -1,0 +1,29 @@
+# This is a basic workflow to help you get started with Actions
+
+name: tests
+
+on: [push]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+    - uses: actions/checkout@v2
+
+    - name: ppa
+      run: sudo add-apt-repository ppa:ilammy/chibi-scheme
+
+    - name: update
+      run: sudo apt update
+
+    - name: install chibi
+      run: sudo apt install chibi-scheme 
+
+    - name: test
+      run: make test
