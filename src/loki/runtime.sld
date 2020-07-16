@@ -149,23 +149,7 @@
 
 (define (runtime-env-init!)
   (set! runtime-env 
-    (environment
-     '(scheme case-lambda)
-     '(scheme char)
-     '(scheme complex)
-     '(scheme cxr)
-     '(scheme eval)
-     '(scheme file)
-     '(scheme inexact)
-     '(scheme lazy)
-     '(scheme load)
-     '(scheme process-context)
-     '(scheme read)
-     '(scheme repl)
-     '(scheme time)
-     '(scheme write)
-     '(scheme base)
-     )))
+    (environment '(scheme base))))
 
 (define (rt:runtime-add-primitive name value)
   (rt:runtime-eval `(define ,name ,value)))
