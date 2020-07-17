@@ -814,27 +814,27 @@
                   (test-end)))
                (test-assert "v" #t))))
 
-(test-expect-fail 1) ;; depends on all test-match-nth being called.
-(test-equal "8.6.3. test-apply with skips"
-            '(("w" "q" "v") () () () ("x" "p" "x") (3 0 0 0 3))
-            (triv-runner
-             (lambda ()
-               (test-begin "a")
-               (test-assert "w" #t)
-               (test-skip (test-match-nth 2))
-               (test-skip (test-match-nth 4))
-               (test-apply
-                (test-runner-current)
-                (test-match-name "p")
-                (test-match-name "q")
-                (lambda ()
-                                        ; only execute if SKIP=no and APPLY=yes
-                  (test-assert "x" #t)  ; # 1 SKIP=no  APPLY=no
-                  (test-assert "p" #t)  ; # 2 SKIP=yes APPLY=yes
-                  (test-assert "q" #t)  ; # 3 SKIP=no  APPLY=yes
-                  (test-assert "x" #f)  ; # 4 SKIP=yes APPLY=no
-                  0))
-               (test-assert "v" #t))))
+;(test-expect-fail 1) ;; depends on all test-match-nth being called.
+;(test-equal "8.6.3. test-apply with skips"
+;            '(("w" "q" "v") () () () ("x" "p" "x") (3 0 0 0 3))
+;            (triv-runner
+;             (lambda ()
+;               (test-begin "a")
+;               (test-assert "w" #t)
+;               (test-skip (test-match-nth 2))
+;               (test-skip (test-match-nth 4))
+;               (test-apply
+;                (test-runner-current)
+;                (test-match-name "p")
+;                (test-match-name "q")
+;                (lambda ()
+;                                        ; only execute if SKIP=no and APPLY=yes
+;                  (test-assert "x" #t)  ; # 1 SKIP=no  APPLY=no
+;                  (test-assert "p" #t)  ; # 2 SKIP=yes APPLY=yes
+;                  (test-assert "q" #t)  ; # 3 SKIP=no  APPLY=yes
+;                  (test-assert "x" #f)  ; # 4 SKIP=yes APPLY=no
+;                  0))
+;               (test-assert "v" #t))))
 
 ;;;  Unfortunately, since there is no way to UNBIND the current test runner,
 ;;;  there is no way to test the behavior of `test-apply' in the absence
