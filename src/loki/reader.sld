@@ -893,12 +893,13 @@
 
 (type-printer-set! <annotation> 
   (lambda (x writer out) 
-    (let ((source (annotation-source x)))
-      (writer "#<syntax" #t)
+    (let* ((source (annotation-source x))
+           (path (if source (source-path source) #f)))
+      (writer "#<syntax " #t)
       (if source
         (string-append
           ":"
-          (path-filename (source-path source)) ":"
+          (if (path? path) (path-filename path) path) ":"
           (number->string (source-line source)) ":"
           (number->string (source-column source)) " ")
         " ")

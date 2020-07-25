@@ -759,6 +759,7 @@
                        (begin
                         (syntax-violation #f "Pattern variable used outside syntax template" t)))))
             ((list? t)      (map expand t))
+            ((vector? t) (syntax->datum t))
             ((identifier? t) (make-free-name (id-name t)))
             ((annotation? t) (annotation-expression t))
             ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))

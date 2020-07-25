@@ -214,6 +214,7 @@ current-working-path)
   (cond
     ((posix-path? path) (path->string* path *posix-sep*))
     ((windows-path? path) (path->string* path *windows-sep*))
+    ((string? path) path)
     (else (error "path->string: not a path" path))))
 
 (define (path->slashed-string path)

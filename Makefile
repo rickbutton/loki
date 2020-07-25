@@ -15,6 +15,9 @@ example-debug: examples/test.wasm examples/test.wat
 test:
 	chibi-scheme -A src -T src/loki.scm -- src/tests.scm
 
+repl:
+	chibi-scheme -A src -T src/loki.scm -- src/repl.scm
+
 parse-repl:
 	chibi-scheme -I src src/parse-repl.scm
 
