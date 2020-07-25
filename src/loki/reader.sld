@@ -31,19 +31,19 @@
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
-(import (loki writer))
 (import (loki path))
 (import (srfi 69))
+(import (loki printer))
 (cond-expand
   (chibi
-    (import (rename (only (chibi ast) make-exception) (make-exception chibi-make-exception))))
+    (import (only (chibi) make-exception)))
   (loki
     (import (core exception))))
 (export make-reader read-annotated read-datum
         reader-fold-case?-set!
         <source> make-source source?  source-path source-line
         source-column source->string
-        <annotation> annotate annotation?  annotation-type?
+        <annotation> annotation?  annotation-type?
         annotation-expression annotation-source unwrap-annotation
         syntax->source
         <identifier-context> identifier?  make-identifier id-source
@@ -51,6 +51,20 @@
         id-maybe-library integer-syntax?
         call-with-string-output-port)
 (begin
+
+(cond-expand
+  (chibi
+    (define (make-read-error message irritants)
+      (make-exception 'read message irritants #f #f))))
+(define (char-general-category c) 'ZZ)
+(define (is-identifier-char? c)
+  (or (char-ci<=? #\a c #\Z)
+      (char<=? #\0 c #\9)
+      (memv c '(#\! #\$ #\% #\& #\* #\/ #\: #\< #\= #\> #\? #\^ #\_ #\~
+                            #\+ #\- #\. #\@ #\x200C #\x200D))
+      (and (> (char->integer c) 127)
+           (memq (char-general-category c) ;XXX: could be done faster
+             '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))))
 
 (define (assert e) (if e e (error "assertion failed")))
 
@@ -96,10 +110,12 @@
 (define (make-annotation type expr src)
     (make-annotation-record type expr src #f))
 
-(define (annotate type source datum)
+(define (datum->annotation type source datum)
   (assert (source? source))
   (make-annotation type datum
                    source))
+
+(define *annotate* (make-parameter (lambda (type source datum) datum)))
 
 (define-record-type <identifier-context>
     (make-identifier-context colors transformer-envs displacement maybe-library)
@@ -241,6 +257,10 @@
     (label reference-label))
 
 (define (read-annotated reader)
+  (parameterize ((*annotate* datum->annotation))
+    (read-datum reader)))
+  
+(define (read-datum reader)
   (assert (reader? reader))
   (let ((labels (make-labels)))
     (let*-values (((type x) (get-lexeme reader))
@@ -248,32 +268,7 @@
       (resolve-labels reader labels)
       d)))
 
-
-(define (sexp-map f s)
-  (cond ((null? s) '())
-        ((pair? s) (cons (sexp-map f (car s))
-                         (sexp-map f (cdr s))))
-        ((vector? s)
-         (apply vector (sexp-map f (vector->list s))))
-        (else (f s))))
-(define (syntax->datum exp)
-  (sexp-map (lambda (leaf)
-              (cond ((identifier? leaf) (id-name leaf))
-                    ((annotation? leaf) (annotation-expression leaf))
-                    ((symbol? leaf)
-                     (error "syntax->datum: A symbol is not a valid syntax object" leaf))
-                    (else leaf)))
-            exp))
-
-(define (read-datum reader)
-  (syntax->datum (read-annotated reader)))
-
 ;;; Lexeme reader
-
-(cond-expand
-  (chibi 
-    (define (make-read-error message irritants)
-      (chibi-make-exception 'read message irritants #f #f))))
 
 (define (reader-error reader msg . irritants)
   ;; Non-recoverable errors.
@@ -766,7 +761,7 @@
            ((list)
             head)
            ((bytevector)
-            (apply bytevector head))
+            (apply bytevector (map annotation-expression head)))
            (else
             (reader-error p "Internal error in get-compound-datum" type))))
         ((dot)                          ;a dot like in (1 . 2)
@@ -797,7 +792,9 @@
            (cond
              ((and (eq? type 'bytevector)
                    (or (reference? d)
-                       (not (and (integer? (reference-label d)) (<= 0 d 255)))))
+                       (not (and (annotation? d)
+                                 (integer? (annotation-expression d))
+                                 (<= 0 (annotation-expression d) 255)))))
               (reader-warning p "Invalid datum in bytevector" x)
               (lp head prev len))
              (else
@@ -826,7 +823,7 @@
        ;; TODO: open-bytevector-output-port would be faster
        (get-compound-datum p src 'closep 'bytevector labels))
       ((value eof identifier)
-       (annotate lextype src x))
+       ((*annotate*) lextype src x))
       ((abbrev)
        (let-values (((type lex) (get-lexeme p)))
          (cond ((eq? type 'eof)
@@ -834,7 +831,7 @@
                   lex)
                (else
                 (let ((d (handle-lexeme p type lex labels #t)))
-                  (list (annotate 'identifier src x) d))))))
+                  (list ((*annotate*) 'identifier src x) d))))))
       ((label)
        ;; The object that follows this label can be referred
        ;; back from elsewhere.
@@ -888,29 +885,23 @@
      entries)))
 
 (type-printer-set! <source> 
-  (lambda (x out) 
-    (display (string-append
-      (string-append
-        (path->string (source-path x)) ":"
-        (number->string (source-line x)) ":"
-        (number->string (source-column x)))) out)))
-
+  (lambda (x writer out) 
+    (writer (string-append
+      (path->string (source-path x)) ":"
+      (number->string (source-line x)) ":"
+      (number->string (source-column x))))))
 
 (type-printer-set! <annotation> 
-    (lambda (x out) 
-        (define expr-port (open-output-string))
-        (write (annotation-expression x) expr-port)
-
-        (let ((source (annotation-source x))
-              (expr-str (get-output-string expr-port)))
-            (display (string-append
-                "#<syntax"
-                (if source
-                    (string-append
-                        ":"
-                        (path->string (source-path source)) ":"
-                        (number->string (source-line source)) ":"
-                        (number->string (source-column source)) " ")
-                    " ")
-                expr-str ">" ) out))))
+  (lambda (x writer out) 
+    (let ((source (annotation-source x)))
+      (writer "#<syntax" #t)
+      (if source
+        (string-append
+          ":"
+          (path-filename (source-path source)) ":"
+          (number->string (source-line source)) ":"
+          (number->string (source-column source)) " ")
+        " ")
+      (writer (annotation-expression x))
+      (writer ">" #t))))
 ))

@@ -2,7 +2,7 @@
 (import (scheme base))
 (import (scheme process-context))
 (import (scheme case-lambda))
-(import (loki writer))
+(import (loki printer))
 (export make-loki-error
         make-loki-warning
         make-loki-message
@@ -21,15 +21,17 @@
   (obj loki-message->obj))
 
 (type-printer-set! <loki-message> 
-  (lambda (x out) 
+  (lambda (x writer out) 
     (let ((type (loki-message->type x)) (source (loki-message->source x))
           (message (loki-message->message x)))
-      (display type out)
-      (display " at " out)
-      (display (or source "<unknown>") out)
-      (display ": " out)
-      (display message out)
-      (display "\n" out))))
+      (writer type)
+      (write-string " at " out)
+      (if source
+        (writer source)
+        (write-string "<unknown>" out))
+      (write-string ": " out)
+      (write-string message out)
+      (write-string "\n" out))))
 
 (define make-loki-error
   (case-lambda

@@ -37,7 +37,7 @@
 (define complex? number?)
 (define real? number?)
 (define (integer? x)
-  (= x (truncate x)))
+  (and (number? x) (= x (truncate x))))
 
 (define (rational? x)
   (and (real? x)

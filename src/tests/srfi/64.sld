@@ -983,11 +983,6 @@
 
 (test-end "SRFI 64 - Meta-Test Suite")
 
-(let ((runner (test-runner-current)))
-  (unless (and (= 0 (test-runner-xpass-count runner))
-               (= 0 (test-runner-fail-count runner)))
-    (exit 1)))
-
 ;;;
 
 )))

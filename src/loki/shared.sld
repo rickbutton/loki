@@ -2,9 +2,10 @@
     (loki shared)
     (import (scheme base))
     (import (scheme process-context))
+    (import (scheme write))
     (import (srfi 69))
     (import (loki util))
-    (import (loki writer))
+    (import (loki printer))
     (export 
         make-comment
         comment?

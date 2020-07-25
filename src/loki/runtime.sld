@@ -166,7 +166,9 @@
   loki-values?
   (values loki-values-values))
 (define (loki-values . args)
-  (make-loki-values args))
+  (if (= (length args) 1)
+    (car args)
+    (make-loki-values args)))
 (define (loki-call-with-values producer consumer)
   (let ((res (producer)))
     (if (loki-values? res)
@@ -174,6 +176,10 @@
       (consumer res))))
 (define (loki-apply . args)
   (apply apply args))
+(define (loki-call/cc thunk)
+  (define (kont k)
+    (thunk k))
+  (call/cc kont))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
@@ -292,7 +298,7 @@
 (define (loki-stdout) (make-loki-port #f (current-output-port) 'textual))
 
 (define (loki-flush-output-port port)
-  (unless (output-port? (loki-port-type port))
+  (unless (output-port? (loki-port-output port))
     (raise "flush-output-port: not an output port"))
   (flush-output-port (loki-port-output port)))
 
@@ -305,7 +311,7 @@
 (define (loki-peek-char port)
   (unless (eq? (loki-port-type port) 'textual)
     (raise "peek-char: not a textual port"))
-  (loki-wrap-eof (peek-u8 (loki-port-input port))))
+  (loki-wrap-eof (peek-char (loki-port-input port))))
 
 (define (loki-read-bytevector! bytevector port start end)
   (loki-wrap-eof (read-bytevector! bytevector (loki-port-input port) start end)))
@@ -328,6 +334,11 @@
   (write-char char (loki-port-output port)))
 (define (loki-write-u8 u8 port)
   (write-u8 u8 (loki-port-output port)))
+
+(define (loki-repr obj)
+  (write-to-string obj))
+(define (loki-debug . obj)
+  (apply debug "DEBUG" obj))
 
 ;; Register the required runtime primitives
 (rt:runtime-add-primitive '%void (if #f #f))
@@ -448,7 +459,7 @@
 (rt:runtime-add-primitive '%stderr                  loki-stderr)
 (rt:runtime-add-primitive '%stdin                   loki-stdin)
 (rt:runtime-add-primitive '%stdout                  loki-stdout)
-(rt:runtime-add-primitive '%flush-output-port       flush-output-port)
+(rt:runtime-add-primitive '%flush-output-port       loki-flush-output-port)
 
 (rt:runtime-add-primitive '%peek-char        loki-peek-char)
 (rt:runtime-add-primitive '%peek-u8          loki-peek-u8)
@@ -471,11 +482,13 @@
 (rt:runtime-add-primitive '%apply loki-apply)
 (rt:runtime-add-primitive '%values loki-values)
 (rt:runtime-add-primitive '%call-with-values loki-call-with-values)
-(rt:runtime-add-primitive '%call/cc call/cc)
+(rt:runtime-add-primitive '%call/cc loki-call/cc)
 (rt:runtime-add-primitive '%hash-by-identity hash-by-identity)
 (rt:runtime-add-primitive '%current-directory current-directory)
 (rt:runtime-add-primitive '%trace trace)
 (rt:runtime-add-primitive '%pop-trace pop-trace)
+(rt:runtime-add-primitive '%repr loki-repr)
+(rt:runtime-add-primitive '%debug loki-debug)
 
 
 ;; Only instantiate part of the bootstrap library 

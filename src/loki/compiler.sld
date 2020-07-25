@@ -48,7 +48,7 @@
       %stderr %stdin %stdout %flush-output-port
       %peek-u8 %peek-char
       %read-bytevector! %read-bytevector %read-string %read-char
-      %read-line %read-u8 %write-bytevector %write-string
+      %read-line %read-u8 %write-bytevector %write-string %repr %debug
       %write-char %write-u8 %current-directory
       %hash-by-identity %current-jiffy %current-second %jiffies-per-second
       %number->string %string->number))

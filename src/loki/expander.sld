@@ -888,7 +888,7 @@
 ;; Expression let(rec)-syntax:
 
 (define (expand-local-syntax exp)
-  (expand-begin `(,(rename 'macro 'begin) ,exp)))
+  (expand-let `(,(rename 'macro 'let) () ,@(cdr exp))))
 
 ;; Define and and or as primitives so we can import them into the
 ;; toplevel without spoiling the and and or of the library language.
@@ -1126,12 +1126,11 @@
                                      (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                    usage-diff
                                    macros)
-                         (loop (append (map (lambda (form) (make-wrap extended-env form #f))
-                                            body)
-                                       (cdr ws))
-                               forms
-                               syntax-defs
-                               bound-variables)))))
+                         (fluid-let ((*usage-env* extended-env))
+                           (loop (cdr ws)
+                                 (cons (list #f #f (expand-let `((,rename 'let) () ,@body))) forms)
+                                 syntax-defs
+                                 bound-variables))))))
                   (else
                    (loop (cdr ws)
                          (cons (list #f #t (make-wrap *usage-env* form #f))
@@ -1180,11 +1179,7 @@
       (if dup
        (begin
         (syntax-violation type "Redefinition of identifier in body" (binding id) id)))))
-  (check-used id body-type form)
-  (and (not (memq body-type `(toplevel program library)))
-       (not (null? forms))
-       (not (symbol? (car (car forms))))
-       (syntax-violation type "Definitions may not follow expressions in a body" form)))
+  (check-used id body-type form))
 
 (define (check-expression-body body-type forms body-forms)
   (and (eq? body-type 'lambda)

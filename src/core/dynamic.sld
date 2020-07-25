@@ -1,4 +1,5 @@
 (define-library (core dynamic)
+(import (core intrinsics))
 (import (core primitives))
 (import (core let))
 (import (core apply))
@@ -54,6 +55,7 @@
                    ((param value) ...)
                    body))))
 
+
 (define-syntax guard
   (syntax-rules ()
     ((guard (var clause ...) e1 e2 ...)
@@ -62,19 +64,22 @@
          (with-exception-handler
           (lambda (condition)
             ((call/cc
-              (lambda (handler-k)
-                (guard-k
-                 (lambda ()
-                   (let ((var condition))      ; clauses may SET! var
-                     (guard-aux (handler-k (lambda ()
-                                             ;; must be raise-continuable
-                                             ;; in case the original
-                                             ;; exception was continuable
-                                             (raise-continuable condition)))
-                                clause ...))))))))
+               (lambda (handler-k)
+                 (guard-k
+                  (lambda ()
+                    (let ((var condition))
+                      (guard-aux
+                        (handler-k
+                          (lambda ()
+                            (raise-continuable condition)))
+                        clause ...))))))))
           (lambda ()
-            (let ((res (let () e1 e2 ...)))
-              (guard-k (lambda () res)))))))))))
+            (call-with-values
+             (lambda () e1 e2 ...)
+             (lambda args
+               (guard-k
+                 (lambda ()
+                   (apply values args)))))))))))))
 
 (define-syntax guard-aux
   (syntax-rules (else =>)
@@ -82,20 +87,33 @@
      (begin result1 result2 ...))
     ((guard-aux reraise (test => result))
      (let ((temp test))
-       (if temp (result temp) reraise)))
-    ((guard-aux reraise (test => result) clause1 clause2 ...)
+       (if temp
+           (result temp)
+           reraise)))
+    ((guard-aux reraise (test => result)
+                clause1 clause2 ...)
      (let ((temp test))
-       (if temp (result temp) (guard-aux reraise clause1 clause2 ...))))
+       (if temp
+           (result temp)
+           (guard-aux reraise clause1 clause2 ...))))
     ((guard-aux reraise (test))
      (or test reraise))
     ((guard-aux reraise (test) clause1 clause2 ...)
-     (or test (guard-aux reraise clause1 clause2 ...)))
+     (let ((temp test))
+       (if temp
+           temp
+           (guard-aux reraise clause1 clause2 ...))))
     ((guard-aux reraise (test result1 result2 ...))
-     (if test (begin result1 result2 ...) reraise))
-    ((guard-aux reraise (test result1 result2 ...) clause1 clause2 ...)
+     (if test
+         (begin result1 result2 ...)
+         reraise))
+    ((guard-aux reraise
+                (test result1 result2 ...)
+                clause1 clause2 ...)
      (if test
          (begin result1 result2 ...)
          (guard-aux reraise clause1 clause2 ...)))))
+
 
 (define-record-type <point>
   (%make-point depth in out parent)
@@ -143,7 +161,7 @@
   (lambda res
     (travel-to-point! (%dk) point)
     (%dk point)
-    (cont (values res))))
+    (call-with-values (lambda () (apply values res)) cont)))
 
 (define (call/cc proc)
   (%call/cc

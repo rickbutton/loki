@@ -389,7 +389,7 @@
           (for (core vector)       expand run)
           (for (core exception)    expand run)
           (for (core intrinsics)   expand run))
-  (export define-record-type vector? record? record-printer record-type-printer-set!
+  (export define-record-type vector? record? record-printer record-type-printer record-type-printer-set!
           record-type record-type-field-tags record-type-name record-accessor)
   (begin
 
@@ -727,6 +727,7 @@
           (for (core quasisyntax) expand)
           (for (core number)      run expand) 
           (for (core list)        run expand)
+          (for (core vector)      run expand)
           (for (core intrinsics)  run expand))
   (begin
   
@@ -852,6 +853,7 @@
           (for (core syntax-rules) expand run)
           (for (core values)       expand run)
           (for (core let)          expand run)
+          (for (core list)         expand run)
           (for (core intrinsics)   expand run))
   (begin
 
@@ -1128,12 +1130,12 @@
       (define-syntax delay
         (syntax-rules ()
           ((delay expression)
-           (delay-force (make-promise #t expression)))))
+           (delay-force (promise #t expression)))))
       
       (define-syntax delay-force
         (syntax-rules ()
           ((delay-force expression)
-           (make-promise #f (lambda () expression)))))
+           (promise #f (lambda () expression)))))
 ))
 
 (define-library (scheme load)
@@ -1165,7 +1167,7 @@
 
 (define-library (scheme read)
   (import (core primitives))
-  (import (only (loki reader) read-datum))
+  (import (only (loki reader) make-reader read-datum))
   (import (core io))
   (import (core case-lambda))
   (export read)
@@ -1173,7 +1175,7 @@
     (define read
       (case-lambda
         (() (read-datum (current-input-port)))
-        ((port) (read-datum port))))))
+        ((port) (read-datum (make-reader port #f)))))))
 
 (define-library (scheme write)
     (import (loki writer))
