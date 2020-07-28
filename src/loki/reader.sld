@@ -31,7 +31,6 @@
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
-(import (loki path))
 (import (srfi 69))
 (import (loki printer))
 (cond-expand
@@ -41,7 +40,7 @@
     (import (core exception))))
 (export make-reader read-annotated read-datum
         reader-fold-case?-set!
-        <source> make-source source?  source-path source-line
+        <source> make-source source?  source-file source-line
         source-column source->string
         <annotation> annotation?  annotation-type?
         annotation-expression annotation-source unwrap-annotation
@@ -80,14 +79,14 @@
     (get-output-string port))
 
 (define-record-type <source>
-    (make-source path line column)
+    (make-source file line column)
     source?
-    (path source-path)
+    (file source-file)
     (line source-line)
     (column source-column))
 (define (source->string s)
     (string-append 
-        (path->string (source-path s))
+        (source-file s)
         " ["
         (number->string (source-line s))
         ":"
@@ -228,10 +227,10 @@
 
 (define-record-type <reader>
     (make-reader-record 
-        port path next-char line column saved-line saved-column fold-case? tolerant?)
+        port file next-char line column saved-line saved-column fold-case? tolerant?)
     reader?
     (port reader-port)
-    (path reader-path)
+    (file reader-file)
     (next-char reader-next-char reader-next-char-set!)
     (line reader-line reader-line-set!)
     (column reader-column reader-column-set!)
@@ -239,15 +238,15 @@
     (saved-column reader-saved-column reader-saved-column-set!)
     (fold-case? reader-fold-case? reader-fold-case?-set!)
     (tolerant? reader-tolerant? reader-tolerant?-set!))
-(define (make-reader port path)
-    (make-reader-record port path #f 1 0 1 0 #f #f))
+(define (make-reader port file)
+    (make-reader-record port file #f 1 0 1 0 #f #f))
 
 (define (reader-mark reader)
   (reader-saved-line-set! reader (reader-line reader))
   (reader-saved-column-set! reader (reader-column reader)))
 
 (define (reader-source reader)
-  (make-source (reader-path reader)
+  (make-source (reader-file reader)
           (reader-saved-line reader)
           (reader-saved-column reader)))
 
@@ -887,19 +886,20 @@
 (type-printer-set! <source> 
   (lambda (x writer out) 
     (writer (string-append
-      (path->string (source-path x)) ":"
+      (source-file x) ":"
       (number->string (source-line x)) ":"
       (number->string (source-column x))))))
 
 (type-printer-set! <annotation> 
   (lambda (x writer out) 
     (let* ((source (annotation-source x))
-           (path (if source (source-path source) #f)))
+           (file (if source (source-file source) #f)))
       (writer "#<syntax " #t)
       (if source
         (string-append
           ":"
-          (if (path? path) (path-filename path) path) ":"
+          (or file "<unknown>")
+          ":"
           (number->string (source-line source)) ":"
           (number->string (source-column source)) " ")
         " ")

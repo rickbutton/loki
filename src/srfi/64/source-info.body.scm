@@ -45,7 +45,7 @@
       ((_ <x>)
        (let* ((stx (syntax <x>))
               (source (syntax->source stx))
-              (file (if source (source-path source) #f))
+              (file (if source (source-file source) #f))
               (line (if source (source-line source) #f)))
           (datum->syntax (syntax _) (quasisyntax (cons (unsyntax file) (unsyntax line)))))))))
 

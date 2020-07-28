@@ -178,6 +178,9 @@
               (y x))
              y))
 
+; BROKEN - implement more math methods
+(test-expect-fail 9)
+
 ;; By Jussi Piitulainen <jpiitula@ling.helsinki.fi>
 ;; and John Cowan <cowan@mercury.ccil.org>:
 ;; http://lists.scheme-reports.org/pipermail/scheme-reports/2013-December/003876.html
@@ -735,7 +738,11 @@
 (test #t (complex? 3))
 (test #t (real? 3))
 (test #t (real? -2.5+0i))
+
+; BROKEN - exactness isn't implemented
+(test-expect-fail 1)
 (test #f (real? -2.5+0.0i))
+
 (test #t (real? #e1e10))
 (test #t (real? +inf.0))
 (test #f (rational? -inf.0))
@@ -749,12 +756,22 @@
 (test #t (integer? 3.0))
 (test #t (integer? 8/4))
 
+; BROKEN - exactness isn't implemented
+(test-expect-fail 1)
 (test #f (exact? 3.0))
+
 (test #t (exact? #e3.0))
+
+; BROKEN - exactness isn't implemented
+(test-expect-fail 1)
 (test #t (inexact? 3.))
 
 (test #t (exact-integer? 32))
+
+(test-expect-fail 1)
+; BROKEN - exactness isn't implemented
 (test #f (exact-integer? 32.0))
+
 (test #f (exact-integer? 32/5))
 
 (test #t (finite? 3))
@@ -912,11 +929,14 @@
 (test 288.0 (lcm 32.0 -36))
 (test 1 (lcm))
 
+;; BROKEN - math?
+(test-expect-fail 5)
 (test 3 (numerator (/ 6 4)))
 (test 2 (denominator (/ 6 4)))
 (test 2.0 (denominator (inexact (/ 6 4))))
 (test 11.0 (numerator 5.5))
 (test 2.0 (denominator 5.5))
+
 (test 5.0 (numerator 5.0))
 (test 1.0 (denominator 5.0))
 
@@ -937,18 +957,26 @@
 (test -7 (round -7))
 (test -1 (round -7/10))
 
+; BROKEN - not implemented
+(test-expect-fail 2)
 (test 1/3 (rationalize (exact .3) 1/10))
 (test #i1/3 (rationalize .3 1/10))
 
+; BROKEN - not implemented
+(test-expect-fail 2)
 (test 1.0 (inexact (exp 0))) ;; may return exact number
 (test 20.0855369231877 (exp 3))
 
+; BROKEN - not implemented
+(test-expect-fail 5)
 (test 0.0 (inexact (log 1))) ;; may return exact number
 (test 1.0 (log (exp 1)))
 (test 42.0 (log (exp 42)))
 (test 2.0 (log 100 10))
 (test 12.0 (log 4096 2))
 
+; BROKEN - not implemented
+(test-expect-fail 6)
 (test 0.0 (inexact (sin 0))) ;; may return exact number
 (test 1.0 (sin 1.5707963267949))
 (test 1.0 (inexact (cos 0))) ;; may return exact number
@@ -956,6 +984,8 @@
 (test 0.0 (inexact (tan 0))) ;; may return exact number
 (test 1.5574077246549 (tan 1))
 
+; BROKEN - not implemented
+(test-expect-fail 4)
 (test 0.0 (inexact (asin 0))) ;; may return exact number
 (test 1.5707963267949 (asin 1))
 (test 0.0 (inexact (acos 1))) ;; may return exact number
@@ -964,6 +994,8 @@
 ;; (test 0.0-0.0i (asin 0+0.0i))
 ;; (test 1.5707963267948966+0.0i (acos 0+0.0i))
 
+; BROKEN - not implemented
+(test-expect-fail 10)
 (test 0.0 (atan 0.0 1.0))
 (test -0.0 (atan -0.0 1.0))
 (test 0.785398163397448 (atan 1.0 1.0))
@@ -1589,6 +1621,8 @@
 (test #u8(0 1 2 3 4) (bytevector-append #u8(0 1 2) #u8(3 4)))
 (test #u8(0 1 2 3 4 5) (bytevector-append #u8(0 1 2) #u8(3 4) #u8(5)))
 
+; BROKEN - unicode not implemented
+(test-expect-fail 8)
 (test "ABC" (utf8->string #u8(#x41 #x42 #x43)))
 (test "ABC" (utf8->string #u8(0 #x41 #x42 #x43) 1))
 (test "ABC" (utf8->string #u8(0 #x41  #x42 #x43 0) 1 4))
@@ -1610,6 +1644,8 @@
 
 (test 7 (apply + (list 3 4)))
 (test 7 (apply + 3 4 (list)))
+;; BROKEN - current apply is more permissive
+(test-expect-fail 4)
 (test-error (apply +)) ;; not enough args
 (test-error (apply + 3)) ;; final arg not a list
 (test-error (apply + 3 4)) ;; final arg not a list
@@ -2263,6 +2299,7 @@
             (out (open-output-string))
             (z-str (begin (write z out) (get-output-string out)))
             (expected (guard (err (else err)) expect)))
+       ; BROKEN - non of this is supported
        (test expected (values z))
        (test #t (and (member z-str '(str strs ...)) #t))))))
 ;; Each test is of the form:

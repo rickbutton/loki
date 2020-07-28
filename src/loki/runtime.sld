@@ -159,7 +159,8 @@
   (with-exception-handler
     (lambda (err)
       (current-exception-handler err))
-    (lambda () (eval e runtime-env))))
+    (lambda ()
+      (eval e runtime-env))))
 
 (define-record-type <loki-values>
   (make-loki-values values)
@@ -174,8 +175,6 @@
     (if (loki-values? res)
       (apply consumer (loki-values-values res))
       (consumer res))))
-(define (loki-apply . args)
-  (apply apply args))
 (define (loki-call/cc thunk)
   (define (kont k)
     (thunk k))
@@ -261,11 +260,11 @@
 
 (define (loki-close-input-port port)
   (if (loki-port-input port)
-    ((close-input-port (loki-port-input port)))))
+    (close-input-port (loki-port-input port))))
 
 (define (loki-close-output-port port)
   (if (loki-port-output port)
-    ((close-output-port (loki-port-output port)))))
+    (close-output-port (loki-port-output port))))
 
 (define (loki-get-output-string port)
   (get-output-string (loki-port-output port)))
@@ -479,7 +478,7 @@
 (rt:runtime-add-primitive '%current-second        current-second)
 (rt:runtime-add-primitive '%jiffies-per-second    jiffies-per-second)
 
-(rt:runtime-add-primitive '%apply loki-apply)
+(rt:runtime-add-primitive '%apply apply)
 (rt:runtime-add-primitive '%values loki-values)
 (rt:runtime-add-primitive '%call-with-values loki-call-with-values)
 (rt:runtime-add-primitive '%call/cc loki-call/cc)

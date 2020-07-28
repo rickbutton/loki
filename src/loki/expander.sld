@@ -578,17 +578,17 @@
                                (id-transformer-envs id))
                        ,(- (- *phase* (id-displacement id)) 1)
                        ',(id-library id)
-                       ,(path->string (source-path source))
+                       ,(source-file source)
                        ,(source-line source)
                        ,(source-column source))))
 
-(define (syntax-rename name colors transformer-envs transformer-phase source-library filename line column)
+(define (syntax-rename name colors transformer-envs transformer-phase source-library file line column)
   (make-identifier name
                    (cons *color* colors)
                    transformer-envs
                    (- *phase* transformer-phase)
                    source-library
-                   (make-source (make-path filename) line column)))
+                   (make-source file line column)))
 
 ;;=====================================================================
 ;;
@@ -917,7 +917,7 @@
           "Invalid include syntax, requires string literal" file)))
 (define (resolve-include-path id path)
   (let* ((source (id-source id))
-         (root (if source (source-path source) (make-path ""))))
+         (root (make-path (if source (source-file source) ""))))
     (path-join (path-parent root) path)))
 
 (define (expand-include-file exp fold-case?)
@@ -2175,8 +2175,8 @@
     (begin (loki-load (library-name->path name))
            (rt:lookup-library name))))
 
-(define (loki-load filename)
-  (expand-file (wrap-path filename)
+(define (loki-load file)
+  (expand-file (wrap-path file)
     (lambda (library invoke?)
       (rt:import-library (rt:library-name library)))))
   
@@ -2270,7 +2270,7 @@
   (let* ((path (wrap-path fn))
          (str (path->string path))
          (p (open-input-file str))
-         (reader (make-reader p path)))
+         (reader (make-reader p str)))
     (reader-fold-case?-set! reader fold-case?)
     (read-file-from-reader reader)))
 
@@ -2436,7 +2436,7 @@
 (rt:runtime-add-primitive 'ex:datum->syntax datum->syntax)
 (rt:runtime-add-primitive 'ex:syntax->datum syntax->datum)
 (rt:runtime-add-primitive 'ex:syntax->source syntax->source)
-(rt:runtime-add-primitive 'ex:source-path source-path)
+(rt:runtime-add-primitive 'ex:source-file source-file)
 (rt:runtime-add-primitive 'ex:source-line source-line)
 (rt:runtime-add-primitive 'ex:source-column source-column)
 (rt:runtime-add-primitive 'ex:environment environment)

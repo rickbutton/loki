@@ -52,7 +52,7 @@
    (rename ex:datum->syntax             datum->syntax)
    (rename ex:syntax->datum             syntax->datum)
    (rename ex:syntax->source            syntax->source)
-   (rename ex:source-path               source-path)
+   (rename ex:source-file               source-file)
    (rename ex:source-line               source-line)
    (rename ex:source-column             source-column)
    (rename ex:syntax-violation          syntax-violation)
@@ -82,7 +82,7 @@
     
     ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
-    ex:syntax->source ex:source-path ex:source-line ex:source-column
+    ex:syntax->source ex:source-file ex:source-line ex:source-column
     ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load ex:features
     ))
 ) ;; core primitives
@@ -1175,7 +1175,7 @@
     (define read
       (case-lambda
         (() (read-datum (current-input-port)))
-        ((port) (read-datum (make-reader port #f)))))))
+        ((port) (read-datum (make-reader port "<read>")))))))
 
 (define-library (scheme write)
     (import (loki writer))

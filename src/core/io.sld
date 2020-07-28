@@ -12,6 +12,7 @@
 (import (core exception))
 (import (core records))
 (import (core bool))
+(import (for (core syntax-rules) expand))
 (import (rename (core intrinsics) (%port? port?)
                                   (%delete-file delete-file)
                                   (%file-exists? file-exists?)
@@ -53,14 +54,19 @@
 ; TODO - i should make these all throw on invalid args
 ; for now, I'm too lazy
 
-(define (binary-port? port) (and (port? port) (eq? (%port-type port) 'binary)))
-(define (textual-port? port) (and (port? port) (eq? (%port-type port) 'textual)))
+(define-syntax to-bool
+  (syntax-rules ()
+    ((to-bool e)
+      (if e #t #f))))
 
-(define (input-port? port) (and (port? port) (%port-input port)))
-(define (output-port? port) (and (port? port) (%port-output port)))
+(define (binary-port? port) (to-bool (and (port? port) (eq? (%port-type port) 'binary))))
+(define (textual-port? port) (to-bool (and (port? port) (eq? (%port-type port) 'textual))))
 
-(define (char-ready? port) (and (textual-port? port) (%port-ready? port)))
-(define (u8-ready? port) (and (binary-port? port) (%port-ready? port)))
+(define (input-port? port) (to-bool (and (port? port) (%port-input port))))
+(define (output-port? port) (to-bool (and (port? port) (%port-output port))))
+
+(define (char-ready? port) (to-bool (and (textual-port? port) (%port-ready? port))))
+(define (u8-ready? port) (to-bool (and (binary-port? port) (%port-ready? port))))
 
 (define (close-port port)
   (close-input-port port)
