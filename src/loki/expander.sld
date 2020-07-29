@@ -1180,7 +1180,13 @@
       (if dup
        (begin
         (syntax-violation type "Redefinition of identifier in body" (binding id) id)))))
-  (check-used id body-type form))
+  (check-used id body-type form)
+  (debug "check" id body-type type)
+  (and (not (memq body-type `(toplevel program)))
+           (not (null? forms))
+           (not (symbol? (car (car forms))))
+           (syntax-violation type "Definitions may not follow expressions in a body" form)))
+
 
 (define (check-expression-body body-type forms body-forms)
   (and (eq? body-type 'lambda)
@@ -2179,7 +2185,7 @@
   (expand-file (wrap-path file)
     (lambda (library invoke?)
       (rt:import-library (rt:library-name library)))))
-  
+
 ;; This may be used as a front end for the compiler.
 ;; It expands a file consisting of a possibly empty sequence
 ;; of libraries optionally followed by a <toplevel program>.

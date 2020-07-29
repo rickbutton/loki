@@ -74,9 +74,6 @@
     (%test-runner-on-bad-error-type! runner on-bad-error-type)
     runner))
 
-(when (not (test-runner-factory))
-  (test-runner-factory test-runner-simple))
-
 (define (test-on-group-begin-simple runner name count)
   (when (null? (test-runner-group-stack runner))
     (maybe-start-logging runner)
@@ -164,5 +161,8 @@
 (define (on-bad-error-type runner type error)
   (print runner "WARNING: unknown error type predicate: ~a~%" type)
   (print runner "         error was: ~a~%" error))
+
+(when (not (test-runner-factory))
+  (test-runner-factory test-runner-simple))
 
 ;;; test-runner-simple.scm ends here

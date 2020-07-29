@@ -1,4 +1,3 @@
-(define-library (tests lang r7rs)
 (import (for (core primitives) expand)
         (for (core quasisyntax) expand)
         (scheme base)
@@ -17,8 +16,6 @@
         (tests util)
         (for (loki util) expand)
         (srfi 64))
-(export run-tests-lang-r7rs)
-(begin
 
 (define-syntax test
   (lambda (x)
@@ -33,7 +30,7 @@
      (test (call-with-values (lambda () expect) (lambda results results))
        (call-with-values (lambda () expr) (lambda results results))))))
 
-(define-tests run-tests-lang-r7rs "(lang r7rs)"
+(test-begin "(lang r7rs)")
 
 ;; R7RS test suite.  Covers all procedures and syntax in the small
 ;; language except `delete-file'.  Currently assumes full-unicode
@@ -2494,4 +2491,4 @@
 (test-end)
 (test-end)
 
-)))
+(test-end)

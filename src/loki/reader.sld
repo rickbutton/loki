@@ -51,10 +51,6 @@
         call-with-string-output-port)
 (begin
 
-(cond-expand
-  (chibi
-    (define (make-read-error message irritants)
-      (make-exception 'read message irritants #f #f))))
 (define (char-general-category c) 'ZZ)
 (define (is-identifier-char? c)
   (or (char-ci<=? #\a c #\Z)
@@ -905,4 +901,9 @@
         " ")
       (writer (annotation-expression x))
       (writer ">" #t))))
+
+(cond-expand
+  (chibi
+    (define (make-read-error message irritants)
+      (make-exception 'read message irritants #f #f))))
 ))

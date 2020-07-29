@@ -498,10 +498,12 @@
     ;    (field-tags record-type-field-tags))
     ; As it is, we need to define everything by hand.
     
-    (define :record-type (make-record 3))
-    (record-set! :record-type 0 :record-type)	; Its type is itself.
-    (record-set! :record-type 1 ':record-type)
-    (record-set! :record-type 2 '(name field-tags printer))
+    (define :record-type 
+      (let ((:record-type (make-record 3)))
+        (record-set! :record-type 0 :record-type)	; Its type is itself.
+        (record-set! :record-type 1 ':record-type)
+        (record-set! :record-type 2 '(name field-tags printer))
+        :record-type))
     
     ; Now that :record-type exists we can define a procedure for making more
     ; record types.
