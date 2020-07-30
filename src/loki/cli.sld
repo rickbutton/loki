@@ -53,7 +53,6 @@
   (display (rt:library-name library))
   (display "!\n")
   (when invoke?
-    (compile library)
     (rt:import-library (rt:library-name library))))
 
 ;; Load the r7rs standard library into the expander

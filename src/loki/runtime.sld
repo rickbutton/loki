@@ -10,6 +10,7 @@
 (import (loki util))
 (import (loki shared))
 (import (loki reader))
+(import (loki compiler))
 (import (loki core fs))
 (import (srfi 1))
 (import (srfi 69))
@@ -158,9 +159,11 @@
   (if (not runtime-env) (runtime-env-init!))
   (with-exception-handler
     (lambda (err)
-      (current-exception-handler err))
+      (if current-exception-handler
+          (current-exception-handler err)
+          (raise err)))
     (lambda ()
-      (eval e runtime-env))))
+      (eval (normalize-term e) runtime-env))))
 
 (define-record-type <loki-values>
   (make-loki-values values)
@@ -300,8 +303,6 @@
   (unless (output-port? (loki-port-output port))
     (raise "flush-output-port: not an output port"))
   (flush-output-port (loki-port-output port)))
-
-
 
 (define (loki-peek-u8 port)
   (unless (eq? (loki-port-type port) 'binary)

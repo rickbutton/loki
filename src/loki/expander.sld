@@ -749,11 +749,7 @@
                                (expand expanded-once))))))
                        ((variable)
                         (if (list? t)
-                            `(begin
-                              ,@(make-call-trace (car t))
-                              (let ((ret ,(cons (binding-name binding) (map expand (cdr t)))))
-                                (%pop-trace)
-                                ret))
+                            (cons (binding-name binding) (map expand (cdr t)))
                             (binding-name binding)))
                        ((pattern-variable)
                        (begin
@@ -1181,7 +1177,6 @@
        (begin
         (syntax-violation type "Redefinition of identifier in body" (binding id) id)))))
   (check-used id body-type form)
-  (debug "check" id body-type type)
   (and (not (memq body-type `(toplevel program)))
            (not (null? forms))
            (not (symbol? (car (car forms))))
@@ -1228,9 +1223,10 @@
           ((syntax ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
           (()                 `(if (null? ,input) ,sk ,fk))
           ((? literal? id)
-            `(if (and (ex:identifier? ,input)
-                      (ex:free-identifier=? ,input ,(syntax-reflect id)))
-               ,sk ,fk))
+            `(if (if (ex:identifier? ,input)
+                      (if (ex:free-identifier=? ,input ,(syntax-reflect id)) #t #f) #f)
+               ,sk
+               ,fk))
                       
           ((? identifier? id) `(let ((,(binding-name (binding id)) ,input)) ,sk))
           ((p (syntax ...))

@@ -2,10 +2,8 @@
 (import (scheme base))
 (import (scheme time))
 (import (loki util))
-(import (loki runtime))
 (import (loki match))
-(import (loki hamt))
-(export compiler-intrinsics compile generate-guid)
+(export compiler-intrinsics normalize-program normalize-term generate-guid)
 (begin
 
 (define compiler-intrinsics '(
@@ -81,54 +79,11 @@
                       (number->string ticks))))))
 
 (define compiler-primitives '(begin if let lambda quote set! define))
-;; anormalize: A simple A-Normalizer for a subset of Scheme
 
-;; Author: Matt Might
-;; Site:   http://matt.might.net/
+; anf transform based on http://matt.might.net/articles/a-normalization/
 
-;; Input language:
-
-;; <prog> ::= <dec> ...
-
-;; <dec> ::= (define <var> <exp>)
-;;        |  <exp>
-
-;; <f>   ::= <var> | (<var> ...) | (<var> ... . <var>)
-;; <exp> ::= (begin <exp> <exp> ...)
-;;        |  (let ((<var> <exp>) ...) <exp> ...)
-;;        |  (if <exp> <exp> <exp>)
-;;        |  (lambda <f> <exp> ...)
-;;        |  (set! <var> <exp>)
-;;        |  (define <var> <exp>)
-;;        |  (quote <exp>)
-;;        |  (<exp> <exp> ...)
-;;        |  <number>
-;;        |  <boolean>
-;;        |  <string>
-;;        |  <var>
-
-
-;; Output language:
-
-
-;; <aexp> ::= (lambda (<name> ...) <exp>)
-;;         |  (set! <var> <var>)
-;;         |  (quote exp)
-;;         |  <number>
-;;         |  <boolean>
-;;         |  <string>
-;;         |  <var>
-
-;; <cexp> ::= (<aexp> <aexp> ...)
-;;         |  (if <aexp> <exp> <exp>)
-
-;; <exp>  ::= (let ((<var> <cexp>)) <exp> ...)
-;;         |  (begin <exp> <exp> ...)
-;;         |  <aexp>
-;;         |  <cexp>
-
-;; <prog> ::= <exp> ...
-
+(define void (if #f #f))
+(define (void? obj) (eq? void obj))
 (define (atomic? exp)
   (match exp
     (('quote _)          #t)
@@ -138,6 +93,10 @@
     ((? char?)           #t)
     ((? symbol?)         #t)
     ((? intrinsic?)      #t)
+    ((? void?)           #t)
+    ((? procedure?)      #t)
+    ((? vector?)         #t)
+    ((? bytevector?)     #t)
     (else                #f)))
 
 
@@ -156,7 +115,7 @@
      (('let () exp . exp*)
       (if (null? exp*)
         (normalize exp k)
-        (k `(begin
+        (k `(let ()
           ,(normalize-term exp)
           ,@(normalize-terms exp*)))))
 
@@ -169,6 +128,9 @@
       (normalize-name exp1 (lambda (t) 
        (k `(if ,t ,(normalize-term exp2) 
                   ,(normalize-term exp3))))))
+    (('if exp1 exp2)    
+      (normalize `(if ,exp1 ,exp2 %void) k))
+
 
     (('lambda params body . body*)   
       (k `(lambda ,params
@@ -180,8 +142,7 @@
         (k `(set! ,v ,t)))))
 
     (('define v exp)
-      (normalize-name exp (lambda (t)
-        (k `(set! ,v ,t)))))
+      (k `(define ,v ,(normalize-term exp))))
 
     ((? atomic?)            
      (k exp))
@@ -207,48 +168,6 @@
         (k `(,t . ,t*))))))))
 
 (define (normalize-program prog)
-  (match prog
-    ('() 
-     '())
-    
-    ((exp . rest)
-     (cons (normalize-term exp)
-           (normalize-program rest)))))
-
-(define (cps-exp exp k)
-  (match exp
-    (('let ((formal val)) body)
-      '())
-    (('let ((formal val)) body body* ...)
-      '())
-    (('begin body)
-      '())
-    (('begin body body* ...)
-      '())
-    (('if aexp expt expf)
-      '())
-    ((f args ...)
-      '())
-    ((? atomic?)
-      '())))
-
-(define (cps-program* prog k)
-  (match prog
-    ('() 
-     k)
-    ((exp . rest)
-     (cps-exp exp (cps-program* rest k)))))
-
-(define (cps-program prog)
-  (cps-program* prog '(%blackhole)))
-
-(define (compile library)
-  (let* ((forms (rt:library-forms library))
-         (normalized (normalize-program forms))
-         (cps (cps-program normalized)))
-    (debug "forms" forms)
-    (debug "normalized" normalized)
-    (debug "cps" cps)
-    cps))
+  (map normalize-term prog))
 
 ))
