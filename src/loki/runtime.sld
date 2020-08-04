@@ -39,7 +39,8 @@
         rt:lookup-library
         rt:lookup-library/false
         rt:runtime-add-primitive
-        rt:runtime-eval)
+        rt:runtime-run-expression
+        rt:runtime-run-program)
 (begin
 
 (define rt:library-dirs (list "src"))
@@ -130,7 +131,7 @@
 
 (define rt:invoke-library!
     (lambda (library)
-        (map rt:runtime-eval (rt:library-forms library))))
+        (rt:runtime-run-program (rt:library-forms library))))
 
 (define rt:lookup-library 
     (lambda (name)
@@ -153,9 +154,9 @@
     (environment '(scheme base))))
 
 (define (rt:runtime-add-primitive name value)
-  (rt:runtime-eval `(define ,name ,value)))
+  (rt:runtime-run-expression `(define ,name ,value)))
 
-(define (rt:runtime-eval e)
+(define (rt:runtime-run-program prog)
   (if (not runtime-env) (runtime-env-init!))
   (with-exception-handler
     (lambda (err)
@@ -163,7 +164,11 @@
           (current-exception-handler err)
           (raise err)))
     (lambda ()
-      (eval (normalize-term e) runtime-env))))
+      (let ((normalized (compile-terms prog)))
+        (map (lambda (e) (eval e runtime-env)) normalized)))))
+
+(define (rt:runtime-run-expression e)
+  (car (rt:runtime-run-program (list e))))
 
 (define-record-type <loki-values>
   (make-loki-values values)

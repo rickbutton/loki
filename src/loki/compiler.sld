@@ -3,7 +3,7 @@
 (import (scheme time))
 (import (loki util))
 (import (loki match))
-(export compiler-intrinsics normalize-program normalize-term generate-guid)
+(export compiler-intrinsics compile-terms generate-guid)
 (begin
 
 (define compiler-intrinsics '(
@@ -167,7 +167,58 @@
        (normalize-name* (cdr exp*) (lambda (t*) 
         (k `(,t . ,t*))))))))
 
-(define (normalize-program prog)
-  (map normalize-term prog))
+; TODO - normalize the position of defines
+; types of defines -
+; define in library (possible exports)
+; define at toplevel
+; define in body (local defines)
+
+(define (map-terms terms matcher)
+  (map (lambda (term) (map-term term matcher)) terms))
+
+(define (map-term term matcher)
+  (let ((match? (matcher term)))
+    (if match?
+        match?
+        (match term
+          (('begin exp . exp*)
+            `(begin ,(map-term exp matcher)
+                    ,@(map-terms exp* matcher)))
+          (('let () exp . exp*)
+            `(let () ,(map-term exp matcher)
+                    ,@(map-terms exp* matcher)))
+          (('let ((formal value)) exp . exp*)
+            `(let (,formal ,(map-term value matcher))
+              ,(map-term exp matcher)
+              ,@(map-terms exp* matcher)))
+          (('if exp1 exp2 exp3)
+            `(if ,(map-term exp1 matcher)
+                 ,(map-term exp2 matcher)
+                 ,(map-term exp3 matcher)))
+          (('lambda params body . body*)
+            `(lambda ,params
+              ,(map-term body matcher)
+              ,@(map-terms body* matcher)))
+          (('set! v exp)
+            `(set! ,v ,(map-term exp matcher)))
+          (('define v exp)
+            `(define ,v ,(map-term exp matcher)))
+          ((? atomic?) term)
+          ((f . e*) 
+            `(,(map-term f matcher) ,@(map-terms e* matcher)))))))
+
+(define (find-lets terms)
+  (map-terms terms
+    (lambda (term)
+      (match term
+        (('let ((formal value)) . body*)
+          (debug "formal!" formal)
+          term)
+        (else #f)))))
+
+(define (compile-terms terms)
+  (let ((anf (normalize-terms terms)))
+    (find-lets terms)
+    anf))
 
 ))

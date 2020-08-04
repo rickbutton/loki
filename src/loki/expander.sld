@@ -711,7 +711,7 @@
              (let ((name (car def)) (macro (cdr def)))
                 (if (macro? macro)
                   (register-macro! name macro)
-                  (register-macro! name (make-transformer (rt:runtime-eval macro))))))
+                  (register-macro! name (make-transformer (rt:runtime-run-expression macro))))))
            (rt:library-syntax-defs library)))
 
 ;; Calls a macro with a new color.
@@ -1087,7 +1087,7 @@
                          (env-extend! (list mapping) common-env)
                          (let ((rhs (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand rhs))))
-                           (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-eval rhs)))
+                           (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-run-expression rhs)))
                            (loop (cdr ws)
                                  forms
                                  (cons (cons (binding-name (binding id)) rhs) syntax-defs)
@@ -1118,7 +1118,7 @@
                                               ((let-syntax)    original-env)
                                               ((letrec-syntax) extended-env))))
                                  (map expand rhs)))
-                              (macros (map (lambda (e) (rt:runtime-eval e)) rhs-expanded)))
+                              (macros (map (lambda (e) (rt:runtime-run-expression e)) rhs-expanded)))
                          (for-each (lambda (mapping macro)
                                      (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                    usage-diff
@@ -1988,7 +1988,7 @@
           (imported-libraries (environment-imported-libraries env)))
       (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
       (rt:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
-      (let ((result (map rt:runtime-eval (expand-toplevel-sequence (list exp)))))
+      (let ((result (rt:runtime-run-program (expand-toplevel-sequence (list exp)))))
         (if (null? result) result (car result))))))
 
 ;;==========================================================================
