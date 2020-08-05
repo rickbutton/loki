@@ -1137,12 +1137,11 @@
 
 (define (emit-never-global g) 'define)
 (define (emit-always-global g) 'define-global)
-(define (exports->emit-global? exports)
-  (let ((exports (map car exports)))
-    (lambda (g)
-      (if (member g exports)
-          'define-global
-          'define))))
+(define (bound-variables->emit-global? bound-variables)
+  (lambda (g)
+    (if (member g bound-variables)
+        'define-global
+        'define)))
 
 (define (emit-body body-forms define-emitter)
   (map (lambda (body-form)
@@ -1582,7 +1581,7 @@
                                                (current-builds imported-libraries)
                                                syntax-definitions
                                                bound-variables
-                                               (emit-body forms (exports->emit-global? exports))
+                                               (emit-body forms (bound-variables->emit-global? bound-variables))
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
                                     (if *module-handler*
