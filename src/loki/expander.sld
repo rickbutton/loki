@@ -880,7 +880,7 @@
                                   body
                                   (lambda (body-forms syntax-definitions bound-variables)
                                     `(let ,(map (lambda (formal val) (list formal (cdr val))) formals val-forms)
-                                       ,@(emit-body body-forms 'define))))))))))))))
+                                       ,@(emit-body body-forms emit-never-global))))))))))))))
 
 ;; Expression let(rec)-syntax:
 
@@ -955,9 +955,9 @@
                           (lambda (forms syntax-definitions bound-variables)
                             `(lambda ,formals
                                ,@(if (null? bound-variables)                ; +++
-                                     (emit-body forms 'define)    ; +++
+                                     (emit-body forms emit-never-global)    ; +++
                                      `(((lambda ,bound-variables
-                                          ,@(emit-body forms 'define))
+                                          ,@(emit-body forms emit-never-global))
                                         ,@(map (lambda (ignore) '%void)
                                                bound-variables)))))))))))))
 
@@ -1135,10 +1135,19 @@
                          syntax-defs
                          bound-variables))))))))))))
 
-(define (emit-body body-forms define-or-set)
+(define (emit-never-global g) 'define)
+(define (emit-always-global g) 'define-global)
+(define (exports->emit-global? exports)
+  (let ((exports (map car exports)))
+    (lambda (g)
+      (if (member g exports)
+          'define-global
+          'define))))
+
+(define (emit-body body-forms define-emitter)
   (map (lambda (body-form)
          (if (symbol? (car body-form))
-             `(,define-or-set ,(car body-form) ,(cdr body-form))
+             `(,(define-emitter (car body-form)) ,(car body-form) ,(cdr body-form))
              (cdr body-form)))
        body-forms))
 
@@ -1558,9 +1567,9 @@
                                                        (or binding
                                                            (syntax-violation
                                                             'library "Unbound export" (cadr mapping) t))
-                                                       ;(if (binding-mutable? binding)
-                                                       ;    (syntax-violation
-                                                       ;     'library "Attempt to export mutable variable" t (cadr mapping)))
+                                                       (if (binding-mutable? binding)
+                                                           (syntax-violation
+                                                            'library "Attempt to export mutable variable" t (cadr mapping)))
                                                        binding)))
                                              exports))
                                         (library (rt:make-library
@@ -1573,7 +1582,7 @@
                                                (current-builds imported-libraries)
                                                syntax-definitions
                                                bound-variables
-                                               (emit-body forms 'define)
+                                               (emit-body forms (exports->emit-global? exports))
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
                                     (if *module-handler*
@@ -2156,7 +2165,7 @@
                  make-toplevel-mapping
                  (source->syntax toplevel-template forms)
                  (lambda (forms syntax-definitions bound-variables)
-                   (emit-body forms 'define))))
+                   (emit-body forms emit-never-global))))
 
 (define (library-name-part->string p)
   (if (symbol? p) (symbol->string p)

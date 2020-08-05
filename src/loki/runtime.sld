@@ -1,5 +1,6 @@
 (define-library (loki runtime)
 (import (scheme base))
+(import (scheme cxr))
 (import (scheme write))
 (import (scheme eval))
 (import (scheme char))
@@ -151,7 +152,11 @@
 
 (define (runtime-env-init!)
   (set! runtime-env 
-    (environment '(scheme base))))
+    (environment '(scheme base)))
+  (eval '(define-syntax define-global
+          (syntax-rules ()
+            ((define-global name exp) (define name exp))))
+        runtime-env))
 
 (define (rt:runtime-add-primitive name value)
   (rt:runtime-run-expression `(define ,name ,value)))

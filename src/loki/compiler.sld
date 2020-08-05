@@ -55,7 +55,6 @@
 (define (intrinsic? i)
   (member i compiler-intrinsics))
 
-
 ;; Generate-guid returns a fresh symbol that has a globally
 ;; unique external representation and is read-write invariant.
 ;; Your local gensym will probably not satisfy both conditions.
@@ -141,8 +140,8 @@
       (normalize-name exp (lambda (t)
         (k `(set! ,v ,t)))))
 
-    (('define v exp)
-      (k `(define ,v ,(normalize-term exp))))
+    (('define v exp) (k `(define ,v ,(normalize-term exp))))
+    (('define-global v exp) (k `(define-global ,v ,(normalize-term exp))))
 
     ((? atomic?)            
      (k exp))
@@ -168,7 +167,7 @@
         (k `(,t . ,t*))))))))
 
 ; TODO - normalize the position of defines
-; types of defines -
+; types of defines
 ; define in library (possible exports)
 ; define at toplevel
 ; define in body (local defines)
@@ -201,8 +200,8 @@
               ,@(map-terms body* matcher)))
           (('set! v exp)
             `(set! ,v ,(map-term exp matcher)))
-          (('define v exp)
-            `(define ,v ,(map-term exp matcher)))
+          (('define v exp) `(define ,v ,(map-term exp matcher)))
+          (('define-global v exp) `(define-global ,v ,(map-term exp matcher)))
           ((? atomic?) term)
           ((f . e*) 
             `(,(map-term f matcher) ,@(map-terms e* matcher)))))))
@@ -212,7 +211,7 @@
     (lambda (term)
       (match term
         (('let ((formal value)) . body*)
-          (debug "formal!" formal)
+          ;(debug "formal!" formal)
           term)
         (else #f)))))
 
