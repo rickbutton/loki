@@ -217,6 +217,7 @@
   (for-each (lambda (trace) 
     (display trace)
     (display "\n")) traces)
+  (raise obj)
   (exit 1))
 
 (define traces '())
@@ -427,7 +428,10 @@
 (rt:runtime-add-primitive '%equal? equal?)
 
 (rt:runtime-add-primitive '%number?    number?)
-(rt:runtime-add-primitive '%finite?    finite?)
+(rt:runtime-add-primitive '%exact?     exact?)
+(rt:runtime-add-primitive '%inexact?   inexact?)
+(rt:runtime-add-primitive '%exact      exact)
+(rt:runtime-add-primitive '%inexact    inexact)
 (rt:runtime-add-primitive '%infinite?  infinite?)
 (rt:runtime-add-primitive '%nan?       nan?)
 (rt:runtime-add-primitive '%floor      floor)

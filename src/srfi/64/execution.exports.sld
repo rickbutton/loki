@@ -11,4 +11,6 @@
  test-apply test-with-runner
 
  test-exit
+
+ current-test-comparator
  )

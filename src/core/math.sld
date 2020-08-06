@@ -11,6 +11,10 @@
 (import (core cond-expand))
 (import (core define-missing))
 (import (rename (core intrinsics) (%number?    number?)
+                                  (%exact?     exact?)
+                                  (%inexact?   inexact?)
+                                  (%exact      exact)
+                                  (%inexact    inexact)
                                   (%finite?    finite?)
                                   (%infinite?  infinite?)
                                   (%nan?       nan?)
@@ -45,12 +49,6 @@
        (if (or (> x 1) (< x -1))
            (not (= x (/ x 2)))
            (<= -1 x 1))))
-
-; TODO - lol
-(define (exact? x) #t)
-(define (inexact? x) #f)
-(define (exact x) x)
-(define (inexact x) x)
 
 (define (exact-integer? x) (and (integer? x) (exact? x)))
 

@@ -294,10 +294,12 @@
         (set-result-kind! runner pass?)))
     (test-postlude runner)))
 
+(define current-test-comparator (make-parameter equal?))
+
 (define-syntax test-equal
   (syntax-rules ()
     ((_ . <rest>)
-     (test-compare/source-info (source-info <rest>) equal? . <rest>))))
+     (test-compare/source-info (source-info <rest>) (current-test-comparator) . <rest>))))
 
 (define-syntax test-eqv
   (syntax-rules ()

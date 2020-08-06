@@ -78,8 +78,8 @@
       (lambda (a b) (string<? (symbol->string a) (symbol->string b)))
       symbol-hash))
 
-  (test '#(2 3 4) (vector-cdr '#(1 2 3 4)))
-  (test '#() (vector-cdr '#(1)))
+  (test-equal '#(2 3 4) (vector-cdr '#(1 2 3 4)))
+  (test-equal '#() (vector-cdr '#(1)))
 
   (test-group "comparators/predicates"
     (test-assert (comparator? real-comparator))
@@ -234,7 +234,7 @@
       (make-comparator procedure? (lambda (a b) #t) (lambda (a b) #f) (lambda (obj) 200)))
     (test-assert (=? default-comparator (lambda () #t) (lambda () #f)))
     (test-assert (not (<? default-comparator (lambda () #t) (lambda () #f))))
-    (test 200 (comparator-hash default-comparator (lambda () #t)))
+    (test-equal 200 (comparator-hash default-comparator (lambda () #t)))
 
   ) ; end comparators/default
 
@@ -258,10 +258,10 @@
     (define orp (lambda (x y) (set! x3 333) #t))
     (define hf (lambda (x) (set! x4 444) 0))
     (define comp (make-comparator ttp eqp orp hf))
-    (test #t (and ((comparator-type-test-predicate comp) x1)   (= x1 111)))
-    (test #t (and ((comparator-equality-predicate comp) x1 x2) (= x2 222)))
-    (test #t (and ((comparator-ordering-predicate comp) x1 x3) (= x3 333)))
-    (test #t (and (zero? ((comparator-hash-function comp) x1)) (= x4 444)))
+    (test-equal #t (and ((comparator-type-test-predicate comp) x1)   (= x1 111)))
+    (test-equal #t (and ((comparator-equality-predicate comp) x1 x2) (= x2 222)))
+    (test-equal #t (and ((comparator-ordering-predicate comp) x1 x3) (= x3 333)))
+    (test-equal #t (and (zero? ((comparator-hash-function comp) x1)) (= x4 444)))
   ) ; end comparators/accessors
 
   (test-group "comparators/invokers"
@@ -287,12 +287,12 @@
   ) ; end comparators/comparison
 
   (test-group "comparators/syntax"
-    (test 'less (comparator-if<=> real-comparator 1 2 'less 'equal 'greater))
-    (test 'equal (comparator-if<=> real-comparator 1 1 'less 'equal 'greater))
-    (test 'greater (comparator-if<=> real-comparator 2 1 'less 'equal 'greater))
-    (test 'less (comparator-if<=> "1" "2" 'less 'equal 'greater))
-    (test 'equal (comparator-if<=> "1" "1" 'less 'equal 'greater))
-    (test 'greater (comparator-if<=> "2" "1" 'less 'equal 'greater))
+    (test-equal 'less (comparator-if<=> real-comparator 1 2 'less 'equal 'greater))
+    (test-equal 'equal (comparator-if<=> real-comparator 1 1 'less 'equal 'greater))
+    (test-equal 'greater (comparator-if<=> real-comparator 2 1 'less 'equal 'greater))
+    (test-equal 'less (comparator-if<=> "1" "2" 'less 'equal 'greater))
+    (test-equal 'equal (comparator-if<=> "1" "1" 'less 'equal 'greater))
+    (test-equal 'greater (comparator-if<=> "2" "1" 'less 'equal 'greater))
 
   ) ; end comparators/syntax
 

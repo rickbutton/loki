@@ -15,7 +15,8 @@
       %bit-not %bit-and %bit-ior   
       %bit-xor %bit-shift %bit-count 
       %bit-length
-      %number? %finite? %infinite?
+      %number? %exact? %inexact?
+      %exact %inexact %finite? %infinite?
       %nan? %floor %ceiling %truncate
       %remainder %quotient
       %round %sqrt %expt

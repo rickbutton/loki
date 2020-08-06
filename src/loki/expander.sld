@@ -944,7 +944,8 @@
                                      (make-local-mapping 'variable formal #f))
                                    (flatten formals))
                               *usage-env*)))
-       (let ((formals (dotted-map (lambda (formal) (binding-name (binding formal))) formals)))
+       (let ((formals (dotted-map (lambda (formal) (binding-name (binding formal))) formals))
+             (id-bind *current-identifier-bind*))
          ;; Scan-sequence expects the caller to have prepared
          ;; the frame to which to destructively add bindings.
          ;; Lambda bodies need a fresh frame.
@@ -954,9 +955,9 @@
                           body
                           (lambda (forms syntax-definitions bound-variables)
                             `(let ((lam (lambda ,formals ,@(emit-body forms emit-never-global))))
-                              ,(if *current-identifier-bind*
-                                  `(%procedure-name-set! lam ',(id-name *current-identifier-bind*))
-                                  #f)
+                              ,(if id-bind
+                                  `(%procedure-name-set! lam ',(id-name id-bind))
+                                  `(%procedure-name-set! lam 'unknown))
                               lam)))))))))
 
 (define (formals? s)
@@ -1678,7 +1679,7 @@
                     (lambda (x y)
                         (eq? (id-name (car x))
                              (id-name (car y))))
-                    (lambda (dup) (syntax-violation 'export "Duplicate export" exports dup)))
+                    (lambda (dup) (syntax-violation 'export "Duplicate export" dup exports)))
                     (values imported-libraries imports exports body-forms))
         (match (car declarations)
             (((syntax import) specs ___)

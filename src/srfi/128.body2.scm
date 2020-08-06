@@ -144,4 +144,3 @@
     default-equality
     default-ordering
     default-hash))
-

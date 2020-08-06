@@ -24,6 +24,8 @@
 (define-syntax test
   (lambda (x)
     (syntax-case x ()
+      ((test name expected expr)
+          (quasisyntax (test-equal name expected expr)))
       ((test expected expr)
         (let ((name (write-to-string (syntax->datum (syntax expected)))))
           (quasisyntax (test-equal (unsyntax name) expected expr)))))))
