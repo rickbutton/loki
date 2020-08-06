@@ -101,26 +101,36 @@
 
 ;; Expression normalization:
 (define (normalize-term exp) (normalize exp (lambda (x) x)))
+
 (define (normalize-terms exps)
-  (map (lambda (exp) (normalize exp (lambda (x) x))) exps))
+  (let loop ((exps exps)
+             (terms '())
+             (defines '()))
+    (if (null? exps)
+        (if (null? defines)
+          (reverse terms)
+          `((letrec (,@(reverse defines)) ,@(reverse terms))))
+        (let ((exp (car exps)))
+          (match exp
+            (('define name value)
+              (loop (cdr exps) terms (cons (list name (normalize-term value)) defines)))
+            (else (loop (cdr exps) (cons (normalize-term exp) terms) defines)))))))
+          
 
 (define (normalize exp k)
   (let ((out (match exp
 
     (('begin exp . exp*)
-     (k `(begin ,(normalize-term exp)
-                ,@(normalize-terms exp*))))
+     (k `(begin ,@(normalize-terms (cons exp exp*)))))
 
      (('let () exp . exp*)
       (if (null? exp*)
         (normalize exp k)
-        (k `(let ()
-          ,(normalize-term exp)
-          ,@(normalize-terms exp*)))))
+        (k `(begin ,@(normalize-terms (cons exp exp*))))))
 
      (('let ((formal value) . clause) exp . exp*) 
       (normalize value (lambda (aexp-value) 
-       `(let ((,formal ,aexp-value))
+       `(letrec ((,formal ,aexp-value))
          ,(normalize `(let (,@clause) ,exp ,@exp*) k)))))
 
     (('if exp1 exp2 exp3)    
@@ -133,15 +143,13 @@
 
     (('lambda params body . body*)   
       (k `(lambda ,params
-        ,(normalize-term body)
-        ,@(normalize-terms body*))))
+        ,@(normalize-terms (cons body body*)))))
     
     (('set! v exp)
       (normalize-name exp (lambda (t)
         (k `(set! ,v ,t)))))
 
-    (('define v exp) (k `(define ,v ,(normalize-term exp))))
-    (('define-global v exp) (k `(define-global ,v ,(normalize-term exp))))
+    (('define-global v exp) (k `(define ,v ,(normalize-term exp))))
 
     ((? atomic?)            
      (k exp))
@@ -166,58 +174,8 @@
        (normalize-name* (cdr exp*) (lambda (t*) 
         (k `(,t . ,t*))))))))
 
-; TODO - normalize the position of defines
-; types of defines
-; define in library (possible exports)
-; define at toplevel
-; define in body (local defines)
-
-(define (map-terms terms matcher)
-  (map (lambda (term) (map-term term matcher)) terms))
-
-(define (map-term term matcher)
-  (let ((match? (matcher term)))
-    (if match?
-        match?
-        (match term
-          (('begin exp . exp*)
-            `(begin ,(map-term exp matcher)
-                    ,@(map-terms exp* matcher)))
-          (('let () exp . exp*)
-            `(let () ,(map-term exp matcher)
-                    ,@(map-terms exp* matcher)))
-          (('let ((formal value)) exp . exp*)
-            `(let (,formal ,(map-term value matcher))
-              ,(map-term exp matcher)
-              ,@(map-terms exp* matcher)))
-          (('if exp1 exp2 exp3)
-            `(if ,(map-term exp1 matcher)
-                 ,(map-term exp2 matcher)
-                 ,(map-term exp3 matcher)))
-          (('lambda params body . body*)
-            `(lambda ,params
-              ,(map-term body matcher)
-              ,@(map-terms body* matcher)))
-          (('set! v exp)
-            `(set! ,v ,(map-term exp matcher)))
-          (('define v exp) `(define ,v ,(map-term exp matcher)))
-          (('define-global v exp) `(define-global ,v ,(map-term exp matcher)))
-          ((? atomic?) term)
-          ((f . e*) 
-            `(,(map-term f matcher) ,@(map-terms e* matcher)))))))
-
-(define (find-lets terms)
-  (map-terms terms
-    (lambda (term)
-      (match term
-        (('let ((formal value)) . body*)
-          ;(debug "formal!" formal)
-          term)
-        (else #f)))))
-
 (define (compile-terms terms)
   (let ((anf (normalize-terms terms)))
-    (find-lets terms)
     anf))
 
 ))

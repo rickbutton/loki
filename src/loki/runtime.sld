@@ -152,14 +152,7 @@
 
 (define (runtime-env-init!)
   (set! runtime-env 
-    (environment '(scheme base)))
-  (eval '(define-syntax define-global
-          (syntax-rules ()
-            ((define-global name exp) (define name exp))))
-        runtime-env))
-
-(define (rt:runtime-add-primitive name value)
-  (rt:runtime-run-expression `(define ,name ,value)))
+    (environment '(scheme base))))
 
 (define (rt:runtime-run-program prog)
   (if (not runtime-env) (runtime-env-init!))
@@ -170,10 +163,14 @@
           (raise err)))
     (lambda ()
       (let ((normalized (compile-terms prog)))
-        (map (lambda (e) (eval e runtime-env)) normalized)))))
+        (map (lambda (e)
+          (eval e runtime-env)) normalized)))))
 
 (define (rt:runtime-run-expression e)
   (car (rt:runtime-run-program (list e))))
+
+(define (rt:runtime-add-primitive name value)
+  (rt:runtime-run-expression `(define-global ,name ,value)))
 
 (define-record-type <loki-values>
   (make-loki-values values)

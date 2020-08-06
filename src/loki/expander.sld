@@ -954,12 +954,7 @@
                           body
                           (lambda (forms syntax-definitions bound-variables)
                             `(lambda ,formals
-                               ,@(if (null? bound-variables)                ; +++
-                                     (emit-body forms emit-never-global)    ; +++
-                                     `(((lambda ,bound-variables
-                                          ,@(emit-body forms emit-never-global))
-                                        ,@(map (lambda (ignore) '%void)
-                                               bound-variables)))))))))))))
+                               ,@(emit-body forms emit-never-global))))))))))
 
 (define (formals? s)
   (or (null? s)
