@@ -61,7 +61,11 @@
            (memq (char-general-category c) ;XXX: could be done faster
              '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))))
 
-(define (assert e) (if e e (error "assertion failed")))
+(define-syntax assert
+  (syntax-rules ()
+    ((assert e)
+      (let ((e2 e))
+        (if e2 e2 (error "assertion failed" 'e))))))
 
 (define (for-all proc l . ls)
   (or (null? l)
