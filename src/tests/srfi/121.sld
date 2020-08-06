@@ -1,7 +1,4 @@
 (define-library (tests srfi 121)
-(import (for (core primitives) expand))
-(import (for (core quasisyntax) expand))
-(import (for (loki util) expand))
 (import (scheme base))
 (import (scheme read))
 (import (srfi 64))
@@ -10,13 +7,6 @@
 (import (srfi 121))
 (export run-tests-srfi-121)
 (begin
-
-(define-syntax test
-  (lambda (x)
-    (syntax-case x ()
-      ((test expected expr)
-        (let ((name (write-to-string (syntax->datum (syntax expected)))))
-          (quasisyntax (test-equal (unsyntax name) expected expr)))))))
 
 (define (with-input-from-string string thunk)
   (parameterize ((current-input-port (open-input-string string)))

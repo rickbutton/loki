@@ -13,6 +13,7 @@
 (import (loki reader))
 (import (loki compiler))
 (import (loki core fs))
+(import (loki core reflect))
 (import (srfi 1))
 (import (srfi 69))
 (import (srfi 151))
@@ -160,7 +161,9 @@
     (lambda (err)
       (if current-exception-handler
           (current-exception-handler err)
-          (raise err)))
+          (begin
+            (display "ERROR: current-exception-handler is not setup, aborting\n")
+            (raise err))))
     (lambda ()
       (let ((normalized (compile-terms prog)))
         (map (lambda (e)
@@ -496,7 +499,7 @@
 (rt:runtime-add-primitive '%pop-trace pop-trace)
 (rt:runtime-add-primitive '%repr loki-repr)
 (rt:runtime-add-primitive '%debug loki-debug)
-
+(rt:runtime-add-primitive '%procedure-name-set! procedure-name-set!)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

@@ -953,8 +953,11 @@
                           make-local-mapping
                           body
                           (lambda (forms syntax-definitions bound-variables)
-                            `(lambda ,formals
-                               ,@(emit-body forms emit-never-global))))))))))
+                            `(let ((lam (lambda ,formals ,@(emit-body forms emit-never-global))))
+                              ,(if *current-identifier-bind*
+                                  `(%procedure-name-set! lam ',(id-name *current-identifier-bind*))
+                                  #f)
+                              lam)))))))))
 
 (define (formals? s)
   (or (null? s)
@@ -1696,13 +1699,13 @@
                       imported-libraries
                       imports
                       exports
-                      (append (apply append (scan-includes (caar declarations) includes #f)) body-forms)))
+                      (append body-forms (apply append (scan-includes (caar declarations) includes #f)))))
             (((syntax include-ci) includes ___)
                 (loop (cdr declarations)
                       imported-libraries
                       imports
                       exports
-                      (append (apply append (scan-includes (caar declarations) includes #t)) body-forms)))
+                      (append body-forms (apply append (scan-includes (caar declarations) includes #t)))))
             (((syntax include-library-declarations) includes ___)
                 (scan-include-library-declarations (caar declarations) includes))
             (((syntax begin) forms ___)
@@ -2181,6 +2184,7 @@
            (rt:lookup-library name))))
 
 (define (loki-load file)
+  (debug "loading" file)
   (expand-file (wrap-path file)
     (lambda (library invoke?)
       (rt:import-library (rt:library-name library)))))

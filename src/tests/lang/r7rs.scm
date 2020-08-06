@@ -17,13 +17,6 @@
         (for (loki util) expand)
         (srfi 64))
 
-(define-syntax test
-  (lambda (x)
-    (syntax-case x ()
-      ((test expected expr)
-        (let ((name (write-to-string (syntax->datum (syntax expected)))))
-          (quasisyntax (test-equal (unsyntax name) expected expr)))))))
-
 (define-syntax test-values
   (syntax-rules ()
     ((_ expect expr)

@@ -4,6 +4,7 @@
 (import (tests srfi 31))
 (import (tests srfi 64))
 (import (tests srfi 121))
+(import (tests srfi 128))
 (import (tests srfi 151))
 (import (srfi 64))
 
@@ -23,6 +24,7 @@
   (run-tests-srfi-31 runner)
   (run-tests-srfi-64 runner)
   (run-tests-srfi-121 runner)
+  (run-tests-srfi-128 runner)
   (run-tests-srfi-151 runner))
 
 (test-end "loki")

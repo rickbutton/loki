@@ -35,6 +35,7 @@
       %exception-handler-set!
       %procedure? %symbol? %string? %eq? %eqv? %equal?
       %command-line %environment-variables %emergency-exit
+      %procedure-name-set!
 
       %port? %eof-object %eof-object? %port-input %port-output
       %port-type %port-ready? %input-port-open? %output-port-open?
@@ -114,6 +115,8 @@
           (match exp
             (('define name value)
               (loop (cdr exps) terms (cons (list name (normalize-term value)) defines)))
+            (('begin . exp*)
+              (loop (append exp* (cdr exps)) terms defines))
             (else (loop (cdr exps) (cons (normalize-term exp) terms) defines)))))))
           
 
@@ -126,7 +129,7 @@
      (('let () exp . exp*)
       (if (null? exp*)
         (normalize exp k)
-        (k `(begin ,@(normalize-terms (cons exp exp*))))))
+        (k `(let () ,@(normalize-terms (cons exp exp*))))))
 
      (('let ((formal value) . clause) exp . exp*) 
       (normalize value (lambda (aexp-value) 
