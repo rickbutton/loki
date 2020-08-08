@@ -20,9 +20,8 @@
 ;;; WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ;;; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 ;;; OTHER DEALINGS IN THE SOFTWARE. 
-(define-library (tests srfi 128)
-(import (tests util))
-(import (srfi 64))
+(define-library (srfi 128 test)
+(import (loki test))
 (import (scheme base)
         (scheme cxr)
         (scheme read)
@@ -32,10 +31,10 @@
         (scheme inexact)
         (scheme complex)
         (srfi 128))
-(export run-tests-srfi-128)
+(export run-tests)
 (begin
 
-(define-tests run-tests-srfi-128 "(srfi 128)"
+(define-tests run-tests "(srfi 128)"
 
 (test-group "comparators"
 

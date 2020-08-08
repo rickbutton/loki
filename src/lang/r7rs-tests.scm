@@ -13,9 +13,8 @@
         (scheme process-context)
         (scheme case-lambda)
         (scheme r5rs)
-        (tests util)
-        (for (loki util) expand)
-        (srfi 64))
+        (loki test)
+        (for (loki util) expand))
 
 (define-syntax test-values
   (syntax-rules ()

@@ -1,5 +1,8 @@
 (define-library (loki test)
   (import (scheme base))
+  (import (scheme write))
+  (import (scheme case-lambda))
+  (import (loki syntax))
   (import (srfi 64))
   (import (srfi 64 execution))
   (import (srfi 128))
@@ -58,4 +61,31 @@
    test-on-bad-count-simple test-on-bad-end-name-simple
 
    ;; for (loki test)
-   current-test-comparator))
+   current-test-comparator
+   define-tests
+   test)
+(begin
+
+(define-syntax define-tests
+  (syntax-rules ()
+    ((_ proc-name suite-name form ...)
+     (define proc-name
+       (case-lambda
+         (() (proc-name (test-runner-create)))
+         ((runner)
+          (parameterize ((test-runner-current runner))
+            (test-begin suite-name)
+            form ...
+            (test-end suite-name)
+            (and (= 0 (test-runner-xpass-count runner))
+                 (= 0 (test-runner-fail-count runner))))))))))
+(define-syntax test
+  (lambda (x)
+    (syntax-case x ()
+      ((test name expected expr)
+          (quasisyntax (test-equal name expected expr)))
+      ((test expected expr)
+        (let ((out (open-output-string)))
+          (write (syntax->datum (syntax expected)) out)
+          (quasisyntax (test-equal (unsyntax (get-output-string out)) expected expr)))))))))
+

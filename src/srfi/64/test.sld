@@ -1,9 +1,8 @@
-(define-library (tests srfi 64)
+(define-library (srfi 64 test)
 (import (scheme base))
 (import (scheme process-context))
-(import (srfi 64))
-(import (tests util))
-(export run-tests-srfi-64)
+(import (loki test))
+(export run-tests)
 (begin
 
 ;;;
@@ -162,7 +161,7 @@
            (symbol? (caar l))
            (symbol-alist? (cdr l)))))
 
-(define-tests run-tests-srfi-64 "(srfi 64)"
+(define-tests run-tests "(srfi 64)"
 ;;;
 ;;;  Now we can start testing compliance with SRFI-64
 ;;;

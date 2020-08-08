@@ -1179,7 +1179,7 @@
         ((port) (read-datum (make-reader port "<read>")))))))
 
 (define-library (scheme write)
-    (import (loki writer))
+    (import (for (loki writer) expand run))
     (export display write write-shared write-simple))
 
 (define-library (scheme r5rs)

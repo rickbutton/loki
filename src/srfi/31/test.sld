@@ -1,13 +1,12 @@
-(define-library (tests srfi 31)
-  (export run-tests-srfi-31)
+(define-library (srfi 31 test)
+  (export run-tests)
   (import
    (scheme base)
    (scheme lazy)
    (srfi 31)
-   (srfi 64)
-   (tests util))
+   (loki test))
   (begin
-    (define-tests run-tests-srfi-31 "(srfi 31)"
+    (define-tests run-tests "(srfi 31)"
       (test-eqv "factorial" 3628800
         ((rec (! n)
            (if (zero? n)

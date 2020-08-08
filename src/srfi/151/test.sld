@@ -1,11 +1,10 @@
-(define-library (tests srfi 151)
+(define-library (srfi 151 test)
 (import (scheme base))
 (import (srfi 151))
-(import (srfi 64))
-(import (tests util))
-(export run-tests-srfi-151)
+(import (loki test))
+(export run-tests)
 (begin
-(define-tests run-tests-srfi-151 "(srfi 151)"
+(define-tests run-tests "(srfi 151)"
 
 (test-group "bitwise"
  (test-group "bitwise/basic"

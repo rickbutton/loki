@@ -1,11 +1,10 @@
-(define-library (tests srfi 121)
+(define-library (srfi 121 test)
 (import (scheme base))
 (import (scheme read))
-(import (srfi 64))
+(import (loki test))
 (import (only (srfi 1) unfold))
-(import (tests util))
 (import (srfi 121))
-(export run-tests-srfi-121)
+(export run-tests)
 (begin
 
 (define (with-input-from-string string thunk)
@@ -13,7 +12,7 @@
     (thunk)
     (close-port (current-input-port))))
 
-(define-tests run-tests-srfi-121 "(srfi 121)"
+(define-tests run-tests "(srfi 121)"
 
 (test-group "generators"
   (test-group "generators/constructors"

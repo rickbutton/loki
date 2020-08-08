@@ -1,12 +1,11 @@
-(define-library (tests srfi 95)
-(export run-tests-srfi-95)
+(define-library (srfi 95 test)
+(export run-tests)
 (import (scheme base)
         (scheme char)
         (scheme complex)
         (scheme write)
         (srfi 95)
-        (loki test)
-        (tests util))
+        (loki test))
 (begin
 
 (define (call-with-output-string proc)
@@ -17,7 +16,7 @@
       str)))
 
 
-(define-tests run-tests-srfi-95 "(srfi 95)"
+(define-tests run-tests "(srfi 95)"
 
   (test-begin "srfi-95: sorting")
 

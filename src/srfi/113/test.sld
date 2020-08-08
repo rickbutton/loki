@@ -1,13 +1,12 @@
-(define-library (tests srfi 113)
+(define-library (srfi 113 test)
 (import (core intrinsics))
 (import (scheme base))
 (import (scheme char))
 (import (scheme complex))
-(import (tests util))
 (import (loki test))
 (import (srfi 113))
 (import (srfi 128))
-(export run-tests-srfi-113)
+(export run-tests)
 (begin
 
 ;;; Below are some default comparators provided by SRFI-114,
@@ -74,7 +73,7 @@
     #f
     default-hash))
 
-(define-tests run-tests-srfi-113 "(srfi 113)"
+(define-tests run-tests "(srfi 113)"
 
 
 (test-group "sets"
