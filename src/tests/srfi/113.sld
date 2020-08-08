@@ -326,12 +326,7 @@
     (set set-comparator
       (set equal-comparator '(2 . 1) '(1 . 1) '(0 . 2) '(0 . 0))
       (set equal-comparator '(2 . 1) '(1 . 1) '(0 . 0) '(0 . 2))))
-  (%debug "sos" sos)
-  (%debug "1" (set equal-comparator '(0 . 1) '(0 . 0)))
-  (%debug "2" (set equal-comparator '(0 . 0) '(0 . 1)))
-  (%debug "eq1" (set=? (set equal-comparator '(0 . 0) '(0 . 1)) (set equal-comparator '(0 . 0) '(0 . 1))))
-  (%debug "eq2" (set=? (set equal-comparator '(0 . 1) '(0 . 0)) (set equal-comparator '(0 . 0) '(0 . 1))))
-
+  
   (test string-ci-comparator (set-element-comparator bucket))
   (test-assert (set-contains? bucket "abc"))
   (test-assert (set-contains? bucket "ABC"))

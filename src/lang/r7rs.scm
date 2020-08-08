@@ -938,7 +938,6 @@
 
 (define-library (scheme base)
     (import (for (except (core primitives) _ ... environment eval load) run expand)
-            (for (core intrinsics)              expand run)
             (for (core let)                     expand run)
             (for (core control)                 expand run)
             (for (core records)                 expand run)

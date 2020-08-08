@@ -7,7 +7,7 @@
 (begin
 
 (define compiler-intrinsics '(
-      %trace %pop-trace %call-with-values %values
+      %trace %call-with-values %values
 
       %void %blackhole
       %add %sub %mul %div

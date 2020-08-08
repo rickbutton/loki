@@ -64,7 +64,6 @@
   (with-exception-handler
     (lambda (err)
       (display err)
-      (raise err)
       (exit 1))
     (lambda ()
       (let ((options (parse-options arguments)))

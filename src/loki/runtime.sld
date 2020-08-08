@@ -216,16 +216,13 @@
   (display "\n")
   (for-each (lambda (trace) 
     (display trace)
-    (display "\n")) traces)
-  (raise obj)
+    (display "\n")) (reverse traces))
   (exit 1))
 
 (define traces '())
 (define (trace src)
-  (set! traces (cons src traces)))
-(define (pop-trace)
-  (if (null? traces) (error "pop-trace, but no traces, this shouldn't happen"))
-  (set! traces (cdr traces)))
+  ;(set! traces (cons src traces))
+  #f)
 
 (define (string-cmp a b ci?)
   (if ci?
@@ -500,7 +497,6 @@
 (rt:runtime-add-primitive '%hash-by-identity hash-by-identity)
 (rt:runtime-add-primitive '%current-directory current-directory)
 (rt:runtime-add-primitive '%trace trace)
-(rt:runtime-add-primitive '%pop-trace pop-trace)
 (rt:runtime-add-primitive '%repr loki-repr)
 (rt:runtime-add-primitive '%debug loki-debug)
 (rt:runtime-add-primitive '%procedure-name-set! procedure-name-set!)

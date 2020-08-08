@@ -551,7 +551,7 @@
                       ((atmosphere? type)
                        (lp (cons (cons type token) atmosphere)))
                       (else
-                       (let-values (((d __) (handle-lexeme p type token #f #t)))
+                       (let ((d (handle-lexeme p type token #f #t)))
                          (values 'inline-comment (cons (reverse atmosphere) d))))))))
            ((#\|)                     ;nested comment
             (values 'nested-comment (get-nested-comment p)))

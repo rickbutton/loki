@@ -113,13 +113,18 @@
 
 (define (default-hash obj)
   (case (object-type obj)
-    ((0 1 7) ; empty list, pair, or vector
-     ((make-hasher) (equal-hash obj)))
+    ((0)
+     ((make-hasher) 420)) ; nice
+    ((1)
+     ((make-pair-hash *default-comparator* *default-comparator*) obj))
     ((2) (boolean-hash obj))
     ((3) (char-hash obj))
     ((4) (string-hash obj))
     ((5) (symbol-hash obj))
     ((6) (number-hash obj))
+    ((7) ((make-vector-hash (make-default-comparator)
+                             vector? vector-length vector-ref) obj))
+
     ((8) ((make-vector-hash (make-default-comparator)
                              bytevector? bytevector-length bytevector-u8-ref) obj))
     ; Add more here
@@ -141,6 +146,8 @@
 (define (make-default-comparator)
   (make-comparator
     (lambda (obj) #t)
-    default-equality
-    default-ordering
+    equal?
+    #f
     default-hash))
+
+(define *default-comparator* (make-default-comparator))
