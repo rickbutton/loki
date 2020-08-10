@@ -6,6 +6,7 @@
    (scheme eval)
    (scheme process-context)
    (scheme read)
+   (loki error)
    (srfi 1)
    (srfi 35)
    (srfi 48)

@@ -75,7 +75,7 @@
          ((runner)
           (parameterize ((test-runner-current runner))
             (test-begin suite-name)
-            form ...
+            (let () form ...)
             (test-end suite-name)
             (and (= 0 (test-runner-xpass-count runner))
                  (= 0 (test-runner-fail-count runner))))))))))

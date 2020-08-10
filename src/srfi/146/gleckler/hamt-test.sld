@@ -1,0 +1,6 @@
+(define-library (srfi 146 gleckler hamt-test)
+  (import (scheme base)
+	  (loki test)
+	  (only (srfi 146 gleckler hamt) fragment->mask))
+  (export run-hamt-core-tests)
+  (include "hamt-test.scm"))

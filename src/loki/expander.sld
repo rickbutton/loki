@@ -720,15 +720,14 @@
   (set! *color* (generate-color))
   ((macro-proc macro) t))
 
-(define (make-call-trace id)
-  (if id
-    (list
-      `(%trace
-        ,(string-append
-          (symbol->string (id-name id))
-          " "
-          (source->string (id-source id)))))
-    '()))
+(define (make-call-trace id k)
+  #;k
+  `(%trace ,(if id
+                (string-append (symbol->string (id-name id))
+                               " "
+                               (source->string (id-source id)))
+                'unknown)
+             ,k))
 
 ;;=========================================================================
 ;;
@@ -749,7 +748,7 @@
                                (expand expanded-once))))))
                        ((variable)
                         (if (list? t)
-                            (cons (binding-name binding) (map expand (cdr t)))
+                            (make-call-trace (car t) (cons (binding-name binding) (map expand (cdr t))))
                             (binding-name binding)))
                        ((pattern-variable)
                        (begin
@@ -957,7 +956,7 @@
                             `(let ((lam (lambda ,formals ,@(emit-body forms emit-never-global))))
                               ,(if id-bind
                                   `(%procedure-name-set! lam ',(id-name id-bind))
-                                  `(%procedure-name-set! lam 'unknown))
+                                  `(%procedure-name-set! lam ',(list 'unknown formals)))
                               lam)))))))))
 
 (define (formals? s)
@@ -1228,7 +1227,7 @@
         (match pattern
           ((syntax _)         sk)
           ((syntax ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
-          (()                 `(if (null? ,input) ,sk ,fk))
+          (()                 `(if (%null? ,input) ,sk ,fk))
           ((? literal? id)
             `(if (if (ex:identifier? ,input)
                       (if (ex:free-identifier=? ,input ,(syntax-reflect id)) #t #f) #f)
@@ -1254,15 +1253,15 @@
                                                     #f))
                                   ,input
                                   (lambda (,columns ,rest)
-                                    (if (null? ,rest)
-                                        (apply (lambda ,mapped-pvars ,sk)
-                                               (if (null? ,columns)
+                                    (if (%null? ,rest)
+                                        (%apply (lambda ,mapped-pvars ,sk)
+                                               (if (%null? ,columns)
                                                    ',(map (lambda (ignore) '()) mapped-pvars)
-                                                   (apply map list ,columns)))
+                                                   (%apply map list ,columns)))
                                         ,fk)))))))
           ((p (syntax ...) . tail)
            (let ((tail-length (dotted-length tail)))
-             `(if (>= (ex:dotted-length ,input) ,tail-length)
+             `(if (%gte (ex:dotted-length ,input) ,tail-length)
                   ,(process-match `(ex:dotted-butlast ,input ,tail-length)
                                   `(,p ,(cadr pattern))
                                   (process-match `(ex:dotted-last ,input ,tail-length)
@@ -1272,10 +1271,10 @@
                                   fk)
                   ,fk)))
           ((p1 . p2)
-           `(if (pair? ,input)
-                ,(process-match `(car ,input)
+           `(if (%pair? ,input)
+                ,(process-match `(%car ,input)
                                 p1
-                                (process-match `(cdr ,input) p2 sk fk)
+                                (process-match `(%cdr ,input) p2 sk fk)
                                 fk)
                 ,fk))
           (#(ps ___)
@@ -1289,7 +1288,7 @@
            (syntax-violation 'syntax-case "Symbol object may not appear in pattern" pattern))
           (other
             #t
-           `(if (equal? ,input ',(syntax->datum other)) ,sk ,fk)))))
+           `(if (%equal? ,input ',(syntax->datum other)) ,sk ,fk)))))
 
   (define (pattern-vars pattern level)
     (match pattern
@@ -1393,7 +1392,7 @@
                            (if (= (length vars) 1) 
                                `(map (lambda ,vars ,x)
                                      ,@vars)
-                               `(if (= ,@(map (lambda (var) 
+                               `(if (%number-eq ,@(map (lambda (var) 
                                                 `(length ,var))
                                               vars))
                                     (map (lambda ,vars ,x)
@@ -1404,13 +1403,13 @@
                                      ',(syntax->datum template) 
                                      (list ,@vars))))))
                   (gen (if (> (segment-depth template) 1)
-                           `(apply append ,gen)
+                           `(%apply append ,gen)
                            gen)))
              (if (null? (segment-tail template))   ; +++
                  gen                               ; +++
                  `(append ,gen ,(process-template (segment-tail template) dim ellipses-quoted?)))))))
     ((t1 . t2)
-     `(cons ,(process-template t1 dim ellipses-quoted?)
+     `(%cons ,(process-template t1 dim ellipses-quoted?)
             ,(process-template t2 dim ellipses-quoted?)))
     (#(ts ___)
      `(list->vector ,(process-template ts dim ellipses-quoted?)))

@@ -109,7 +109,7 @@
                           levels)))
             imports
             builds)
-  (values))
+  #f)
 (define (rt:import-libraries-for-run imports builds phase)
   (rt:import-libraries-for imports 
                            builds
@@ -153,7 +153,25 @@
 
 (define (runtime-env-init!)
   (set! runtime-env 
-    (environment '(scheme base))))
+    (environment '(only (scheme base)
+    begin
+    if
+    lambda
+    quote
+    set!
+    define
+    let
+
+    letrec
+    map
+    list
+    list?
+    vector?
+    vector->list
+    list->vector
+    append
+    length
+    ))))
 
 (define (rt:runtime-run-program prog)
   (if (not runtime-env) (runtime-env-init!))
@@ -183,11 +201,20 @@
   (if (= (length args) 1)
     (car args)
     (make-loki-values args)))
+
+; hack for chibi
+(cond-expand
+  (chibi
+    (define *chibi-values-tag* (car (values 1 2)))
+    (define (chibi-values? v) (and (pair? v) (eq? (car v) *chibi-values-tag*))))
+  (else
+    (define (chibi-values? v) #f)))
 (define (loki-call-with-values producer consumer)
   (let ((res (producer)))
-    (if (loki-values? res)
-      (apply consumer (loki-values-values res))
-      (consumer res))))
+    (cond
+      ((chibi-values? res) (call-with-values (lambda () res) consumer))
+      ((loki-values? res) (apply consumer (loki-values-values res)))
+      (else (consumer res)))))
 (define (loki-call/cc thunk)
   (define (kont k)
     (thunk k))
@@ -214,15 +241,29 @@
   (display "ABORT!\n")
   (display obj)
   (display "\n")
-  (for-each (lambda (trace) 
-    (display trace)
-    (display "\n")) (reverse traces))
+  (emit-traces)
+  (raise obj)
   (exit 1))
 
-(define traces '())
-(define (trace src)
-  ;(set! traces (cons src traces))
-  #f)
+(define max-traces 1024 * 10)
+(define traces (make-vector max-traces #f))
+(define next-trace-slot 0)
+(define (trace src k)
+  (vector-set! traces next-trace-slot src)
+  (if (= next-trace-slot (- max-traces 1))
+      (set! next-trace-slot 0)
+      (set! next-trace-slot (+ next-trace-slot 1)))
+  k)
+(define (emit-traces)
+  (do ((i next-trace-slot (+ i 1)))
+      ((= i max-traces) #f)
+    (display (vector-ref traces i))
+    (display "\n"))
+  (do ((i 0 (+ i 1)))
+      ((= i next-trace-slot) #f)
+    (display (vector-ref traces i))
+    (display "\n")))
+
 
 (define (string-cmp a b ci?)
   (if ci?

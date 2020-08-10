@@ -147,7 +147,7 @@
   (make-comparator
     (lambda (obj) #t)
     equal?
-    #f
+    default-ordering 
     default-hash))
 
 (define *default-comparator* (make-default-comparator))

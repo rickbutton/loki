@@ -338,7 +338,7 @@
 
 (define (error-matches? error type)
   (cond
-   ((eq? type #t)
+   ((or (string? type) (eq? type #t))
     #t)
    ((condition-type? type)
     (and (condition? error) (condition-has-type? error type)))

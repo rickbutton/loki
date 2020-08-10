@@ -3,7 +3,7 @@
 (import (scheme case-lambda))
 (cond-expand
   (chibi
-    (import (rename (chibi ast) (type-printer-set! chibi-type-printer-set!))))
+    (import (scheme write) (rename (chibi ast) (type-printer-set! chibi-type-printer-set!))))
   (loki
     (import (core intrinsics))
     (import (core records))
@@ -38,8 +38,10 @@
     (chibi
       (chibi-type-printer-set! type
                                (lambda (x writer out)
-                                 (define (writer2 x . _)
-                                   (writer x))
+                                 (define (writer2 x . opt)
+                                   (if (or (null? opt) (not (car opt)))
+                                       (writer x)
+                                       (display x out)))
                                  (printer x writer2 out))))
     (loki (record-type-printer-set! type printer))))
 
