@@ -16,14 +16,8 @@ jobs:
     # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
     - uses: actions/checkout@v2
 
-    - name: ppa
-      run: sudo add-apt-repository ppa:ilammy/chibi-scheme
-
-    - name: update
-      run: sudo apt update
-
     - name: install chibi
-      run: sudo apt install chibi-scheme 
+      run: sudo apt install gauche
 
     - name: test
       run: make test
