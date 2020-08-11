@@ -4,8 +4,6 @@
 
 <a href="https://github.com/rickbutton/loki/actions?query=workflow%3Atests"><img alt="tests" src="https://github.com/rickbutton/loki/workflows/tests/badge.svg"></a>
 
-This supports almost zero percent of any scheme standard or spec. I'm hoping to eventually make this R7RS small compliant at least. No promises.
-
 Take caution, because this probably doesn't work on your machine without tweaks.
 
 #### Why is it called loki?
