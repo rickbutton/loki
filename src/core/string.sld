@@ -116,7 +116,7 @@
   (let ((res (- (char->integer ch) (char->integer #\0))))
     (if (<= 0 res 9)
         res
-        ch)))
+        #f)))
 
 (define string-cursor? number?)
 (define string-cursor=? eq?)
