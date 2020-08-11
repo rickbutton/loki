@@ -888,7 +888,7 @@
   (define-syntax let*-values
     (syntax-rules ()
       ((let*-values () ?body0 ?body1 ...)
-       (begin ?body0 ?body1 ...))
+       (let () ?body0 ?body1 ...))
 
       ((let*-values (?binding0 ?binding1 ...) ?body0 ?body1 ...)
        (let-values (?binding0)
