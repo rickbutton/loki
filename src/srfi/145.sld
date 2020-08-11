@@ -1,7 +1,9 @@
 (define-library (srfi 145)
   (export assume)
   (import (scheme base))
-  (import (core syntax-error))
+  (cond-expand
+    (loki (import (core syntax-error)))
+    (gauche (import (only (gauche base) syntax-error))))
   (begin
     (define-syntax assume
       (syntax-rules ()
