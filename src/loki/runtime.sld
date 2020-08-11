@@ -166,7 +166,6 @@
     map
     list
     list?
-    vector?
     vector->list
     list->vector
     append

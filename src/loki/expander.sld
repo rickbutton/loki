@@ -1291,7 +1291,7 @@
                                 fk)
                 ,fk))
           (#(ps ___)
-           `(if (vector? ,input)
+           `(if (%vector? ,input)
                 ,(process-match `(vector->list ,input)
                                 ps
                                 sk
@@ -1566,9 +1566,6 @@
              (env-import! keyword imports *usage-env*)
 
              (let ((initial-env-table *env-table*))   ; +++ space
-              (display "expanding library ")
-              (display name)
-              (display "\n")
                (scan-sequence library-type
                               make-local-mapping
                               body-forms
@@ -1597,9 +1594,6 @@
                                                bound-variables
                                                (emit-body forms (bound-variables->emit-global? bound-variables))
                                                (generate-guid 'build))))
-                                    (display "expanded library ")
-                                    (display name)
-                                    (display "\n")
                                     (rt:register-library! library)
                                     (if *module-handler*
                                       (*module-handler* library (eq? library-type 'program)))
@@ -2298,10 +2292,8 @@
          (str (path->string path))
          (p (open-input-file str))
          (reader (make-reader p str)))
-    (display "reading ") (display str) (display "\n")
     (reader-fold-case?-set! reader fold-case?)
     (let ((content (read-file-from-reader reader)))
-      (display "read ") (display str) (display "\n")
       content)))
 
 ;;==========================================================================
