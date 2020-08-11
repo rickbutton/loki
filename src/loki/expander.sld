@@ -77,6 +77,8 @@
 (import (scheme process-context))
 (import (scheme case-lambda))
 (import (srfi 1))
+(import (srfi 128))
+(import (srfi 146 hash))
 (import (loki shared))
 (import (loki runtime))
 (import (loki util))
@@ -463,22 +465,33 @@
 (define (make-null-env) '())
 (define (make-unit-env) (env-extend '() (make-null-env)))
 
+(define (make-null-frame) (hashmap (make-default-comparator)))
+
+(define (mappings->frame mappings)
+  (list (alist->hashmap! (make-null-frame) mappings)))
+(define (mappings->frame! frame mappings)
+  (set-car! frame (alist->hashmap! (car frame) mappings)))
+
 ;; Adds a new frame containing mappings to env.
 
 (define (env-extend mappings env)
-  (cons (list mappings) env))
+  (cons (mappings->frame mappings) env))
 
 ;; Destructively extends the leftmost frame in env.
 
 (define (env-extend! mappings env)
   (let ((frame (car env)))
-    (set-car! frame (append mappings (car frame)))))
+    (mappings->frame! frame mappings)))
+
+(define (frame-lookup key frame)
+  (hashmap-ref (car frame) key (lambda () #f) (lambda (value) (cons key value))))
 
 ;; Returns <object> | #f
 
 (define (env-lookup key env)
   (and (pair? env)
-       (or (let ((probe (assoc key (caar env))))
+       (or (let* ((frame (car env))
+                  (probe (frame-lookup key frame)))
              (and probe
                   (or (cdr probe)
                       (syntax-violation
@@ -488,9 +501,9 @@
 ;; Is id already bound in leftmost frame?
 
 (define (duplicate? id env)
-  (assoc (cons (id-name id)
-               (id-colors id))
-         (caar env)))
+  (let ((frame (car env)))
+    (frame-lookup (cons (id-name id) (id-colors id))
+                  frame)))
 
 ;; Returns a single-symbol <key> representing an
 ;; environment that can be included in object code.
@@ -513,8 +526,10 @@
       (cdr (assq key-or-env *env-table*))
       key-or-env))
 
+; TODO - make compress, uncompress work for fancier frames
 (define (compress env-table)
-  (let ((frame-table '())
+  env-table
+  #;(let ((frame-table '())
         (count 0))
     (for-each (lambda (entry)
                 (for-each (lambda (frame)
@@ -547,7 +562,8 @@
                frame-table))))
 
 (define (uncompress compressed-env-table)
-  (if (null? compressed-env-table) '()
+  compressed-env-table
+  #;(if (null? compressed-env-table) '()
     (map (lambda (env-entry)
            (cons (car env-entry)
                  (map (lambda (frame-abbrev)
@@ -721,8 +737,8 @@
   ((macro-proc macro) t))
 
 (define (make-call-trace id k)
-  #;k
-  `(%trace ,(if id
+  k
+  #;`(%trace ,(if id
                 (string-append (symbol->string (id-name id))
                                " "
                                (source->string (id-source id)))
@@ -903,8 +919,9 @@
     ((or) #t)
     ((or e) (expand e))
     ((or e es ___)
-     `(let ((x ,(expand e)))
-        (if x x ,(expand `(,or ,@es)))))))
+     (let ((x (generate-guid 'x)))
+       `(let ((,x ,(expand e)))
+          (if ,x ,x ,(expand `(,or ,@es))))))))
 
 (define (check-valid-include type file) 
  (unless (string? file)
@@ -953,11 +970,7 @@
                           make-local-mapping
                           body
                           (lambda (forms syntax-definitions bound-variables)
-                            `(let ((lam (lambda ,formals ,@(emit-body forms emit-never-global))))
-                              ,(if id-bind
-                                  `(%procedure-name-set! lam ',(id-name id-bind))
-                                  `(%procedure-name-set! lam ',(list 'unknown formals)))
-                              lam)))))))))
+                            `(lambda ,formals ,@(emit-body forms emit-never-global))))))))))
 
 (define (formals? s)
   (or (null? s)
@@ -1553,6 +1566,9 @@
              (env-import! keyword imports *usage-env*)
 
              (let ((initial-env-table *env-table*))   ; +++ space
+              (display "expanding library ")
+              (display name)
+              (display "\n")
                (scan-sequence library-type
                               make-local-mapping
                               body-forms
@@ -1581,6 +1597,9 @@
                                                bound-variables
                                                (emit-body forms (bound-variables->emit-global? bound-variables))
                                                (generate-guid 'build))))
+                                    (display "expanded library ")
+                                    (display name)
+                                    (display "\n")
                                     (rt:register-library! library)
                                     (if *module-handler*
                                       (*module-handler* library (eq? library-type 'program)))
@@ -2162,7 +2181,7 @@
                  make-toplevel-mapping
                  (source->syntax toplevel-template forms)
                  (lambda (forms syntax-definitions bound-variables)
-                   (emit-body forms emit-never-global))))
+                   (emit-body forms emit-always-global))))
 
 (define (library-name-part->string p)
   (if (symbol? p) (symbol->string p)
@@ -2184,7 +2203,6 @@
            (rt:lookup-library name))))
 
 (define (loki-load file)
-  (debug "loading" file)
   (expand-file (wrap-path file)
     (lambda (library invoke?)
       (rt:import-library (rt:library-name library)))))
@@ -2280,8 +2298,11 @@
          (str (path->string path))
          (p (open-input-file str))
          (reader (make-reader p str)))
+    (display "reading ") (display str) (display "\n")
     (reader-fold-case?-set! reader fold-case?)
-    (read-file-from-reader reader)))
+    (let ((content (read-file-from-reader reader)))
+      (display "read ") (display str) (display "\n")
+      content)))
 
 ;;==========================================================================
 ;;

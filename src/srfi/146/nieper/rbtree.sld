@@ -26,7 +26,6 @@
 	  tree-map tree-catenate tree-split)
   (import (scheme base)
 	  (scheme case-lambda)
-	  (loki syntax)
 	  (srfi 2)
 	  (srfi 8)
 	  (srfi 121)

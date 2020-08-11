@@ -38,7 +38,7 @@
         (let ((mapped (cdr match)))
           (write-char #\\ port)
           (write-char mapped port))
-        (write-char char)))) str))
+        (write-char char port)))) str))
 
 (define (write-symbol obj port)
   (let* ((string (symbol->string obj))

@@ -36,7 +36,6 @@
       %exception-handler-set!
       %procedure? %symbol? %string? %eq? %eqv? %equal?
       %command-line %environment-variables %emergency-exit
-      %procedure-name-set!
 
       %port? %eof-object %eof-object? %port-input %port-output
       %port-type %port-ready? %input-port-open? %output-port-open?

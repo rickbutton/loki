@@ -31,14 +31,13 @@
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
-(import (srfi 69))
 (import (loki printer))
 (cond-expand
-  (chibi
-    (import (only (chibi) make-exception)))
-  (loki
-    (import (core exception))))
+  (loki (import (core exception)))
+  (gauche (import (only (gauche base) char-general-category))))
+(import (srfi 69))
 (export make-reader read-annotated read-datum
+        get-lexeme
         reader-fold-case?-set!
         <source> make-source source?  source-file source-line
         source-column source->string
@@ -51,7 +50,9 @@
         call-with-string-output-port)
 (begin
 
-(define (char-general-category c) 'ZZ)
+(cond-expand
+  (loki (define (char-general-category c) 'ZZ))
+  (else #f))
 (define (is-identifier-char? c)
   (or (char-ci<=? #\a c #\Z)
       (char<=? #\0 c #\9)
@@ -182,20 +183,10 @@
 
 ;; Peek at the next char from the reader.
 (define (lookahead-char reader)
-  (let ((next-char (reader-next-char reader)))
-    (if next-char
-        next-char
-        (let ((c (get-next-char reader)))
-            (reader-next-char-set! reader c)
-            c))))
+  (peek-char (reader-port reader)))
 
 (define (get-next-char reader)
-  (let ((next-char (reader-next-char reader)))
-    (if next-char 
-        (begin
-            (reader-next-char-set! reader #f)
-            next-char)
-        (read-char (reader-port reader)))))
+  (read-char (reader-port reader)))
 
 ;; Get a char from the reader.
 (define (get-char reader)
@@ -907,7 +898,9 @@
       (writer ">" #t))))
 
 (cond-expand
-  (chibi
+  (gauche
     (define (make-read-error message irritants)
-      (make-exception 'read message irritants #f #f))))
+      (guard (error (else error))
+             (apply error message irritants)))))
+        
 ))

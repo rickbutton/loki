@@ -9,10 +9,7 @@
 (import (loki runtime))
 (import (loki path))
 (import (srfi 37))
-(cond-expand
-  (chibi (import (chibi ast)))
-  (loki (import (core exception))))
-(export run-loki-cli)
+(export run-loki-cli *version*)
 (begin
 
 (define *version* "0.0.1")
@@ -49,9 +46,6 @@
     (default-options)))
 
 (define (emit-library library invoke?)
-  (display "emiting library")
-  (display (rt:library-name library))
-  (display "!\n")
   (when invoke?
     (rt:import-library (rt:library-name library))))
 
@@ -64,6 +58,7 @@
   (with-exception-handler
     (lambda (err)
       (display err)
+      (raise err)
       (exit 1))
     (lambda ()
       (let ((options (parse-options arguments)))

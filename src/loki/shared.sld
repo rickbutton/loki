@@ -18,7 +18,7 @@
     (text comment->text))
 
 (type-printer-set! <comment> 
-    (lambda (x out) 
+    (lambda (x writer out) 
         (display (string-append "(;" (comment->text x) ";)") out)))
 
 ))

@@ -14,7 +14,7 @@ In Norse mythology, Loki is a mischievous trickster. Attemting to run scheme in 
 
 ### How to run
 
-You will need [chibi scheme](https://github.com/ashinn/chibi-scheme/), [node](https://nodejs.org), and [wabt](https://github.com/WebAssembly/wabt) on your path.
+You will need [Gauche Scheme](https://github.com/shirok/Gauche) on your path.
 
 ```
 make compiler

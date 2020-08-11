@@ -746,18 +746,15 @@
 (test #t (integer? 8/4))
 
 ; BROKEN - exactness isn't implemented
-(test-expect-fail 1)
 (test #f (exact? 3.0))
 
 (test #t (exact? #e3.0))
 
 ; BROKEN - exactness isn't implemented
-(test-expect-fail 1)
 (test #t (inexact? 3.))
 
 (test #t (exact-integer? 32))
 
-(test-expect-fail 1)
 ; BROKEN - exactness isn't implemented
 (test #f (exact-integer? 32.0))
 
@@ -1633,8 +1630,6 @@
 
 (test 7 (apply + (list 3 4)))
 (test 7 (apply + 3 4 (list)))
-;; BROKEN - current apply is more permissive
-(test-expect-fail 4)
 (test-error (apply +)) ;; not enough args
 (test-error (apply + 3)) ;; final arg not a list
 (test-error (apply + 3 4)) ;; final arg not a list

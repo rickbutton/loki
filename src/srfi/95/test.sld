@@ -142,7 +142,7 @@
   (test "sort stable" '((0 2) (0 3) (0 4) (1 1) (1 2) (1 3) (2 1) (2 2))
     (sort '((1 1) (0 2) (1 2) (2 1) (0 3) (2 2) (0 4) (1 3)) < car))
 
-  (test "sort stable complex" '(2i 3i 4i 1+i 1+2i 2+i 2+2i)
-    (sort '(1+i 2i 1+2i 2+i 3i 2+2i 4i) < real-part))
+  (test "sort stable complex" '(0+2i 0+3i 0+4i 1+i 1+2i 2+i 2+2i)
+    (sort '(1+i 0+2i 1+2i 2+i 0+3i 2+2i 0+4i) < real-part))
 
   (test-end))))

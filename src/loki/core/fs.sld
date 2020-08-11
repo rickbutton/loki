@@ -1,8 +1,6 @@
 (define-library (loki core fs)
 (cond-expand
-  (chibi
-    (import (scheme base))
-    (import (chibi filesystem)))
   (loki
-    (import (rename (core intrinsics) (%current-directory current-directory)))))
+    (import (rename (core intrinsics) (%current-directory current-directory))))
+  (gauche (import (file util))))
 (export current-directory))

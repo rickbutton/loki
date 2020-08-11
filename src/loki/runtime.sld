@@ -193,33 +193,6 @@
 (define (rt:runtime-add-primitive name value)
   (rt:runtime-run-expression `(define-global ,name ,value)))
 
-(define-record-type <loki-values>
-  (make-loki-values values)
-  loki-values?
-  (values loki-values-values))
-(define (loki-values . args)
-  (if (= (length args) 1)
-    (car args)
-    (make-loki-values args)))
-
-; hack for chibi
-(cond-expand
-  (chibi
-    (define *chibi-values-tag* (car (values 1 2)))
-    (define (chibi-values? v) (and (pair? v) (eq? (car v) *chibi-values-tag*))))
-  (else
-    (define (chibi-values? v) #f)))
-(define (loki-call-with-values producer consumer)
-  (let ((res (producer)))
-    (cond
-      ((chibi-values? res) (call-with-values (lambda () res) consumer))
-      ((loki-values? res) (apply consumer (loki-values-values res)))
-      (else (consumer res)))))
-(define (loki-call/cc thunk)
-  (define (kont k)
-    (thunk k))
-  (call/cc kont))
-
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
 ; when record types are moved away from vectors, we should
@@ -241,11 +214,11 @@
   (display "ABORT!\n")
   (display obj)
   (display "\n")
-  (emit-traces)
+  ;(emit-traces)
   (raise obj)
   (exit 1))
 
-(define max-traces 1024 * 10)
+(define max-traces (* 1024 10))
 (define traces (make-vector max-traces #f))
 (define next-trace-slot 0)
 (define (trace src k)
@@ -471,6 +444,7 @@
 (rt:runtime-add-primitive '%exact      exact)
 (rt:runtime-add-primitive '%inexact    inexact)
 (rt:runtime-add-primitive '%infinite?  infinite?)
+(rt:runtime-add-primitive '%finite?    finite?)
 (rt:runtime-add-primitive '%nan?       nan?)
 (rt:runtime-add-primitive '%floor      floor)
 (rt:runtime-add-primitive '%ceiling    ceiling)
@@ -532,15 +506,14 @@
 (rt:runtime-add-primitive '%jiffies-per-second    jiffies-per-second)
 
 (rt:runtime-add-primitive '%apply apply)
-(rt:runtime-add-primitive '%values loki-values)
-(rt:runtime-add-primitive '%call-with-values loki-call-with-values)
-(rt:runtime-add-primitive '%call/cc loki-call/cc)
+(rt:runtime-add-primitive '%values values)
+(rt:runtime-add-primitive '%call-with-values call-with-values)
+(rt:runtime-add-primitive '%call/cc call/cc)
 (rt:runtime-add-primitive '%hash-by-identity hash-by-identity)
 (rt:runtime-add-primitive '%current-directory current-directory)
 (rt:runtime-add-primitive '%trace trace)
 (rt:runtime-add-primitive '%repr loki-repr)
 (rt:runtime-add-primitive '%debug loki-debug)
-(rt:runtime-add-primitive '%procedure-name-set! procedure-name-set!)
 
 ;; Only instantiate part of the bootstrap library 
 ;; that would be needed for invocation at runtime.

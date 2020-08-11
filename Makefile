@@ -5,6 +5,10 @@ CHROME_FLAGS=--js-flags="$(V8_FLAGS)"
 NODE_FLAGS=--expose-wasm --experimental-modules $(V8_FLAGS)
 
 WABT_FLAGS=--enable-reference-types --enable-tail-call
+
+SCM=gosh
+SCM_FLAGS=-A src
+COMPILE_SCM=$(SCM) $(SCM_FLAGS) src/loki.scm --
 		   
 example: examples/test.wasm examples/test.wat
 	node $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
@@ -13,28 +17,16 @@ example-debug: examples/test.wasm examples/test.wat
 	node --inspect-brk $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
 
 test:
-	chibi-scheme -A src -T src/loki.scm -- src/tests.scm
+	$(COMPILE_SCM) src/tests.scm
 
 repl:
-	chibi-scheme -A src -T src/loki.scm -- src/repl.scm
-
-parse-repl:
-	chibi-scheme -I src src/parse-repl.scm
-
-expander:
-	chibi-scheme -A src -T src/expander.scm
+	$(COMPILE_SCM) src/repl.scm
 
 compiler:
-	chibi-scheme -A src -T src/loki.scm -- examples/yggdrasil.scm
-
-%.wat: %.scm compiler/src/**
-	chibi-scheme -I src src/loki.scm $< $@
+	$(COMPILE_SCM) src/yggdrasil.scm
 
 %.wasm: %.wat
 	wat2wasm $(WABT_FLAGS) --debug-names $< -o $@
-
-chrome:
-	chromium-browser $(CHROME_FLAGS)
 
 http:
 	npx http-server
