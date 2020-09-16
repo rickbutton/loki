@@ -217,7 +217,7 @@
         (k (core::set! name t)))))
 
     (($ <core::define-global!> name value)
-      (k (core::define name (normalize-term value))))
+      (k (core::define-global! name (normalize-term value))))
 
     (($ <core::atomic>)            
      (k exp))
@@ -256,8 +256,7 @@
             (rest (if rest (core::ref-name rest) #f)))
         `(lambda ,(if rest (if (pair? formals) (apply cons* (append formals (list rest))) rest) formals) ,@(map compile-term body))))
     (($ <core::set!> name value) `(set! ,(core::ref-name name) ,(compile-term value)))
-    (($ <core::define> name value) `(define ,(core::ref-name name) ,(compile-term value)))
-    (($ <core::define-global!> name value) `(define-global! ,(core::ref-name name) ,(compile-term value)))
+    (($ <core::define-global!> name value) `(define ,(core::ref-name name) ,(compile-term value)))
     (($ <core::atomic> value) `(quote ,value))
     (($ <core::ref> name) name)
     (($ <core::apply> proc args) `(,(compile-term proc) ,@(map compile-term args)))))
