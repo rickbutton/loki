@@ -264,6 +264,7 @@
 ;; force compile-time syntax errors with useful messages
 (define-library (loki match)
 (import (scheme base))
+(import (loki core reflect))
 (export match)
 (begin
 

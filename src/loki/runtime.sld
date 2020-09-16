@@ -14,6 +14,8 @@
 (import (loki compiler))
 (import (loki core fs))
 (import (loki core reflect))
+(import (loki compiler))
+(import (lang core))
 (import (srfi 1))
 (import (srfi 69))
 (import (srfi 151))
@@ -182,15 +184,15 @@
             (display "ERROR: current-exception-handler is not setup, aborting\n")
             (raise err))))
     (lambda ()
-      (let ((normalized (compile-terms prog)))
+      (let ((host-scheme (compile-core-to-host-scheme prog)))
         (map (lambda (e)
-          (eval e runtime-env)) normalized)))))
+          (eval e runtime-env)) host-scheme)))))
 
 (define (rt:runtime-run-expression e)
   (car (rt:runtime-run-program (list e))))
 
 (define (rt:runtime-add-primitive name value)
-  (rt:runtime-run-expression `(define-global ,name ,value)))
+  (rt:runtime-run-expression (core::define-global! (core::ref name) (core::atomic value))))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records

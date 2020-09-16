@@ -86,6 +86,7 @@
 (import (loki reader))
 (import (loki compiler))
 (import (loki path))
+(import (lang core))
 
 (export (rename identifier?               ex:identifier?)
         (rename bound-identifier=?        ex:bound-identifier=?)
@@ -588,15 +589,16 @@
 (define (syntax-reflect id)
   (let ((source (id-source id)))
     (set! *syntax-reflected* #t)
-    `(ex:syntax-rename ',(id-name id)
-                       ',(id-colors id)
-                       ',(cons (env-reflect *usage-env*)
-                               (id-transformer-envs id))
-                       ,(- (- *phase* (id-displacement id)) 1)
-                       ',(id-library id)
-                       ,(source-file source)
-                       ,(source-line source)
-                       ,(source-column source))))
+    (core::apply-anon ex:syntax-rename
+                      (core::atomic (id-name id))
+                      (core::atomic (id-colors id))
+                      (core::atomic (cons (env-reflect *usage-env*)
+                                          (id-transformer-envs id)))
+                      (core::atomic (- (- *phase* (id-displacement id)) 1))
+                      (core::atomic (id-library id))
+                      (core::atomic (source-file source))
+                      (core::atomic (source-line source))
+                      (core::atomic (source-column source)))))
 
 (define (syntax-rename name colors transformer-envs transformer-phase source-library file line column)
   (make-identifier name
@@ -605,6 +607,9 @@
                    (- *phase* transformer-phase)
                    source-library
                    (make-source file line column)))
+
+(define (binding->core::ref binding)
+  (core::ref (binding-name binding)))
 
 ;;=====================================================================
 ;;
@@ -688,22 +693,22 @@
 
 ;; <type> ::= expander | transformer | variable-transformer
 
-(define (make-macro type proc) (cons type proc))
-(define macro-type car)
-(define macro-proc cdr)
-(define (macro? m)
-  (and (member (macro-type m) '(expander transformer variable-transformer))
-       (procedure? (macro-proc m))))
+(define-record-type <macro>
+  (make-macro type proc exp)
+  macro?
+  (type macro-type)
+  (proc macro-proc)
+  (exp macro-exp))
 
-(define (make-expander proc)             (make-macro 'expander proc))
-(define (make-transformer proc)          (make-macro 'transformer proc))
+(define (make-expander proc)             (make-macro 'expander proc #f))
+(define (make-transformer proc exp)          (make-macro 'transformer proc exp))
 
 (define (make-user-macro procedure-or-macro)
   (cond
     ((macro? procedure-or-macro)
       procedure-or-macro)
     ((procedure? procedure-or-macro)
-      (make-transformer procedure-or-macro))
+      (make-transformer procedure-or-macro #f))
     (else
       (error "Invalid user macro" procedure-or-macro))))
 
@@ -727,7 +732,7 @@
              (let ((name (car def)) (macro (cdr def)))
                 (if (macro? macro)
                   (register-macro! name macro)
-                  (register-macro! name (make-transformer (rt:runtime-run-expression macro))))))
+                  (register-macro! name (make-transformer (rt:runtime-run-expression macro) (compile-core-to-host-scheme (list macro)))))))
            (rt:library-syntax-defs library)))
 
 ;; Calls a macro with a new color.
@@ -764,18 +769,18 @@
                                (expand expanded-once))))))
                        ((variable)
                         (if (list? t)
-                            (make-call-trace (car t) (cons (binding-name binding) (map expand (cdr t))))
-                            (binding-name binding)))
+                            (core::apply (binding->core::ref binding)
+                                         (map expand (cdr t)))
+                            (binding->core::ref binding)))
                        ((pattern-variable)
                        (begin
                         (syntax-violation #f "Pattern variable used outside syntax template" t)))))
-            ((list? t)      (map expand t))
-            ((vector? t) (syntax->datum t))
-            ((identifier? t) (make-free-name (id-name t)))
-            ((annotation? t) (annotation-expression t))
+            ((null? t)       (core::atomic '()))
+            ((list? t)       (core::apply (expand (car t)) (map expand (cdr t))))
+            ((identifier? t) (core::ref (make-free-name (id-name t))))
             ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
             ((symbol? t)     (syntax-violation #f "Symbol may not appear in syntax object" t))
-            (else t)))))
+            (else            (core::atomic (syntax->datum t)))))))
 
 ;; Only expands while t is a user macro invocation.
 ;; Used by expand-lambda to detect internal definitions.
@@ -814,12 +819,12 @@
 
 (define (expand-quote exp)
   (match exp
-    ((- datum) (syntax->datum exp))))
+    ((quote datum) (core::atomic (syntax->datum datum)))))
 
 (define (expand-if exp)
   (match exp
-    ((- e1 e2 e3) `(if ,(expand e1) ,(expand e2) ,(expand e3)))
-    ((- e1 e2)    `(if ,(expand e1) ,(expand e2) %void))))
+    ((- e1 e2 e3) (core::if (expand e1) (expand e2) (expand e3)))
+    ((- e1 e2)    (core::if (expand e1) (expand e2) (core::anon-ref %void)))))
 
 (define (expand-set! exp)
   (match exp
@@ -841,8 +846,7 @@
               (syntax-violation
                'set! "Directly or indirectly imported variable cannot be assigned" exp id))
           (binding-mutable-set! binding #t)
-          `(set! ,(binding-name binding)
-                 ,(expand e)))
+          (core::set! (binding->core::ref binding) (expand e)))
          ((pattern-variable)
           (syntax-violation 'set! "Pattern variable used outside syntax template" exp id)))))))
 
@@ -855,7 +859,7 @@
                     #f
                     exps
                     (lambda (forms no-syntax-definitions no-bound-variables)
-                      `(begin ,@(map cdr forms)))))))
+                      (core::begin (map cdr forms)))))))
 
 (define (scan-let-bindings bindings k) 
   (let loop ((bindings bindings)
@@ -869,33 +873,38 @@
                 (cons formal formals)
                 (cons val vals)))))))
 
+(define (let-names? names)
+  (every identifier? names))
+
+(define (check-let-binding-names names)
+  (for-all (lambda (name)
+             (unless (identifier? name) (syntax-violation 'let "Invalid let binding name" name)))
+           names))
+
 (define (expand-let exp)
   (match exp
-    ((- (bindings ___) body ___)
-     (scan-let-bindings bindings
-       (lambda (formals vals)
-         (unless (formals? formals)
-           (syntax-violation 'let "Invalid let formal" formals))
-         (scan-sequence 'expression-sequence
-                        make-local-mapping
-                        vals
-           (lambda (val-forms syntax-definitions bound-variables)
-             (fluid-let ((*usage-env*
-                          (env-extend (map (lambda (formal)
-                                             (make-local-mapping 'variable formal #f))
-                                           (flatten formals))
-                                      *usage-env*)))
-               (let ((formals (dotted-map (lambda (formal) (binding-name (binding formal))) formals)))
-                 ;; Scan-sequence expects the caller to have prepared
-                 ;; the frame to which to destructively add bindings.
-                 ;; Let bodies need a fresh frame.
-                 (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
-                   (scan-sequence 'lambda
-                                  make-local-mapping
-                                  body
-                                  (lambda (body-forms syntax-definitions bound-variables)
-                                    `(let ,(map (lambda (formal val) (list formal (cdr val))) formals val-forms)
-                                       ,@(emit-body body-forms emit-never-global))))))))))))))
+    ((- ((names values) ___) body ___)
+     (check-let-binding-names names)
+     (scan-sequence 'expression-sequence
+                    make-local-mapping
+                    values
+       (lambda (val-forms syntax-definitions bound-variables)
+         (fluid-let ((*usage-env*
+                      (env-extend (map (lambda (name) (make-local-mapping 'variable name #f)) names)
+                                  *usage-env*)))
+           (let ((bindings (map binding names)))
+             ;; Scan-sequence expects the caller to have prepared
+             ;; the frame to which to destructively add bindings.
+             ;; Let bodies need a fresh frame.
+             (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
+               (scan-sequence 'lambda
+                              make-local-mapping
+                              body
+                              (lambda (body-forms syntax-definitions bound-variables)
+                                (core::let
+                                  (map (lambda (name binding val) (core::let-var (binding->core::ref binding) (cdr val)))
+                                       names bindings val-forms)
+                                  (emit-body body-forms emit-never-global))))))))))))
 
 ;; Expression let(rec)-syntax:
 
@@ -907,21 +916,24 @@
 
 (define (expand-and exp)
   (match exp
-    ((and) #t)
+    ((and) (core::atomic #t))
     ((and e) (expand e))
     ((and e es ___)
-     `(if ,(expand e)
-          ,(expand `(,and ,@es))
-          #f))))
+     (core::if (expand e)
+                    (expand `(,and ,@es))
+                    (core::atomic #f)))))
 
 (define (expand-or exp)
   (match exp
-    ((or) #t)
+    ((or) (core::atomic #t))
     ((or e) (expand e))
     ((or e es ___)
      (let ((x (generate-guid 'x)))
-       `(let ((,x ,(expand e)))
-          (if ,x ,x ,(expand `(,or ,@es))))))))
+       (core::let
+         (list (core::let-var (core::ref x) (expand e)))
+         (list (core::if (core::ref x)
+                        (core::ref x)
+                        (expand `(,or ,@es)))))))))
 
 (define (check-valid-include type file) 
  (unless (string? file)
@@ -951,7 +963,6 @@
 ;;
 ;;=========================================================================
 
-
 (define (expand-lambda exp)
   (match exp
     ((- (? formals? formals) body ___)
@@ -960,17 +971,32 @@
                                      (make-local-mapping 'variable formal #f))
                                    (flatten formals))
                               *usage-env*)))
-       (let ((formals (dotted-map (lambda (formal) (binding-name (binding formal))) formals))
-             (id-bind *current-identifier-bind*))
-         ;; Scan-sequence expects the caller to have prepared
-         ;; the frame to which to destructively add bindings.
-         ;; Lambda bodies need a fresh frame.
-         (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
-           (scan-sequence 'lambda
-                          make-local-mapping
-                          body
-                          (lambda (forms syntax-definitions bound-variables)
-                            `(lambda ,formals ,@(emit-body forms emit-never-global))))))))))
+       (let-values (((named-formals rest-formal) (scan-formals formals)))
+         (let ((named-bindings (map (lambda (formal) (binding formal)) named-formals))
+               (rest-binding (if rest-formal (binding rest-formal) #f))
+               (id-bind *current-identifier-bind*))
+           ;; Scan-sequence expects the caller to have prepared
+           ;; the frame to which to destructively add bindings.
+           ;; Lambda bodies need a fresh frame.
+           (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
+             (scan-sequence 'lambda
+                            make-local-mapping
+                            body
+                            (lambda (forms syntax-definitions bound-variables)
+                              (core::lambda (map (lambda (formal binding) (binding->core::ref binding))
+                                                      named-formals
+                                                      named-bindings)
+                                            (if rest-binding (binding->core::ref rest-binding) #f)
+                                            (emit-body forms emit-never-global)))))))))))
+
+(define (scan-formals formals)
+  (let loop ((x formals)
+             (named '())
+             (rest #f) )
+    (cond
+      ((pair? x) (loop (cdr x) (cons (car x) named) rest))
+      ((null? x) (values (reverse named) rest))
+      (else (loop '() named x)))))
 
 (define (formals? s)
   (or (null? s)
@@ -997,15 +1023,12 @@
 ;; Wraps are only used internally in processing of bodies,
 ;; and are never seen by user macros.
 
-(define (make-wrap env exp id)
-  (vector env exp id))
-(define (wrap-env wrap)
-  (vector-ref wrap 0))
-(define (wrap-exp wrap)
-  (vector-ref wrap 1))
-(define (wrap-id wrap)
-  (vector-ref wrap 2))
-
+(define-record-type <wrap>
+  (make-wrap env exp id)
+  wrap?
+  (env wrap-env)
+  (exp wrap-exp)
+  (id wrap-id))
 
 ;; The continuation k is evaluated in the body environment.  This is
 ;; used for example by expand-library to obtain the correct bindings of
@@ -1096,12 +1119,12 @@
                        (check-valid-definition id common-env body-type form forms type)
                        (let ((mapping (make-map 'macro id #f)))
                          (env-extend! (list mapping) common-env)
-                         (let ((rhs (fluid-let ((*phase* (+ 1 *phase*)))
+                         (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand rhs))))
-                           (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-run-expression rhs)))
+                           (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-run-expression rhs-expanded) rhs))
                            (loop (cdr ws)
                                  forms
-                                 (cons (cons (binding-name (binding id)) rhs) syntax-defs)
+                                 (cons (cons (binding-name (binding id)) rhs-expanded) syntax-defs)
                                  bound-variables))))))
                   ((begin)
                    (or (list? form)
@@ -1130,10 +1153,11 @@
                                               ((letrec-syntax) extended-env))))
                                  (map expand rhs)))
                               (macros (map (lambda (e) (rt:runtime-run-expression e)) rhs-expanded)))
-                         (for-each (lambda (mapping macro)
-                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
+                         (for-each (lambda (mapping macro rhs)
+                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro rhs)))
                                    usage-diff
-                                   macros)
+                                   macros
+                                   rhs)
                          (fluid-let ((*usage-env* extended-env))
                            (loop (cdr ws)
                                  (cons (list #f #f (expand-let `((,rename 'let) () ,@body))) forms)
@@ -1147,17 +1171,22 @@
                          bound-variables))))))))))))
 
 (define (emit-never-global g) 'define)
-(define (emit-always-global g) 'define-global)
+(define (emit-always-global g) 'define-global!)
 (define (bound-variables->emit-global? bound-variables)
   (lambda (g)
     (if (member g bound-variables)
-        'define-global
+        'define-global!
         'define)))
 
 (define (emit-body body-forms define-emitter)
   (map (lambda (body-form)
          (if (symbol? (car body-form))
-             `(,(define-emitter (car body-form)) ,(car body-form) ,(cdr body-form))
+             (let ((definer (define-emitter (car body-form)))
+                   (ref (core::ref (car body-form))))
+               (case definer
+                 ((define) (core::define ref (cdr body-form)))
+                 ((define-global!) (core::define-global! ref (cdr body-form)))
+                 (else (error "invalid emit-body definer" definer))))
              (cdr body-form)))
        body-forms))
 
@@ -1221,9 +1250,9 @@
                   (free=? x '...)))))
   (match exp
     ((- e ((? literal? literals) ___) clauses ___)
-     (let ((input (generate-guid 'input)))
-       `(let ((,input ,(expand e)))
-          ,(process-clauses clauses input literals))))))
+     (let ((input (core::ref (generate-guid 'input))))
+       (core::let (list (core::let-var input (expand e)))
+                  (list (process-clauses clauses input literals)))))))
 
 (define (process-clauses clauses input literals)
   (define (literal? pattern)
@@ -1233,75 +1262,92 @@
                literals)))
 
   (define (process-match input pattern sk fk)
-    (if (not (symbol? input))
-        (let ((temp (generate-guid 'temp)))
-          `(let ((,temp ,input))
-             ,(process-match temp pattern sk fk)))
+    (if (not (core::ref? input))
+        (let ((temp (core::ref (generate-guid 'temp))))
+          (core::let (list (core::let-var temp input))
+                     (list (process-match temp pattern sk fk))))
         (match pattern
           ((syntax _)         sk)
           ((syntax ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
-          (()                 `(if (%null? ,input) ,sk ,fk))
+          (()                 (core::if (core::apply-anon %null? input) sk fk))
           ((? literal? id)
-            `(if (if (ex:identifier? ,input)
-                      (if (ex:free-identifier=? ,input ,(syntax-reflect id)) #t #f) #f)
-               ,sk
-               ,fk))
-                      
-          ((? identifier? id) `(let ((,(binding-name (binding id)) ,input)) ,sk))
+            (core::if (core::if (core::apply-anon ex:identifier? input)
+                                (core::if (core::apply-anon ex:free-identifier=? input (syntax-reflect id))
+                                          (core::atomic #t)
+                                          (core::atomic #f))
+                                (core::atomic #f))
+                      sk
+                      fk))
+          ((? identifier? id) 
+          (core::let (list (core::let-var (binding->core::ref (binding id)) input))
+                                         (list sk)))
           ((p (syntax ...))
-           (let ((mapped-pvars (map (lambda (pvar) (binding-name (binding pvar)))
-                                    (map car (pattern-vars p 0)))))
-             (if (and (identifier? p)                                   ; +++
-                      (= (length mapped-pvars) 1))                      ; +++
-                 `(if (list? ,input)                                    ; +++
-                      (let ((,(car mapped-pvars) ,input))               ; +++
-                        ,sk)                                            ; +++
-                      ,fk)                                              ; +++
-                 (let ((columns (generate-guid 'cols))
-                       (rest    (generate-guid 'rest)))
-                   `(ex:map-while (lambda (,input)
-                                    ,(process-match input
-                                                    p
-                                                    `(list ,@mapped-pvars)
-                                                    #f))
-                                  ,input
-                                  (lambda (,columns ,rest)
-                                    (if (%null? ,rest)
-                                        (%apply (lambda ,mapped-pvars ,sk)
-                                               (if (%null? ,columns)
-                                                   ',(map (lambda (ignore) '()) mapped-pvars)
-                                                   (%apply map list ,columns)))
-                                        ,fk)))))))
+           (let* ((pvars (map car (pattern-vars p 0)))
+                  (bindings (map binding pvars))
+                  (refs (map binding->core::ref bindings)))
+             (if (and (identifier? p)                               ; +++
+                      (= (length refs) 1))                          ; +++
+                 (let ((ref (car refs)))
+                   (core::if (core::apply-anon list? input)
+                             (core::let (list (core::let-var ref input))
+                                        (list sk))
+                             fk))
+                 (let ((columns (core::ref (generate-guid 'cols)))
+                       (rest    (core::ref (generate-guid 'rest))))
+                   (core::apply-anon ex:map-while
+                                (core::lambda (list input)
+                                              #f
+                                              (list (process-match input
+                                                                   p
+                                                                   (core::apply (core::anon-ref list) refs)
+                                                                   (core::atomic #f))))
+                                input
+                                (core::lambda (list columns rest)
+                                              #f
+                                              (list (core::if (core::apply-anon %null? rest)
+                                                              (core::apply-anon %apply
+                                                                           (core::lambda refs #f (list sk))
+                                                                           (core::if (core::apply-anon %null? columns)
+                                                                                     (core::atomic (map (lambda (i) '()) pvars))
+                                                                                     (core::apply-anon %apply
+                                                                                                       (core::anon-ref map)
+                                                                                                       (core::anon-ref list)
+                                                                                                       columns)))
+                                                              fk))))))))
           ((p (syntax ...) . tail)
-           (let ((tail-length (dotted-length tail)))
-             `(if (%gte (ex:dotted-length ,input) ,tail-length)
-                  ,(process-match `(ex:dotted-butlast ,input ,tail-length)
-                                  `(,p ,(cadr pattern))
-                                  (process-match `(ex:dotted-last ,input ,tail-length)
-                                                 tail
-                                                 sk
-                                                 fk)
-                                  fk)
-                  ,fk)))
+           (let ((tail-length (core::atomic (dotted-length tail))))
+             (core::if (core::apply-anon %gte (core::apply-anon ex:dotted-length input) tail-length)
+                       (process-match (core::apply-anon ex:dotted-butlast input tail-length)
+                                      `(,p ,(cadr pattern))
+                                      (process-match (core::apply-anon ex:dotted-last input tail-length)
+                                                     tail
+                                                     sk
+                                                     fk)
+                                      fk)
+                       fk)))
           ((p1 . p2)
-           `(if (%pair? ,input)
-                ,(process-match `(%car ,input)
-                                p1
-                                (process-match `(%cdr ,input) p2 sk fk)
-                                fk)
-                ,fk))
+           (core::if (core::apply-anon %pair? input)
+                     (process-match (core::apply-anon %car input)
+                                    p1
+                                    (process-match (core::apply-anon %cdr input) p2 sk fk)
+                                    fk)
+                    fk))
           (#(ps ___)
-           `(if (%vector? ,input)
-                ,(process-match `(vector->list ,input)
-                                ps
-                                sk
-                                fk)
-                ,fk))
+           (core::if (core::apply-anon %vector? input)
+                     (process-match (core::apply-anon vector->list input)
+                                    ps
+                                    sk
+                                    fk)
+                     fk))
           ((? symbol? -)
            (syntax-violation 'syntax-case "Symbol object may not appear in pattern" pattern))
           (other
             #t
-           `(if (%equal? ,input ',(syntax->datum other)) ,sk ,fk)))))
+           (core::if (core::apply-anon %equal?
+                                       (core::apply-anon ex:syntax->datum input)
+                                       (core::atomic (syntax->datum other)))
+                     sk
+                     fk)))))
 
   (define (pattern-vars pattern level)
     (match pattern
@@ -1335,9 +1381,9 @@
                               ((template)
                                (expand template))
                               ((fender template)
-                               `(if ,(expand fender)
-                                    ,(expand template)
-                                    ,fk))
+                               (core::if (expand fender)
+                                         (expand template)
+                                         fk))
                               (- (syntax-violation 'syntax-case "Invalid clause" clause)))
                             fk)))))))
 
@@ -1345,11 +1391,11 @@
 
   (match clauses
     (()
-     `(ex:invalid-form ,input))
+     (core::apply-anon ex:invalid-form input))
     ((clause clauses ___)
-     (let ((fail  (generate-guid 'fail)))
-       `(let ((,fail (lambda () ,(process-clauses clauses input literals))))
-          ,(process-clause clause input `(,fail)))))))
+     (let ((fail (core::ref (generate-guid 'fail))))
+       (core::let (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
+                  (list (process-clause clause input (core::apply fail '()))))))))
           
 
 ;;=========================================================================
@@ -1380,7 +1426,7 @@
                        (begin
                          (check-binding-level id binding)
                          (register-use! id binding)
-                         (binding-name binding))
+                         (binding->core::ref binding))
                        (syntax-violation 'syntax "Template dimension error (too few ...'s?)" id))))
              (else
                (syntax-reflect id)))))
@@ -1389,45 +1435,59 @@
     ((? (lambda (_) (not ellipses-quoted?))
         (t (syntax ...) . tail))
      (let* ((head (segment-head template)) 
-            (vars
+            (mappings
              (map (lambda (mapping)
                     (let ((id      (car mapping))
                           (binding (cdr mapping)))
                       (check-binding-level id binding)
                       (register-use! id binding)
-                      (binding-name binding)))
-                  (free-meta-variables head (+ dim 1) '() 0))))
-       (if (null? vars)
+                      mapping))
+                  (free-meta-variables head (+ dim 1) '() 0)))
+            (ids (map car mappings))
+            (bindings (map cdr mappings))
+            (refs (map binding->core::ref bindings)))
+       (if (null? mappings)
            (syntax-violation 'syntax "Too many ...'s" template)
            (let* ((x (process-template head (+ dim 1) ellipses-quoted?))
-                  (gen (if (equal? (list x) vars)   ; +++
-                           x                        ; +++
-                           (if (= (length vars) 1) 
-                               `(map (lambda ,vars ,x)
-                                     ,@vars)
-                               `(if (%number-eq ,@(map (lambda (var) 
-                                                `(length ,var))
-                                              vars))
-                                    (map (lambda ,vars ,x)
-                                         ,@vars)
-                                    (syntax-violation 
-                                     'syntax 
-                                     "Pattern variables denoting lists of unequal length preceding ellipses"
-                                     ',(syntax->datum template) 
-                                     (list ,@vars))))))
+                  (gen (if (and (core::ref? x) (equal? (list (core::ref-name x)) (map core::ref-name refs)))
+                           x                              ; +++
+                           (if (= (length mappings) 1) 
+                               (core::apply (core::anon-ref map)
+                                            (cons (core::lambda refs #f (list x))
+                                                  refs))
+                               (core::if (core::apply (core::anon-ref %number-eq)
+                                                      (map (lambda (ref) (core::apply-anon length ref)) refs))
+                                         (core::apply (core::anon-ref map)
+                                                      (cons (core::lambda refs #f (list x))
+                                                            refs))
+                                         (core::apply (core::anon-ref syntax-violation)
+                                                      (list (core::atomic 'syntax)
+                                                            (core::atomic 
+                                                              "Pattern variables denoting lists of unequal length preceding ellipses")
+                                                            (core::atomic (syntax->datum template))
+                                                            (core::apply (core::anon-ref list)
+                                                                         refs)))))))
                   (gen (if (> (segment-depth template) 1)
-                           `(%apply append ,gen)
+                           (core::apply-anon %apply (core::anon-ref append) gen)
                            gen)))
              (if (null? (segment-tail template))   ; +++
                  gen                               ; +++
-                 `(append ,gen ,(process-template (segment-tail template) dim ellipses-quoted?)))))))
+                 (core::apply (core::anon-ref append)
+                              (list gen (process-template (segment-tail template) dim ellipses-quoted?))))))))
     ((t1 . t2)
-     `(%cons ,(process-template t1 dim ellipses-quoted?)
-            ,(process-template t2 dim ellipses-quoted?)))
+     (core::apply (core::anon-ref %cons)
+                  (list (process-template t1 dim ellipses-quoted?)
+                        (process-template t2 dim ellipses-quoted?))))
     (#(ts ___)
-     `(list->vector ,(process-template ts dim ellipses-quoted?)))
-    (other
-     `(quote ,(expand other)))))
+     (core::apply (core::anon-ref list->vector)
+                  (list (process-template ts dim ellipses-quoted?))))
+    (other 
+     (let ((out
+     (expand other)))
+     ;(unless (null? out) (error "out" other out))
+     ;(core::atomic (syntax->datum out))
+     out
+     ))))
 
 (define (free-meta-variables template dim free deeper)
   (match template
@@ -1597,7 +1657,7 @@
                                     (rt:register-library! library)
                                     (if *module-handler*
                                       (*module-handler* library (eq? library-type 'program)))
-                                    #f)))))))))))
+                                    (core::anon-ref %void))))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)

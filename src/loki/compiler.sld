@@ -3,7 +3,7 @@
 (import (scheme time))
 (import (loki util))
 (import (loki match))
-(export compiler-intrinsics compile-terms generate-guid)
+(export compiler-intrinsics intrinsic? generate-guid)
 (begin
 
 (define compiler-intrinsics '(
@@ -52,7 +52,6 @@
       %hash-by-identity %current-jiffy %current-second %jiffies-per-second
       %number->string %string->number))
 
-
 (define (intrinsic? i)
   (member i compiler-intrinsics))
 
@@ -77,108 +76,5 @@
                       token
                       "~"
                       (number->string ticks))))))
-
-(define compiler-primitives '(begin if let lambda quote set! define))
-
-; anf transform based on http://matt.might.net/articles/a-normalization/
-
-(define void (if #f #f))
-(define (void? obj) (eq? void obj))
-(define (atomic? exp)
-  (match exp
-    (('quote _)          #t)
-    ((? number?)         #t)
-    ((? boolean?)        #t)
-    ((? string?)         #t)
-    ((? char?)           #t)
-    ((? symbol?)         #t)
-    ((? intrinsic?)      #t)
-    ((? void?)           #t)
-    ((? procedure?)      #t)
-    ((? vector?)         #t)
-    ((? bytevector?)     #t)
-    (else                #f)))
-
-
-;; Expression normalization:
-(define (normalize-term exp) (normalize exp (lambda (x) x)))
-
-(define (normalize-terms exps)
-  (let loop ((exps exps)
-             (terms '())
-             (defines '()))
-    (if (null? exps)
-        (if (null? defines)
-          (reverse terms)
-          `((letrec (,@(reverse defines)) ,@(reverse terms))))
-        (let ((exp (car exps)))
-          (match exp
-            (('define name value)
-              (loop (cdr exps) terms (cons (list name (normalize-term value)) defines)))
-            (('begin . exp*)
-              (loop (append exp* (cdr exps)) terms defines))
-            (else (loop (cdr exps) (cons (normalize-term exp) terms) defines)))))))
-          
-
-(define (normalize exp k)
-  (let ((out (match exp
-
-    (('begin exp . exp*)
-     (k `(begin ,@(normalize-terms (cons exp exp*)))))
-
-     (('let () exp . exp*)
-      (if (null? exp*)
-        (normalize exp k)
-        (k `(let () ,@(normalize-terms (cons exp exp*))))))
-
-     (('let ((formal value) . clause) exp . exp*) 
-      (normalize value (lambda (aexp-value) 
-       `(letrec ((,formal ,aexp-value))
-         ,(normalize `(let (,@clause) ,exp ,@exp*) k)))))
-
-    (('if exp1 exp2 exp3)    
-      (normalize-name exp1 (lambda (t) 
-       (k `(if ,t ,(normalize-term exp2) 
-                  ,(normalize-term exp3))))))
-    (('if exp1 exp2)    
-      (normalize `(if ,exp1 ,exp2 %void) k))
-
-
-    (('lambda params body . body*)   
-      (k `(lambda ,params
-        ,@(normalize-terms (cons body body*)))))
-    
-    (('set! v exp)
-      (normalize-name exp (lambda (t)
-        (k `(set! ,v ,t)))))
-
-    (('define-global v exp) (k `(define ,v ,(normalize-term exp))))
-
-    ((? atomic?)            
-     (k exp))
-
-    ((f . e*) 
-      (normalize-name f (lambda (t) 
-       (normalize-name* e* (lambda (t*)
-        (k `(,t . ,t*))))))))))
-  out))
-    
-
-(define (normalize-name exp k)
-  (normalize exp (lambda (aexp) 
-    (if (atomic? aexp) (k aexp) 
-        (let ((t (generate-guid 't))) 
-         `(let ((,t ,aexp)) ,(k t)))))))
-
-(define (normalize-name* exp* k)
-  (if (null? exp*)
-      (k '())
-      (normalize-name (car exp*) (lambda (t) 
-       (normalize-name* (cdr exp*) (lambda (t*) 
-        (k `(,t . ,t*))))))))
-
-(define (compile-terms terms)
-  (let ((anf (normalize-terms terms)))
-    anf))
 
 ))

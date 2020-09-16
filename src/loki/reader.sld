@@ -35,6 +35,9 @@
 (cond-expand
   (loki (import (core exception)))
   (gauche (import (only (gauche base) char-general-category))))
+(cond-expand
+  (gauche (import (gauche base))
+          (import (scheme write))))
 (import (srfi 69))
 (export make-reader read-annotated read-datum
         get-lexeme
@@ -874,15 +877,8 @@
                    refs)))
      entries)))
 
-(type-printer-set! <source> 
-  (lambda (x writer out) 
-    (writer (string-append
-      (source-file x) ":"
-      (number->string (source-line x)) ":"
-      (number->string (source-column x))))))
 
-(type-printer-set! <annotation> 
-  (lambda (x writer out) 
+(define (annotation-printer x writer out)
     (let* ((source (annotation-source x))
            (file (if source (source-file source) #f)))
       (writer "#<syntax " #t)
@@ -895,12 +891,25 @@
           (number->string (source-column source)) " ")
         " ")
       (writer (annotation-expression x))
-      (writer ">" #t))))
+      (writer ">" #t)))
+
 
 (cond-expand
   (gauche
+   (define-method write-object ((self <annotation>) port)
+      (annotation-printer self (lambda (x . _) (write x port)) port))
     (define (make-read-error message irritants)
       (guard (error (else error))
              (apply error message irritants)))))
+
+(type-printer-set! <annotation> annotation-printer)
+
+(type-printer-set! <source> 
+  (lambda (x writer out) 
+    (writer (string-append
+      (source-file x) ":"
+      (number->string (source-line x)) ":"
+      (number->string (source-column x))))))
+
         
 ))
