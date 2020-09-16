@@ -859,7 +859,7 @@
                     #f
                     exps
                     (lambda (forms no-syntax-definitions no-bound-variables)
-                      (core::begin (map cdr forms)))))))
+                      (core::let '() (map cdr forms)))))))
 
 (define (scan-let-bindings bindings k) 
   (let loop ((bindings bindings)

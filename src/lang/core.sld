@@ -9,7 +9,6 @@
 (import (srfi 1))
 #;(import (loki syntax))
 (export core::anon-ref
-        core::begin
         core::if
         core::let-var
         core::let
@@ -28,7 +27,6 @@
 (begin
 
 ; core ir
-; begin
 ; let
 ; if
 ; lambda
@@ -73,7 +71,6 @@
               ((unsyntax raw-constructor-name) field ...)))))))))
 
 
-;(define-core-type begin body)
 ;(define-core-type if test consequent alternate)
 
 ;(define-core-type let-var name value)
@@ -98,11 +95,6 @@
   (syntax-rules ()
     ((_ id args ...)
       (core::apply (core::anon-ref id) (list args ...)))))
-
-(define-record-type <core::begin>
-  (core::begin body)
-  core::begin?
-  (body core::begin-body))
 
 (define-record-type <core::let-var>
   (core::let-var name value)
@@ -196,15 +188,10 @@
           (match exp
             (($ <core::define> name value)
               (loop (cdr exps) terms (cons (core::let-var name (normalize-term value)) vars)))
-            (($ <core::begin> body)
-              (loop (append body (cdr exps)) terms vars))
             (else (loop (cdr exps) (cons (normalize-term exp) terms) vars)))))))
           
 (define (normalize exp k)
   (match exp
-
-    (($ <core::begin> body)
-     (k (core::begin (normalize-terms body))))
 
      (($ <core::let> '() body)
       (if (null? (cdr body))
@@ -260,7 +247,6 @@
 
 (define (compile-term term)
   (match term
-    (($ <core::begin> body) `(begin ,@(map compile-term body)))
     (($ <core::letrec> vars body)
       `(letrec ,(map (lambda (var) (list (core::ref-name (core::let-var-name var)) (compile-term (core::let-var-value var)))) vars)
         ,@(map compile-term body)))
@@ -272,7 +258,7 @@
     (($ <core::set!> name value) `(set! ,(core::ref-name name) ,(compile-term value)))
     (($ <core::define> name value) `(define ,(core::ref-name name) ,(compile-term value)))
     (($ <core::define-global!> name value) `(define-global! ,(core::ref-name name) ,(compile-term value)))
-    (($ <core::atomic> value) `(quote, value))
+    (($ <core::atomic> value) `(quote ,value))
     (($ <core::ref> name) name)
     (($ <core::apply> proc args) `(,(compile-term proc) ,@(map compile-term args)))))
 
