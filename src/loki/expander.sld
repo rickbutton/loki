@@ -855,7 +855,7 @@
                     #f
                     exps
                     (lambda (forms no-syntax-definitions no-bound-variables)
-                      (core::let '() (map cdr forms)))))))
+                      (core::letrec '() (map cdr forms)))))))
 
 (define (scan-let-bindings bindings k) 
   (let loop ((bindings bindings)
@@ -897,7 +897,7 @@
                               make-local-mapping
                               body
                               (lambda (body-forms syntax-definitions bound-variables)
-                                (core::let
+                                (core::letrec
                                   (map (lambda (name binding val) (core::let-var (binding->core::ref binding) (cdr val)))
                                        names bindings val-forms)
                                   (emit-body body-forms emit-never-global))))))))))))
@@ -925,7 +925,7 @@
     ((or e) (expand e))
     ((or e es ___)
      (let ((x (generate-guid 'x)))
-       (core::let
+       (core::letrec
          (list (core::let-var (core::ref x) (expand e)))
          (list (core::if (core::ref x)
                         (core::ref x)
@@ -1244,8 +1244,8 @@
   (match exp
     ((- e ((? literal? literals) ___) clauses ___)
      (let ((input (core::ref (generate-guid 'input))))
-       (core::let (list (core::let-var input (expand e)))
-                  (list (process-clauses clauses input literals)))))))
+       (core::letrec (list (core::let-var input (expand e)))
+                     (list (process-clauses clauses input literals)))))))
 
 (define (process-clauses clauses input literals)
   (define (literal? pattern)
@@ -1257,8 +1257,8 @@
   (define (process-match input pattern sk fk)
     (if (not (core::ref? input))
         (let ((temp (core::ref (generate-guid 'temp))))
-          (core::let (list (core::let-var temp input))
-                     (list (process-match temp pattern sk fk))))
+          (core::letrec (list (core::let-var temp input))
+                        (list (process-match temp pattern sk fk))))
         (match pattern
           ((syntax _)         sk)
           ((syntax ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
@@ -1272,8 +1272,8 @@
                       sk
                       fk))
           ((? identifier? id) 
-          (core::let (list (core::let-var (binding->core::ref (binding id)) input))
-                                         (list sk)))
+          (core::letrec (list (core::let-var (binding->core::ref (binding id)) input))
+                        (list sk)))
           ((p (syntax ...))
            (let* ((pvars (map car (pattern-vars p 0)))
                   (bindings (map binding pvars))
@@ -1282,8 +1282,8 @@
                       (= (length refs) 1))                          ; +++
                  (let ((ref (car refs)))
                    (core::if (core::apply-anon list? input)
-                             (core::let (list (core::let-var ref input))
-                                        (list sk))
+                             (core::letrec (list (core::let-var ref input))
+                                           (list sk))
                              fk))
                  (let ((columns (core::ref (generate-guid 'cols)))
                        (rest    (core::ref (generate-guid 'rest))))
@@ -1387,8 +1387,8 @@
      (core::apply-anon ex:invalid-form input))
     ((clause clauses ___)
      (let ((fail (core::ref (generate-guid 'fail))))
-       (core::let (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
-                  (list (process-clause clause input (core::apply fail '()))))))))
+       (core::letrec (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
+                     (list (process-clause clause input (core::apply fail '()))))))))
           
 
 ;;=========================================================================

@@ -11,7 +11,6 @@
 (export core::anon-ref
         core::if
         core::let-var
-        core::let
         core::letrec
         core::lambda
         core::set!
@@ -102,12 +101,6 @@
   (name core::let-var-name)
   (value core::let-var-value))
 
-(define-record-type <core::let>
-  (core::let vars body)
-  core::let?
-  (vars core::let-vars)
-  (body core::let-body))
-
 (define-record-type <core::if>
   (core::if test consequent alternate)
   core::if?
@@ -194,15 +187,15 @@
 (define (normalize exp k)
   (match exp
 
-     (($ <core::let> '() body)
+     (($ <core::letrec> '() body)
       (if (null? (cdr body))
         (normalize (car body) k)
         (k (core::letrec '() (normalize-terms body)))))
 
-     (($ <core::let> (($ <core::let-var> name value) . clause) body)
+     (($ <core::letrec> (($ <core::let-var> name value) . clause) body)
       (normalize value (lambda (aexp-value) 
        (core::letrec (list (core::let-var name aexp-value))
-         (list (normalize (core::let clause body) k))))))
+         (list (normalize (core::letrec clause body) k))))))
 
     (($ <core::if> exp1 exp2 exp3)    
       (normalize-name exp1 (lambda (t)
