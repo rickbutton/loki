@@ -170,8 +170,7 @@
 (define (atomic-value? term)
   (or (is-a? term <core::atomic>)
       (is-a? term <core::ref>)
-      (is-a? term <core::lambda>)
-      (void? term)))
+      (is-a? term <core::lambda>)))
 
 ;; Expression normalization:
 (define (normalize-term exp) (normalize exp (lambda (x) x)))
@@ -187,7 +186,9 @@
         (let ((exp (car exps)))
           (match exp
             (($ <core::define> name value)
-              (loop (cdr exps) terms (cons (core::let-var name (normalize-term value)) vars)))
+              (loop (cdr exps)
+                    (cons (core::set! name (normalize-term value)) terms)
+                    (cons (core::let-var name (core::anon-ref %void)) vars)))
             (else (loop (cdr exps) (cons (normalize-term exp) terms) vars)))))))
           
 (define (normalize exp k)

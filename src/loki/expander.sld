@@ -352,16 +352,18 @@
 ;; For macro bindings, it is the key for looking up the transformer
 ;; in the global macro table.
 
-(define (make-binding type name levels content library)
-  (list type name levels content library))
+(define-record-type <binding>
+  (make-binding type name levels content library)
+  binding?
+  (type binding-type)
+  (name binding-name)
+  (levels binding-levels)
+  (content binding-content binding-content-set!)
+  (library binding-library))
 
-(define (binding-type b)           (car b))
-(define (binding-name b)           (cadr b))
-(define (binding-levels b)         (caddr b))
-(define (binding-mutable? b)       (cadddr b))
-(define (binding-dimension b)      (cadddr b))
-(define (binding-library b)        (car (cddddr b)))
-(define (binding-mutable-set! b x) (set-car! (cdddr b) x))
+(define binding-mutable? binding-content)
+(define binding-dimension binding-content)
+(define binding-mutable-set! binding-content-set!)
 
 ;; Looks up binding first in usage environment and
 ;; then in attached transformer environments.
@@ -453,12 +455,6 @@
 ;;
 ;;=========================================================================
 
-;; An environment is a list of frames.
-;;
-;;   <environment> ::= (<frame> ...)
-;;   <frame>       ::= (list ((<key> . <value>) ...))
-;;
-;; Keys must be comparable with equal? and unique in each frame.
 ;; Frames can be added, or the leftmost frame can be destructively
 ;; updated in the case of binding constructs such as bodies where
 ;; definitions are incrementally discovered.
@@ -1090,13 +1086,15 @@
                 (check-toplevel            body-type type form)
                 (case type
                   ((program)
+                   (expand-program form)
                    (loop (cdr ws)
-                         (cons (list #f #f (expand-program form)) forms)
+                         forms
                          syntax-defs
                          bound-variables))
                   ((define-library)
+                   (expand-library form)
                    (loop (cdr ws)
-                         (cons (list #f #f (expand-library form)) forms)
+                         forms
                          syntax-defs
                          bound-variables))
                   ((define)
@@ -1224,12 +1222,7 @@
       (if dup
        (begin
         (syntax-violation type "Redefinition of identifier in body" (binding id) id)))))
-  (check-used id body-type form)
-  (and (not (memq body-type `(toplevel program)))
-           (not (null? forms))
-           (not (symbol? (car (car forms))))
-           (syntax-violation type "Definitions may not follow expressions in a body" form)))
-
+  (check-used id body-type form))
 
 (define (check-expression-body body-type forms body-forms)
   (and (eq? body-type 'lambda)
@@ -1656,8 +1649,7 @@
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
                                     (if *module-handler*
-                                      (*module-handler* library (eq? library-type 'program)))
-                                    (core::anon-ref %void))))))))))))
+                                      (*module-handler* library (eq? library-type 'program))))))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
