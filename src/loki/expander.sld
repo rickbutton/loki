@@ -586,15 +586,15 @@
   (let ((source (id-source id)))
     (set! *syntax-reflected* #t)
     (core::apply-anon ex:syntax-rename
-                      (core::atomic (id-name id))
-                      (core::atomic (id-colors id))
-                      (core::atomic (cons (env-reflect *usage-env*)
+                      (core::constant (id-name id))
+                      (core::constant (id-colors id))
+                      (core::constant (cons (env-reflect *usage-env*)
                                           (id-transformer-envs id)))
-                      (core::atomic (- (- *phase* (id-displacement id)) 1))
-                      (core::atomic (id-library id))
-                      (core::atomic (source-file source))
-                      (core::atomic (source-line source))
-                      (core::atomic (source-column source)))))
+                      (core::constant (- (- *phase* (id-displacement id)) 1))
+                      (core::constant (id-library id))
+                      (core::constant (source-file source))
+                      (core::constant (source-line source))
+                      (core::constant (source-column source)))))
 
 (define (syntax-rename name colors transformer-envs transformer-phase source-library file line column)
   (make-identifier name
@@ -771,12 +771,12 @@
                        ((pattern-variable)
                        (begin
                         (syntax-violation #f "Pattern variable used outside syntax template" t)))))
-            ((null? t)       (core::atomic '()))
+            ((null? t)       (core::constant '()))
             ((list? t)       (core::apply (expand (car t)) (map expand (cdr t))))
             ((identifier? t) (core::ref (make-free-name (id-name t))))
             ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
             ((symbol? t)     (syntax-violation #f "Symbol may not appear in syntax object" t))
-            (else            (core::atomic (syntax->datum t)))))))
+            (else            (core::constant (syntax->datum t)))))))
 
 ;; Only expands while t is a user macro invocation.
 ;; Used by expand-lambda to detect internal definitions.
@@ -815,7 +815,7 @@
 
 (define (expand-quote exp)
   (match exp
-    ((quote datum) (core::atomic (syntax->datum datum)))))
+    ((quote datum) (core::constant (syntax->datum datum)))))
 
 (define (expand-if exp)
   (match exp
@@ -912,16 +912,16 @@
 
 (define (expand-and exp)
   (match exp
-    ((and) (core::atomic #t))
+    ((and) (core::constant #t))
     ((and e) (expand e))
     ((and e es ___)
      (core::if (expand e)
                     (expand `(,and ,@es))
-                    (core::atomic #f)))))
+                    (core::constant #f)))))
 
 (define (expand-or exp)
   (match exp
-    ((or) (core::atomic #t))
+    ((or) (core::constant #t))
     ((or e) (expand e))
     ((or e es ___)
      (let ((x (generate-guid 'x)))
@@ -1266,9 +1266,9 @@
           ((? literal? id)
             (core::if (core::if (core::apply-anon ex:identifier? input)
                                 (core::if (core::apply-anon ex:free-identifier=? input (syntax-reflect id))
-                                          (core::atomic #t)
-                                          (core::atomic #f))
-                                (core::atomic #f))
+                                          (core::constant #t)
+                                          (core::constant #f))
+                                (core::constant #f))
                       sk
                       fk))
           ((? identifier? id) 
@@ -1293,7 +1293,7 @@
                                               (list (process-match input
                                                                    p
                                                                    (core::apply (core::anon-ref list) refs)
-                                                                   (core::atomic #f))))
+                                                                   (core::constant #f))))
                                 input
                                 (core::lambda (list columns rest)
                                               #f
@@ -1301,14 +1301,14 @@
                                                               (core::apply-anon %apply
                                                                            (core::lambda refs #f (list sk))
                                                                            (core::if (core::apply-anon %null? columns)
-                                                                                     (core::atomic (map (lambda (i) '()) pvars))
+                                                                                     (core::constant (map (lambda (i) '()) pvars))
                                                                                      (core::apply-anon %apply
                                                                                                        (core::anon-ref map)
                                                                                                        (core::anon-ref list)
                                                                                                        columns)))
                                                               fk))))))))
           ((p (syntax ...) . tail)
-           (let ((tail-length (core::atomic (dotted-length tail))))
+           (let ((tail-length (core::constant (dotted-length tail))))
              (core::if (core::apply-anon %gte (core::apply-anon ex:dotted-length input) tail-length)
                        (process-match (core::apply-anon ex:dotted-butlast input tail-length)
                                       `(,p ,(cadr pattern))
@@ -1338,7 +1338,7 @@
             #t
            (core::if (core::apply-anon %equal?
                                        (core::apply-anon ex:syntax->datum input)
-                                       (core::atomic (syntax->datum other)))
+                                       (core::constant (syntax->datum other)))
                      sk
                      fk)))))
 
@@ -1454,10 +1454,10 @@
                                                       (cons (core::lambda refs #f (list x))
                                                             refs))
                                          (core::apply (core::anon-ref syntax-violation)
-                                                      (list (core::atomic 'syntax)
-                                                            (core::atomic 
+                                                      (list (core::constant 'syntax)
+                                                            (core::constant 
                                                               "Pattern variables denoting lists of unequal length preceding ellipses")
-                                                            (core::atomic (syntax->datum template))
+                                                            (core::constant (syntax->datum template))
                                                             (core::apply (core::anon-ref list)
                                                                          refs)))))))
                   (gen (if (> (segment-depth template) 1)
@@ -1474,13 +1474,7 @@
     (#(ts ___)
      (core::apply (core::anon-ref list->vector)
                   (list (process-template ts dim ellipses-quoted?))))
-    (other 
-     (let ((out
-     (expand other)))
-     ;(unless (null? out) (error "out" other out))
-     ;(core::atomic (syntax->datum out))
-     out
-     ))))
+    (other (expand other))))
 
 (define (free-meta-variables template dim free deeper)
   (match template

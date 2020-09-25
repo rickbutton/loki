@@ -192,7 +192,7 @@
   (car (rt:runtime-run-program (list e))))
 
 (define (rt:runtime-add-primitive name value)
-  (rt:runtime-run-expression (core::define-global! (core::ref name) (core::atomic value))))
+  (rt:runtime-run-expression (core::define-global! (core::ref name) (core::constant value))))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
