@@ -228,7 +228,7 @@
 ;; current color for painting identifiers upon renaming to be initialized
 (define *color*            #f)
 ;; global table mapping <binding name> of keyword to <macro> object
-(define *macro-table*      '())
+(define *macro-table*      (hashmap (make-default-comparator)))
 ;; maps <symbolic key> of reflected environment to actual <environment>
 (define *env-table*        '())
 ;; current library name as list of symbols or '() for toplevel
@@ -711,15 +711,14 @@
 ;; Returns <macro>.
 
 (define (binding->macro binding t)
-  (cond ((assq (binding-name binding) *macro-table*) => cdr)
-        (else
-         (raise (make-loki-error t "Reference to macro keyword out of context")))))
+  (hashmap-ref *macro-table*
+               (binding-name binding)
+               (lambda () (raise (make-loki-error t "Reference to macro keyword out of context")))))
 
 ;; Registering macro.
 
 (define (register-macro! binding-name procedure-or-macro)
-  (set! *macro-table* (cons (cons binding-name (make-user-macro procedure-or-macro))
-                            *macro-table*)))
+  (set! *macro-table* (hashmap-set *macro-table* binding-name procedure-or-macro)))
 
 ;; Register macros in library
 
@@ -1168,26 +1167,43 @@
                          syntax-defs
                          bound-variables))))))))))))
 
-(define (emit-never-global g) 'define)
-(define (emit-always-global g) 'define-global!)
+(define (emit-never-global g) #f)
+(define (emit-always-global g) #t)
 (define (bound-variables->emit-global? bound-variables)
-  (lambda (g)
-    (if (member g bound-variables)
-        'define-global!
-        'define)))
+  (lambda (g) (member g bound-variables)))
 
-(define (emit-body body-forms define-emitter)
-  (map (lambda (body-form)
-         (if (symbol? (car body-form))
-             (let ((definer (define-emitter (car body-form)))
-                   (ref (core::ref (car body-form))))
-               (case definer
-                 ((define) (core::define ref (cdr body-form)))
-                 ((define-global!) (core::define-global! ref (cdr body-form)))
-                 (else (error "invalid emit-body definer" definer))))
-             (cdr body-form)))
-       body-forms))
-
+(define (emit-body body-forms is-global?)
+  (let loop ((body-forms body-forms)
+             (output '())
+             (vars '()))
+    (if (null? body-forms)
+        (if (null? vars)
+            (reverse output)
+            (list (core::letrec (reverse vars)
+                                (reverse output))))
+        (let* ((body-form (car body-forms))
+               (symbol-or-false (car body-form))
+               (ref (core::ref symbol-or-false))
+               (val (cdr body-form)))
+          (if (symbol? symbol-or-false)
+              (if (is-global? symbol-or-false)
+                  ; if global, directly emit core::define-global!
+                  (loop (cdr body-forms)
+                        (cons (core::define-global! ref val) output)
+                        vars)
+                  (if (core::atomic? val)
+                    ;; if atomic, hoist up into the letrec, don't need
+                    ;; any fancy data flow graphs to figure this one out
+                    (loop (cdr body-forms) output (cons (core::let-var ref val) vars))
+                    ;; a regular local (define name value)
+                    ;; since core:: doesn't have local define, we hoist the definition
+                    ;; to the top of the body, with value %void
+                    (loop (cdr body-forms)
+                          (cons (core::set! ref val) output)
+                          (cons (core::let-var ref (core::anon-ref %void)) vars))))
+              ; not a define, skip
+              (loop (cdr body-forms) (cons val output) vars))))))
+                 
 (define (parse-definition exp syntax-def?)
   (match exp
     ((- (? identifier? id))

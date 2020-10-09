@@ -12,15 +12,16 @@
         core::let-var
         core::letrec
         core::lambda
+        core::lambda?
         core::set!
         core::define-global!
-        core::define
         core::constant
         core::ref
         core::ref?
         core::ref-name
         core::apply
         core::apply-anon
+        core::atomic?
         compile-core-to-host-scheme)
 (begin
 
@@ -34,7 +35,6 @@
 ;(define-core-type lambda formals rest body)
 ;(define-core-type set! name value)
 ;(define-core-type define-global! name value)
-;(define-core-type define name value)
 ;(define-core-type atomic value)
 ;(define-core-type ref name)
 ;(define-core-type apply proc args)
@@ -70,12 +70,6 @@
   core::define-global!?
   (name core::define-global!-name)
   (value core::define-global!-value))
-
-(define-record-type <core::define>
-  (core::define name value)
-  core::define?
-  (name core::define-name)
-  (value core::define-value))
 
 (define-record-type <core::constant>
   (core::constant value)
@@ -123,7 +117,6 @@
             (rest (if rest (core::ref-name rest) #f)))
         `(lambda ,(if rest (if (pair? formals) (apply cons* (append formals (list rest))) rest) formals) ,@(map compile-term body))))
     (($ <core::set!> name value) `(set! ,(core::ref-name name) ,(compile-term value)))
-    (($ <core::define> name value) `(define ,(core::ref-name name) ,(compile-term value)))
     (($ <core::define-global!> name value) `(define ,(core::ref-name name) ,(compile-term value)))
     (($ <core::constant> value) `(quote ,value))
     (($ <core::ref> name) name)
