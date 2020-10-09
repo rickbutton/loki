@@ -604,6 +604,7 @@
                    source-library
                    (make-source file line column)))
 
+; FIXME
 (define (binding->core::ref binding)
   (core::ref (binding-name binding)))
 
@@ -1103,12 +1104,12 @@
                        (check-valid-definition id common-env body-type form forms type)
                        (env-extend! (list (make-map 'variable id #f)) common-env)
                        (loop (cdr ws)
-                             (cons (list (binding-name (binding id))
+                             (cons (list (binding id)
                                          #t
                                          (make-wrap *usage-env* rhs id))
                                    forms)
                              syntax-defs
-                             (cons (binding-name (binding id)) bound-variables)))))
+                             (cons (binding id) bound-variables)))))
                   ((define-syntax)
                    (call-with-values
                        (lambda () (parse-definition form #t))
@@ -1121,6 +1122,7 @@
                            (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-run-expression rhs-expanded) rhs))
                            (loop (cdr ws)
                                  forms
+                                 ;FIXME
                                  (cons (cons (binding-name (binding id)) rhs-expanded) syntax-defs)
                                  bound-variables))))))
                   ((begin)
@@ -1170,7 +1172,8 @@
 (define (emit-never-global g) #f)
 (define (emit-always-global g) #t)
 (define (bound-variables->emit-global? bound-variables)
-  (lambda (g) (member g bound-variables)))
+  (lambda (g) (any (lambda (n) (equal? (binding-name g) (binding-name n)))
+                    bound-variables)))
 
 (define (emit-body body-forms is-global?)
   (let loop ((body-forms body-forms)
@@ -1182,11 +1185,11 @@
             (list (core::letrec (reverse vars)
                                 (reverse output))))
         (let* ((body-form (car body-forms))
-               (symbol-or-false (car body-form))
-               (ref (core::ref symbol-or-false))
+               (binding-or-false (car body-form))
+               (ref (if (binding? binding-or-false) (binding->core::ref binding-or-false) #f))
                (val (cdr body-form)))
-          (if (symbol? symbol-or-false)
-              (if (is-global? symbol-or-false)
+          (if ref
+              (if (is-global? binding-or-false)
                   ; if global, directly emit core::define-global!
                   (loop (cdr body-forms)
                         (cons (core::define-global! ref val) output)
