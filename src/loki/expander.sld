@@ -339,9 +339,9 @@
 ;;
 ;;=========================================================================
 
-;; <binding> ::= (variable         <binding-name> (<level> ...) <mutable?>  <library-name>)
-;;            |  (macro            <binding-name> (<level> ...) #f          <library-name>)
-;;            |  (pattern-variable <binding-name> (<level> ...) <dimension> <library-name>)
+;; <binding> ::= (variable         <binding-name> (<level> ...) <attrs { mutable? }>  <library-name>)
+;;            |  (macro            <binding-name> (<level> ...) <attrs>  <library-name>)
+;;            |  (pattern-variable <binding-name> (<level> ...) <attrs { dimension }> <library-name>)
 ;;            |  #f  (out of context binding from another library)
 ;; <mutable> ::= #t | #f
 ;; <dimension> ::= 0 | 1 | 2 | ...
@@ -352,18 +352,29 @@
 ;; For macro bindings, it is the key for looking up the transformer
 ;; in the global macro table.
 
+(define (empty-attrs) (hashmap (make-default-comparator)))
+(define (dimension-attrs dimension) (hashmap-set (empty-attrs) 'dimension dimension))
+
 (define-record-type <binding>
-  (make-binding type name levels content library)
+  (make-binding type name levels attrs library)
   binding?
   (type binding-type)
   (name binding-name)
   (levels binding-levels)
-  (content binding-content binding-content-set!)
+  (attrs binding-attrs binding-attrs-set!)
   (library binding-library))
 
-(define binding-mutable? binding-content)
-(define binding-dimension binding-content)
-(define binding-mutable-set! binding-content-set!)
+(define (binding-attr binding name)
+  (hashmap-ref (binding-attrs binding) name (lambda () #f)))
+(define (binding-attr! binding name)
+  (hashmap-ref (binding-attrs binding) name (lambda () (error "binding doesn't have required attr" binding name))))
+(define (binding-attr-set! binding name value)
+  (binding-attrs-set! binding (hashmap-set (binding-attrs binding) name value)))
+
+(define (binding-mutable? binding) (binding-attr binding 'mutable?))
+(define (binding-mutable-set! binding mutable?) (binding-attr-set! binding 'mutable? mutable?))
+(define (binding-dimension binding) (binding-attr! binding 'dimension))
+
 
 ;; Looks up binding first in usage environment and
 ;; then in attached transformer environments.
@@ -390,13 +401,13 @@
 ;; Generates a local mapping at the current meta-level
 ;; that can be added to the usage environment.
 
-(define (make-local-mapping type id content)
+(define (make-local-mapping type id attrs)
   (cons (cons (id-name id)
               (id-colors id))
         (make-binding type
                       (generate-guid (id-name id))
                       (list (source-level id))
-                      content
+                      attrs
                       *current-library*)))
 
 ;; Toplevel binding forms use as binding name the free name
@@ -406,16 +417,16 @@
 ;; from toplevel source code, thus approximating the behaviour
 ;; of generated internal definitions.
 
-(define (make-toplevel-mapping type id content)
+(define (make-toplevel-mapping type id attrs)
   (if (null? (id-colors id))
       (cons (cons (id-name id)
                   (id-colors id))
             (make-binding type
                           (make-free-name (id-name id))
                           '(0)
-                          content
+                          attrs
                           *current-library*))
-      (make-local-mapping type id content)))
+      (make-local-mapping type id attrs)))
 
 ;; Generates a library export binding at the current meta-level.
 
@@ -647,7 +658,7 @@
                    (list *color*)
                    (list (env-extend
                           (list (cons (cons symbol '())
-                                      (make-binding type symbol '(0) #f '())))
+                                      (make-binding type symbol '(0) (empty-attrs) '())))
                           (make-null-env)))
                    *phase*
                    #f
@@ -886,7 +897,7 @@
                     values
        (lambda (val-forms syntax-definitions bound-variables)
          (fluid-let ((*usage-env*
-                      (env-extend (map (lambda (name) (make-local-mapping 'variable name #f)) names)
+                      (env-extend (map (lambda (name) (make-local-mapping 'variable name (empty-attrs))) names)
                                   *usage-env*)))
            (let ((bindings (map binding names)))
              ;; Scan-sequence expects the caller to have prepared
@@ -964,7 +975,7 @@
     ((- (? formals? formals) body ___)
      (fluid-let ((*usage-env*
                   (env-extend (map (lambda (formal)
-                                     (make-local-mapping 'variable formal #f))
+                                     (make-local-mapping 'variable formal (empty-attrs)))
                                    (flatten formals))
                               *usage-env*)))
        (let-values (((named-formals rest-formal) (scan-formals formals)))
@@ -1102,7 +1113,7 @@
                        (lambda () (parse-definition form #f))
                      (lambda (id rhs)
                        (check-valid-definition id common-env body-type form forms type)
-                       (env-extend! (list (make-map 'variable id #f)) common-env)
+                       (env-extend! (list (make-map 'variable id (empty-attrs))) common-env)
                        (loop (cdr ws)
                              (cons (list (binding id)
                                          #t
@@ -1115,7 +1126,7 @@
                        (lambda () (parse-definition form #t))
                      (lambda (id rhs)
                        (check-valid-definition id common-env body-type form forms type)
-                       (let ((mapping (make-map 'macro id #f)))
+                       (let ((mapping (make-map 'macro id (empty-attrs))))
                          (env-extend! (list mapping) common-env)
                          (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand rhs))))
@@ -1141,7 +1152,7 @@
                      (lambda (formals rhs body)
                        (let* ((original-env *usage-env*)
                               (usage-diff   (map (lambda (formal)
-                                                   (make-local-mapping 'macro formal #f))
+                                                   (make-local-mapping 'macro formal (empty-attrs)))
                                                  formals))
                               (extended-env (env-extend usage-diff original-env))
                               (rhs-expanded
@@ -1383,7 +1394,7 @@
                      (lambda (dup)
                        (syntax-violation 'syntax-case "Repeated pattern variable" clause dup)))
          (let ((mappings (map (lambda (pvar)
-                                (make-local-mapping 'pattern-variable (car pvar) (cdr pvar)))
+                                (make-local-mapping 'pattern-variable (car pvar) (dimension-attrs (cdr pvar))))
                               pvars)))
            (fluid-let ((*usage-env* (env-extend mappings *usage-env*)))
             
@@ -1865,7 +1876,7 @@
            (values #f
                    levels
                    (map (lambda (mapping)
-                          (cons (car mapping) (make-binding 'variable (cdr mapping) levels #f '())))
+                          (cons (car mapping) (make-binding 'variable (cdr mapping) levels (empty-attrs) '())))
                         (adjuster (map (lambda (name) (cons name name))
                                        (syntax->datum xs))))))
           (((syntax only) set (? identifier? xs) ___)
@@ -1922,7 +1933,7 @@
                                         (make-binding (binding-type binding)
                                                       (binding-name binding)
                                                       (compose-levels levels (binding-levels binding))
-                                                      (binding-mutable? binding)
+                                                      (binding-attrs binding)
                                                       (binding-library binding)))))
                               (adjuster (map (lambda (name) (cons name name))
                                              (map car exports))))))
@@ -1984,7 +1995,7 @@
                                           (binding-name (cdr probe))
                                           (unionv (binding-levels (cdr probe))
                                                   (binding-levels (cdr mapping)))
-                                          (binding-mutable? (cdr probe))
+                                          (binding-attrs (cdr probe))
                                           (binding-library (cdr probe)))))
                 (set! seen (cons mapping seen)))
             (loop (cdr imports)))))))
@@ -2072,8 +2083,10 @@
           (imported-libraries (environment-imported-libraries env)))
       (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
       (rt:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
-      (let ((result (rt:runtime-run-program (expand-toplevel-sequence (list exp)))))
-        (if (null? result) result (car result))))))
+      (fluid-let ((*module-handler* (lambda (module invoke?)
+                                      (unless invoke? (error "attempted to eval a define-library statement" exp))
+                                      (rt:import-library (rt:library-name module)))))
+        (expand-toplevel-sequence (normalize (list exp)))))))
 
 ;;==========================================================================
 ;;
@@ -2407,7 +2420,7 @@
 
 (define (make-library-language)
   (map (lambda (name)
-         (cons name (make-binding 'macro name '(0) #f '())))
+         (cons name (make-binding 'macro name '(0) (empty-attrs) '())))
        library-language-names))
 
 ;;===================================================================
@@ -2457,7 +2470,7 @@
     '()
     ;; exports
     (map (lambda (mapping)
-           (cons (car mapping) (make-binding 'macro (car mapping) '(0) #f '())))
+           (cons (car mapping) (make-binding 'macro (car mapping) '(0) (empty-attrs) '())))
          primitive-macro-mapping)
     ;; imported-libraries
     '()
@@ -2487,7 +2500,7 @@
    '()
    ;; exports
    (map (lambda (intrinsic)
-          (cons intrinsic (make-binding 'variable intrinsic '(0) #f '())))
+          (cons intrinsic (make-binding 'variable intrinsic '(0) (empty-attrs) '())))
         compiler-intrinsics)
    ;; imported-libraries
    '()
