@@ -248,6 +248,15 @@
 ;; expressions - if not, save lots of space by not including
 ;; env-table in object code
 (define *syntax-reflected* #f)
+;; the current expression sequence counter
+;; bindings store the value of this counter
+;; when created, and it is compared to another
+;; value when checking for use-before-define
+(define *sequence-counter* 0)
+;; current color for painting lambdas, so that
+;; we can identify valid forward references inside
+;; lambdas vs invalid forward references
+(define *lambda-color* #f)
 
 (define (id-library id)
   (or (id-maybe-library id)
@@ -356,13 +365,19 @@
 (define (dimension-attrs dimension) (hashmap-set (empty-attrs) 'dimension dimension))
 
 (define-record-type <binding>
-  (make-binding type name levels attrs library)
+  (make-binding-record type name levels attrs library)
   binding?
   (type binding-type)
   (name binding-name)
   (levels binding-levels)
   (attrs binding-attrs binding-attrs-set!)
   (library binding-library))
+
+(define (make-binding type name levels attrs library)
+  (let ((binding (make-binding-record type name levels attrs library)))
+    (binding-attr-set! binding 'sequence-counter *sequence-counter*)
+    (binding-attr-set! binding 'lambda-color *lambda-color*)
+    binding))
 
 (define (binding-attr binding name)
   (hashmap-ref (binding-attrs binding) name (lambda () #f)))
@@ -374,7 +389,8 @@
 (define (binding-mutable? binding) (binding-attr binding 'mutable?))
 (define (binding-mutable-set! binding mutable?) (binding-attr-set! binding 'mutable? mutable?))
 (define (binding-dimension binding) (binding-attr! binding 'dimension))
-
+(define (binding-sequence-counter binding) (binding-attr! binding 'sequence-counter))
+(define (binding-lambda-color binding) (binding-attr! binding 'lambda-color))
 
 ;; Looks up binding first in usage environment and
 ;; then in attached transformer environments.
@@ -814,6 +830,7 @@
   (let ((operator (if (pair? t) (car t) t)))
     (and (identifier? operator)
          (let ((binding (binding operator)))
+           (check-reference operator binding)
            (check-binding-level operator binding)
            (register-use! operator binding)
            binding))))
@@ -867,21 +884,6 @@
                     exps
                     (lambda (forms no-syntax-definitions no-bound-variables)
                       (core::letrec '() (map cdr forms)))))))
-
-(define (scan-let-bindings bindings k) 
-  (let loop ((bindings bindings)
-             (formals '())
-             (vals    '()))
-    (if (null? bindings)
-      (k formals vals)
-      (match (car bindings)
-        ((formal val)
-          (loop (cdr bindings)
-                (cons formal formals)
-                (cons val vals)))))))
-
-(define (let-names? names)
-  (every identifier? names))
 
 (define (check-let-binding-names names)
   (for-all (lambda (name)
@@ -985,7 +987,9 @@
            ;; Scan-sequence expects the caller to have prepared
            ;; the frame to which to destructively add bindings.
            ;; Lambda bodies need a fresh frame.
-           (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
+           (fluid-let ((*usage-env* (env-extend '() *usage-env*))
+                       (*sequence-counter* 0)
+                       (*lambda-color* (generate-color)))
              (scan-sequence 'lambda
                             make-local-mapping
                             body
@@ -1031,11 +1035,14 @@
 ;; and are never seen by user macros.
 
 (define-record-type <wrap>
-  (make-wrap env exp id)
+  (make-wrap-record env exp id sequence-counter)
   wrap?
   (env wrap-env)
   (exp wrap-exp)
-  (id wrap-id))
+  (id wrap-id)
+  (sequence-counter wrap-sequence-counter))
+(define (make-wrap env exp id)
+  (make-wrap-record env exp id *sequence-counter*))
 
 ;; The continuation k is evaluated in the body environment.  This is
 ;; used for example by expand-library to obtain the correct bindings of
@@ -1051,9 +1058,9 @@
 
 (define (scan-sequence body-type make-map body-forms k)
 
-  ;; Each <form> ::= (<symbol | #f> #t <wrap>)   (deferred rhs)
-  ;;              |  (<symbol | #f> #f <s-expr>) (undeferred rhs)
-  ;; Returns ((<symbol | #f> . <s-expr>) ...)
+  ;; Each <form> ::= (<binding | #f> #t <wrap>)   (deferred rhs)
+  ;;              |  (<binding | #f> #f <s-expr>) (undeferred rhs)
+  ;; Returns ((<binding | #f> . <s-expr>) ...)
 
   (define (expand-deferred forms)
       (map (lambda (form)
@@ -1062,6 +1069,7 @@
                        (exp       (caddr form)))
                    (if deferred?
                        (fluid-let ((*usage-env* (wrap-env exp))
+                                   (*sequence-counter* (wrap-sequence-counter exp))
                                    (*current-identifier-bind* (wrap-id exp)))
                          (expand (wrap-exp exp)))
                        exp))))
@@ -1084,11 +1092,12 @@
         ;; Add denotations used in this frame to those of parent.
         ;; This is just for the optional reporting of shadowing errors.
         (merge-used-with-parent-frame!)
-        (k (reverse (expand-deferred forms))
+        (k (expand-deferred (reverse forms))
            (reverse syntax-defs)
            bound-variables))
        (else
-        (fluid-let ((*usage-env* (wrap-env (car ws))))
+        (fluid-let ((*usage-env* (wrap-env (car ws)))
+                    (*sequence-counter* (+ *sequence-counter* 1)))
           (call-with-values
               (lambda () (head-expand (wrap-exp (car ws))))
             (lambda (form operator-binding)
@@ -1106,6 +1115,11 @@
                    (expand-library form)
                    (loop (cdr ws)
                          forms
+                         syntax-defs
+                         bound-variables))
+                  ((primitive-let)
+                   (loop (cdr ws)
+                         (cons (expand-let form) forms)
                          syntax-defs
                          bound-variables))
                   ((define)
@@ -1259,6 +1273,15 @@
        (or (null? forms)
            (symbol? (caar forms)))
        (syntax-violation body-type "Body must be nonempty and end with an expression" body-forms)))
+
+(define (check-reference id binding)
+  (and (binding? binding)
+       (eq? (binding-type binding) 'variable)
+       (eq? (binding-lambda-color binding)
+            *lambda-color*)
+       (>= (binding-sequence-counter binding)
+           *sequence-counter*)
+       (syntax-violation 'use-before-define "Use before define" id)))
 
 ;;=========================================================================
 ;;
@@ -2238,14 +2261,16 @@
 
 (define with-toplevel-parameters
   (lambda (module-handler thunk)
-    (fluid-let ((*trace*            '())
-                (*current-library*  '())
-                (*phase*            0)
-                (*used*             (list '()))
-                (*color*            (generate-color))
-                (*usage-env*        *toplevel-env*)
-                (*syntax-reflected* #f)
-                (*module-handler*   module-handler))
+    (fluid-let ((*trace*              '())
+                (*current-library*    '())
+                (*phase*              0)
+                (*used*               (list '()))
+                (*color*              (generate-color))
+                (*usage-env*          *toplevel-env*)
+                (*syntax-reflected*   #f)
+                (*sequence-counter*   0)
+                (*lambda-color*       (generate-color))
+                (*module-handler*     module-handler))
       (thunk))))
 
 (define (expand-toplevel-sequence forms)
