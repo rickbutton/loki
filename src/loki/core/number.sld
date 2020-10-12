@@ -1,8 +1,8 @@
-(define-library (core number)
-(import (core primitives))
-(import (core apply))
-(import (core intrinsics))
-(import (core case-lambda))
+(define-library (loki core number)
+(import (loki core primitives))
+(import (loki core apply))
+(import (loki core intrinsics))
+(import (loki core case-lambda))
 (export + * - / < <= = > >= zero? positive? negative? abs
         bitwise-not bitwise-and bitwise-ior bitwise-xor
         arithmetic-shift bit-count integer-length)

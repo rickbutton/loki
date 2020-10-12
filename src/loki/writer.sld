@@ -1,5 +1,5 @@
 (define-library (loki writer)
-(import (core exception))
+(import (loki core exception))
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))

@@ -19,7 +19,7 @@
     #;(define (slot-set! type value slot)
       (gauche:slot-set! value))))
 (loki
-  (import (core records))
+  (import (loki core records))
   (begin
     (define (is-a? value type)
       (and (record? value)

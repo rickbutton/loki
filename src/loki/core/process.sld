@@ -1,9 +1,9 @@
-(define-library (core process)
-(import (core primitives))
-(import (core let))
-(import (core intrinsics))
-(import (core list))
-(import (rename (core intrinsics) (%emergency-exit emergency-exit)))
+(define-library (loki core process)
+(import (loki core primitives))
+(import (loki core let))
+(import (loki core intrinsics))
+(import (loki core list))
+(import (rename (loki core intrinsics) (%emergency-exit emergency-exit)))
 (export command-line get-environment-variables get-environment-variable
         emergency-exit exit)
 (begin

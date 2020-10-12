@@ -3,8 +3,8 @@
 (import (scheme case-lambda))
 (cond-expand
   (loki
-    (import (core intrinsics))
-    (import (core records))
+    (import (loki core intrinsics))
+    (import (loki core records))
     (export print-object))
   (gauche (import (gauche base))
           (import (scheme write))))

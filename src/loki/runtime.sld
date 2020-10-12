@@ -197,7 +197,7 @@
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records
 ; when record types are moved away from vectors, we should
-; be able to move this back to (core exception)
+; be able to move this back to (loki core exception)
 (define-record-type <exception>
   (make-exception type message irritants)
   exception?
@@ -521,7 +521,7 @@
 
 (rt:register-library! 
  (rt:make-library
-  '(core primitive-macros)
+  '(loki core primitive-macros)
   ;; envs
   '()
   ;; exports

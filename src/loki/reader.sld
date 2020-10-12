@@ -33,7 +33,7 @@
 (import (scheme case-lambda))
 (import (loki printer))
 (cond-expand
-  (loki (import (core exception)))
+  (loki (import (loki core exception)))
   (gauche (import (only (gauche base) char-general-category))))
 (cond-expand
   (gauche (import (gauche base))

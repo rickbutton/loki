@@ -2,7 +2,7 @@
   (export assume)
   (import (scheme base))
   (cond-expand
-    (loki (import (core syntax-error)))
+    (loki (import (loki core syntax-error)))
     (gauche (import (only (gauche base) syntax-error))))
   (begin
     (define-syntax assume

@@ -2490,7 +2490,7 @@
           (_             . ,invalid-form)
           (...           . ,invalid-form))))
    (rt:make-library
-    '(core primitive-macros)
+    '(loki core primitive-macros)
     ;; envs
     '()
     ;; exports
@@ -2520,7 +2520,7 @@
 
 (rt:register-library!
   (rt:make-library
-   '(core intrinsics)
+   '(loki core intrinsics)
    ;; envs
    '()
    ;; exports

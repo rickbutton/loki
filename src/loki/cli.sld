@@ -49,11 +49,6 @@
   (when invoke?
     (rt:import-library (rt:library-name library))))
 
-;; Load the r7rs standard library into the expander
-(define (load-stdlib)
-  (debug "expanding r7rs/lang.scm")
-  (ex:expand-file (make-path "src/lang/r7rs.scm") emit-library))
-
 (define (run-loki-cli arguments)
   (with-exception-handler
     (lambda (err)
@@ -64,7 +59,6 @@
       (let ((options (parse-options arguments)))
         (if (null? options)
           (error "target required"))
-        (load-stdlib)
         (for-each
           (lambda (target)
             (ex:expand-file (make-path target) emit-library))

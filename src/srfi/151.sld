@@ -13,7 +13,7 @@
   (export bits->list list->bits bits->vector vector->bits bits
           bitwise-fold bitwise-for-each bitwise-unfold make-bitwise-generator)
 
-  (import (core number))
+  (import (loki core number))
 
   ;; Stable part of the implementation
   (include "151/bitwise-33.scm")

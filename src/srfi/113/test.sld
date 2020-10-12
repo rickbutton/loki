@@ -1,5 +1,5 @@
 (define-library (srfi 113 test)
-(import (core intrinsics))
+(import (loki core intrinsics))
 (import (scheme base))
 (import (scheme char))
 (import (scheme complex))

@@ -1,6 +1,6 @@
 (define-library (loki syntax)
-(import (for (core primitives) expand run))
-(import (for (core quasisyntax) expand run))
+(import (for (loki core primitives) expand run))
+(import (for (loki core quasisyntax) expand run))
 (export identifier?
         bound-identifier=?
         free-identifier=?

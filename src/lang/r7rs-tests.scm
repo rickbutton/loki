@@ -1,5 +1,5 @@
-(import (for (core primitives) expand)
-        (for (core quasisyntax) expand)
+(import (for (loki core primitives) expand)
+        (for (loki core quasisyntax) expand)
         (scheme base)
         (scheme char)
         (scheme lazy)

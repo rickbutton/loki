@@ -3,7 +3,7 @@
 (import (scheme cxr))
 (import (scheme char))
 (import (scheme complex))
-(import (rename (only (core intrinsics) %hash-by-identity)
+(import (rename (only (loki core intrinsics) %hash-by-identity)
                 (%hash-by-identity hash-by-identity)))
 (export 
    make-hash-table hash-table? alist->hash-table

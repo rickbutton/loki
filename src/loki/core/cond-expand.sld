@@ -1,10 +1,10 @@
-(define-library (core cond-expand)
-(import (for (core primitives)       expand run)
-        (for (core let)              expand run)
-        (for (core list)             expand run)
-        (for (core intrinsics)       expand run)
-        (for (core bool)             expand run)
-        (for (core derived)          expand run))
+(define-library (loki core cond-expand)
+(import (for (loki core primitives)       expand run)
+        (for (loki core let)              expand run)
+        (for (loki core list)             expand run)
+        (for (loki core intrinsics)       expand run)
+        (for (loki core bool)             expand run)
+        (for (loki core derived)          expand run))
 (export cond-expand)
 (begin
 

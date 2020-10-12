@@ -1,7 +1,7 @@
-(define-library (core syntax-error)
-(import (for (core primitives) expand run)
-        (for (core apply) expand)
-        (for (core exception) expand))
+(define-library (loki core syntax-error)
+(import (for (loki core primitives) expand run)
+        (for (loki core apply) expand)
+        (for (loki core exception) expand))
 (export syntax-error)
 (begin
 
