@@ -45,23 +45,13 @@
       options)
     (default-options)))
 
-(define (emit-library library invoke?)
-  (when invoke?
-    (rt:import-library (rt:library-name library))))
-
 (define (run-loki-cli arguments)
-  (with-exception-handler
-    (lambda (err)
-      (display err)
-      (raise err)
-      (exit 1))
-    (lambda ()
       (let ((options (parse-options arguments)))
         (if (null? options)
           (error "target required"))
         (for-each
           (lambda (target)
-            (ex:expand-file (make-path target) emit-library))
-          (loki-options-targets options))))))
+            (rt:import-library (rt:library-name (ex:expand-file (make-path target)))))
+          (loki-options-targets options))))
 
 ))

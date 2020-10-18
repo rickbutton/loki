@@ -101,6 +101,20 @@
   (vars core::letrec-vars)
   (body core::letrec-body))
 
+(define-record-type <core::module>
+  (make-core::module name type envs exports imports builds syntax-defs bound-vars forms build)
+  core::module?
+  (name          core::module-name)
+  (type          core::module-type)
+  (envs          core::module-envs)
+  (exports       core::module-exports)
+  (imports       core::module-imports)
+  (builds        core::module-builds)
+  (syntax-defs   core::module-syntax-defs)
+  (bound-vars    core::module-bound-vars)
+  (forms         core::module-forms)
+  (build         core::module-build))
+
 (define (core::atomic? term)
   (or (is-a? term <core::constant>)
       (is-a? term <core::ref>)

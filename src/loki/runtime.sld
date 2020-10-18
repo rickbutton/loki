@@ -92,15 +92,16 @@
                           phase
                           importer 
                           run-or-expand)
-        (importer library phase rt:imported)
-        (set! rt:imported (cons (cons name (cons phase run-or-expand)) rt:imported)))))
+        (let ((result (importer library phase rt:imported)))
+          (set! rt:imported (cons (cons name (cons phase run-or-expand)) rt:imported))
+          result))))
 
 (define (importer library phase imported)
   (if (and (= phase 0)
     (not (rt:library-invoked? library)))
-    (begin 
-      (rt:invoke-library! library)
-      (rt:library-invoked?-set! library #t))))
+    (let ((result (rt:invoke-library! library)))
+      (rt:library-invoked?-set! library #t)
+      result)))
 
 (define (rt:import-libraries-for imports builds phase importer run-or-expand)
   (for-each (lambda (import build)

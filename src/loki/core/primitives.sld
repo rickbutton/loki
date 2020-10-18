@@ -26,7 +26,6 @@
    (rename ex:syntax-violation          syntax-violation)
    (rename ex:features                  features)
    (rename ex:environment               environment)
-   (rename ex:environment-bindings      environment-bindings)
    (rename ex:eval                      eval)
    (rename ex:load                      load))
   
@@ -51,6 +50,6 @@
     ex:identifier? ex:bound-identifier=?
     ex:free-identifier=? ex:generate-temporaries ex:datum->syntax ex:syntax->datum 
     ex:syntax->source ex:source-file ex:source-line ex:source-column
-    ex:syntax-violation ex:environment ex:environment-bindings ex:eval ex:load ex:features
+    ex:syntax-violation ex:environment ex:eval ex:load ex:features
     ))
 )

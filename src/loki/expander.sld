@@ -14,16 +14,6 @@
 ;;;
 ;;;=================================================================================
 ;;;
-;;; HOOKS:
-;;; ------
-;;;
-;;; For compiler and REPL integration, see the procedures
-;;;
-;;;   - ex:expand-file       : Use this to expand a file containing libraries and/or
-;;;                            toplevel programs before loading into an r5rs-type system
-;;;                            or feeding result to an r5rs-type compiler.
-;;;                            Suitable for separate compilation.
-;;;
 ;;; COMPILATION:
 ;;; ------------
 ;;;    
@@ -95,14 +85,12 @@
         (rename datum->syntax             ex:datum->syntax)
         (rename syntax->datum             ex:syntax->datum)
         (rename environment               ex:environment)
-        (rename environment-bindings      ex:environment-bindings)
         (rename loki-eval                 ex:eval)
         (rename loki-load                 ex:load)
         (rename syntax-violation          ex:syntax-violation)
         (rename loki-features             ex:features)
     
         (rename expand-file               ex:expand-file)
-        (rename expand-datum-sequence     ex:expand-datum-sequence)
 
         (rename invalid-form              ex:invalid-form)
         (rename register-macro!           ex:register-macro!)
@@ -114,10 +102,6 @@
         (rename free=?                    ex:free=?))
 (begin
 
-
-;; Single-character symbol prefixes.
-(define free-prefix "~")
-(define library-prefix "#")
 
 ;; A trivial but extremely useful s-expression matcher.
 ;; Implements a subset of Wright's matcher's patterns.
@@ -238,12 +222,6 @@
 (define *used*             (list '()))
 ;; history trace for error reporting
 (define *trace*            '())
-;; the current module handler
-(define *module-handler*   #f)
-;; the current 'identifier' being bound
-;; this is used to assign an "identifier" to lambdas
-;; TODO - is this a hack?
-(define *current-identifier-bind* #f)
 ;; whether expanded library introduces identifiers via syntax
 ;; expressions - if not, save lots of space by not including
 ;; env-table in object code
@@ -257,6 +235,10 @@
 ;; we can identify valid forward references inside
 ;; lambdas vs invalid forward references
 (define *lambda-color* #f)
+;; current color for naming toplevel bindings,
+;; so that we can give separate toplevel namespaces
+;; to different <environment> instances
+(define *toplevel-color* #f)
 
 (define (id-library id)
   (or (id-maybe-library id)
@@ -317,30 +299,18 @@
                 (register-use! x bx))
            result))))
 
-;;==========================================================================
-;;
-;; Infrastructure for generated names:
-;;
-;;==========================================================================
-
-;; Used to generate user program toplevel names.
-;; Prefix makes it disjoint from all builtins.
-;; Prefix makes it disjoint from output of generate-guid.
-;; Must be read-write invariant.
-
-(define (make-free-name symbol)
-  (string->symbol (string-append free-prefix (symbol->string symbol))))
-
 ;;=========================================================================
 ;;
-;; Colors to paint identifiers with:
+;; Colors to paint things with:
 ;;
 ;;=========================================================================
-
-;; Returns <color> ::= globally unique symbol
 
 (define (generate-color)
   (generate-guid 'c))
+(define (generate-lambda-color)
+  (generate-guid 'l))
+(define (generate-toplevel-color)
+  (generate-guid 't))
 
 ;;=========================================================================
 ;;
@@ -433,15 +403,18 @@
 ;; from toplevel source code, thus approximating the behaviour
 ;; of generated internal definitions.
 
+(define (make-toplevel-name symbol)
+  (string->symbol (string-append (symbol->string *toplevel-color*) (symbol->string symbol))))
+
 (define (make-toplevel-mapping type id attrs)
   (if (null? (id-colors id))
       (cons (cons (id-name id)
                   (id-colors id))
             (make-binding type
-                          (make-free-name (id-name id))
+                          (make-toplevel-name (id-name id))
                           '(0)
                           attrs
-                          *current-library*))
+                          '()))
       (make-local-mapping type id attrs)))
 
 ;; Generates a library export binding at the current meta-level.
@@ -800,7 +773,7 @@
                         (syntax-violation #f "Pattern variable used outside syntax template" t)))))
             ((null? t)       (core::constant '()))
             ((list? t)       (core::apply (expand (car t)) (map expand (cdr t))))
-            ((identifier? t) (core::ref (make-free-name (id-name t))))
+            ((identifier? t) (core::ref (make-toplevel-name (id-name t))))
             ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
             ((symbol? t)     (syntax-violation #f "Symbol may not appear in syntax object" t))
             (else            (core::constant (syntax->datum t)))))))
@@ -856,7 +829,7 @@
      (let ((binding (binding id)))
        (check-binding-level id binding)
        (register-use! id binding)
-       (case (binding-type binding)
+       (case (and binding (binding-type binding))
          ((macro)
           (let ((macro (binding->macro binding id)))
             (case (macro-type macro)
@@ -872,18 +845,19 @@
           (binding-mutable-set! binding #t)
           (core::set! (binding->core::ref binding) (expand e)))
          ((pattern-variable)
-          (syntax-violation 'set! "Pattern variable used outside syntax template" exp id)))))))
+          (syntax-violation 'set! "Pattern variable used outside syntax template" exp id))
+         (else (core::set! (core::ref (make-toplevel-name (id-name id))) (expand e))))))))
 
 ;; Expression begin.
 
 (define (expand-begin exp)
   (match exp
     ((- exps ___)
-     (scan-sequence 'expression-sequence
-                    #f
+     (scan-sequence 'lambda
+                    make-local-mapping 
                     exps
                     (lambda (forms no-syntax-definitions no-bound-variables)
-                      (core::letrec '() (map cdr forms)))))))
+                      (core::letrec '() (emit-body forms emit-never-toplevel)))))))
 
 (define (check-let-binding-names names)
   (for-all (lambda (name)
@@ -913,7 +887,7 @@
                                 (core::letrec
                                   (map (lambda (name binding val) (core::let-var (binding->core::ref binding) (cdr val)))
                                        names bindings val-forms)
-                                  (emit-body body-forms emit-never-global))))))))))))
+                                  (emit-body body-forms emit-never-toplevel))))))))))))
 
 ;; Expression let(rec)-syntax:
 
@@ -982,14 +956,13 @@
                               *usage-env*)))
        (let-values (((named-formals rest-formal) (scan-formals formals)))
          (let ((named-bindings (map (lambda (formal) (binding formal)) named-formals))
-               (rest-binding (if rest-formal (binding rest-formal) #f))
-               (id-bind *current-identifier-bind*))
+               (rest-binding (if rest-formal (binding rest-formal) #f)))
            ;; Scan-sequence expects the caller to have prepared
            ;; the frame to which to destructively add bindings.
            ;; Lambda bodies need a fresh frame.
            (fluid-let ((*usage-env* (env-extend '() *usage-env*))
                        (*sequence-counter* 0)
-                       (*lambda-color* (generate-color)))
+                       (*lambda-color* (generate-lambda-color)))
              (scan-sequence 'lambda
                             make-local-mapping
                             body
@@ -998,7 +971,7 @@
                                                       named-formals
                                                       named-bindings)
                                             (if rest-binding (binding->core::ref rest-binding) #f)
-                                            (emit-body forms emit-never-global)))))))))))
+                                            (emit-body forms emit-never-toplevel)))))))))))
 
 (define (scan-formals formals)
   (let loop ((x formals)
@@ -1069,8 +1042,7 @@
                        (exp       (caddr form)))
                    (if deferred?
                        (fluid-let ((*usage-env* (wrap-env exp))
-                                   (*sequence-counter* (wrap-sequence-counter exp))
-                                   (*current-identifier-bind* (wrap-id exp)))
+                                   (*sequence-counter* (wrap-sequence-counter exp)))
                          (expand (wrap-exp exp)))
                        exp))))
          forms))
@@ -1105,18 +1077,6 @@
                 (check-expression-sequence body-type type form)
                 (check-toplevel            body-type type form)
                 (case type
-                  ((program)
-                   (expand-program form)
-                   (loop (cdr ws)
-                         forms
-                         syntax-defs
-                         bound-variables))
-                  ((define-library)
-                   (expand-library form)
-                   (loop (cdr ws)
-                         forms
-                         syntax-defs
-                         bound-variables))
                   ((primitive-let)
                    (loop (cdr ws)
                          (cons (expand-let form) forms)
@@ -1194,13 +1154,13 @@
                          syntax-defs
                          bound-variables))))))))))))
 
-(define (emit-never-global g) #f)
-(define (emit-always-global g) #t)
-(define (bound-variables->emit-global? bound-variables)
+(define (emit-never-toplevel g) #f)
+(define (emit-always-toplevel g) #t)
+(define (bound-variables->emit-toplevel-if-bound? bound-variables)
   (lambda (g) (any (lambda (n) (equal? (binding-name g) (binding-name n)))
                     bound-variables)))
 
-(define (emit-body body-forms is-global?)
+(define (emit-body body-forms is-toplevel?)
   (let loop ((body-forms body-forms)
              (output '())
              (vars '()))
@@ -1214,7 +1174,7 @@
                (ref (if (binding? binding-or-false) (binding->core::ref binding-or-false) #f))
                (val (cdr body-form)))
           (if ref
-              (if (is-global? binding-or-false)
+              (if (is-toplevel? binding-or-false)
                   ; if global, directly emit core::define-global!
                   (loop (cdr body-forms)
                         (cons (core::define-global! ref val) output)
@@ -1252,12 +1212,12 @@
 
 (define (check-expression-sequence body-type type form)
   (and (eq? body-type 'expression-sequence)
-       (memq type '(import program library define define-syntax))
+       (memq type '(import program define-library define define-syntax))
        (syntax-violation type "Invalid form in expression sequence" form)))
 
 (define (check-toplevel body-type type form)
   (and (not (eq? body-type 'toplevel))
-       (memq type '(import program library))
+       (memq type '(import program define-library))
        (syntax-violation type "Expression may only occur at toplevel" form)))
 
 (define (check-valid-definition id common-env body-type form forms type)
@@ -1642,19 +1602,13 @@
 ;;
 ;;==========================================================================
 
-(define (expand-program t)
-  (match t
-    ((program name exps ___) (expand-library-or-program t 'program))))
-
-(define (expand-library t)
-  (expand-library-or-program t 'library))
-
-;; <library-type> ::= library | program
-
-(define (expand-library-or-program t library-type)
+(define (expand-module t)
   (match t
     ((keyword name declarations ___)
-     (let ((name (syntax->datum (scan-library-name name))))
+     (let ((name (syntax->datum (scan-library-name name)))
+           (module-type (syntax->datum (car t))))
+       (unless (memq module-type '(program define-library toplevel))
+         (syntax-violation 'module "invalid module type" (car t)))
        (call-with-values
            (lambda () (scan-declarations declarations))
          (lambda (imported-libraries imports exports body-forms)
@@ -1666,8 +1620,10 @@
              (env-import! keyword imports *usage-env*)
 
              (let ((initial-env-table *env-table*))   ; +++ space
-               (scan-sequence library-type
-                              make-local-mapping
+               (scan-sequence module-type
+                              (case module-type
+                                ((toplevel) make-toplevel-mapping)
+                                (else     make-local-mapping))
                               body-forms
                               (lambda (forms syntax-definitions bound-variables)
                                 (let* ((exports
@@ -1692,11 +1648,10 @@
                                                (current-builds imported-libraries)
                                                syntax-definitions
                                                bound-variables
-                                               (emit-body forms (bound-variables->emit-global? bound-variables))
+                                               (emit-body forms (bound-variables->emit-toplevel-if-bound? bound-variables))
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
-                                    (if *module-handler*
-                                      (*module-handler* library (eq? library-type 'program))))))))))))))
+                                    library)))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
@@ -2058,7 +2013,6 @@
     
     (raise (make-loki-error (or form-source subform-source)
         (call-with-string-output-port (lambda (out)
-            ; TODO use *trace*
             (if who (display who out))
             (if who (display " - " out))
             (display message out)
@@ -2076,13 +2030,15 @@
                    '()
                    '()
                    0
-                   `(anonymous)
+                   '()
                    (make-source "<eval>" 1 0)))
 
-(define (make-environment imported-libraries env)
-  (cons imported-libraries env))
-(define environment-imported-libraries car)
-(define environment-env                cdr)
+(define-record-type <environment>
+  (make-environment import-specs toplevel-color)
+  environment?
+  (import-specs environment-import-specs)
+  (toplevel-color environment-toplevel-color))
+  
 
 (define (environment . import-specs)
   (fluid-let ((*usage-env* (make-unit-env)))
@@ -2095,31 +2051,26 @@
                     (datum->syntax eval-template spec))
                   import-specs) '() '())))
       (lambda (imported-libraries imports)
-        (make-environment imported-libraries
-                               (let ((env (make-unit-env)))
-                                 (env-import! eval-template imports env)
-                                 env))))))
+        (make-environment import-specs (generate-toplevel-color))))))
 
 (define (loki-eval exp env)
-  (fluid-let ((*usage-env* (environment-env env)))
-    (let ((exp (datum->syntax eval-template exp))
-          (imported-libraries (environment-imported-libraries env)))
-      (import-libraries-for-expand (environment-imported-libraries env) (map not imported-libraries) 0)
-      (rt:import-libraries-for-run (environment-imported-libraries env) (map not imported-libraries) 0)
-      (fluid-let ((*module-handler* (lambda (module invoke?)
-                                      (unless invoke? (error "attempted to eval a define-library statement" exp))
-                                      (rt:import-library (rt:library-name module)))))
-        (expand-toplevel-sequence (normalize (list exp)))))))
+  (with-toplevel-parameters
+    (lambda ()
+      (let* ((exp (datum->syntax eval-template exp))
+             (import-specs (environment-import-specs env))
+             (toplevel-color (environment-toplevel-color env))
+             (imports (map (lambda (spec) (datum->syntax toplevel-template `(import ,spec)))
+                           import-specs))
+             (syn (generate-anonymous-module #t imports (list exp))))
+        (fluid-let ((*toplevel-color* toplevel-color))
+          (let ((module (expand-module syn)))
+            (car (rt:import-library (rt:library-name module)))))))))
 
 ;;==========================================================================
 ;;
 ;; Library reflection:
 ;;
 ;;=========================================================================
-
-(define (environment-bindings env)
-  (map format-mapping
-       (caar (environment-env env))))
 
 (define (format-mapping mapping)
   `((name ,(caar mapping))
@@ -2260,7 +2211,7 @@
 ;; reentrant. 
 
 (define with-toplevel-parameters
-  (lambda (module-handler thunk)
+  (lambda (thunk)
     (fluid-let ((*trace*              '())
                 (*current-library*    '())
                 (*phase*              0)
@@ -2269,16 +2220,9 @@
                 (*usage-env*          *toplevel-env*)
                 (*syntax-reflected*   #f)
                 (*sequence-counter*   0)
-                (*lambda-color*       (generate-color))
-                (*module-handler*     module-handler))
+                (*lambda-color*       (generate-lambda-color))
+                (*toplevel-color*     (generate-toplevel-color)))
       (thunk))))
-
-(define (expand-toplevel-sequence forms)
-  (scan-sequence 'toplevel
-                 make-toplevel-mapping
-                 (source->syntax toplevel-template forms)
-                 (lambda (forms syntax-definitions bound-variables)
-                   (emit-body forms emit-always-global))))
 
 (define (library-name-part->string p)
   (if (symbol? p) (symbol->string p)
@@ -2300,9 +2244,9 @@
            (rt:lookup-library name))))
 
 (define (loki-load file)
-  (expand-file (wrap-path file)
-    (lambda (library invoke?)
-      (rt:import-library (rt:library-name library)))))
+  (let ((library (expand-file (wrap-path file))))
+    (rt:register-library! library)
+    (rt:import-library (rt:library-name library))))
 
 ;; This may be used as a front end for the compiler.
 ;; It expands a file consisting of a possibly empty sequence
@@ -2310,79 +2254,34 @@
 ;; The result is a sequence of vanilla r5rs-like toplevel
 ;; definitions and expressions.
 
-(define (expand-file path module-handler)
-  (with-toplevel-parameters module-handler
+(define (expand-file path)
+  (with-toplevel-parameters
     (lambda ()
       (let ((content (read-file path #f)))
-        (expand-toplevel-sequence (normalize content))))))
+        (expand-module (normalize-forms content))))))
 
-(define (expand-datum-sequence forms module-handler)
-  (with-toplevel-parameters module-handler
-   (lambda ()
-        (expand-toplevel-sequence (normalize (datum->syntax eval-template forms))))))
+(define (generate-anonymous-module toplevel? imports body)
+  (let ((keyword (if toplevel? 'toplevel 'program)))
+    `(,(datum->syntax toplevel-template keyword) (,(datum->syntax toplevel-template (generate-guid keyword)))
+      ,@imports
+      (,(datum->syntax toplevel-template 'begin) ,@body))))
 
-;; Keeps (<library> ...) the same.
-;; Converts (<library> ... . <toplevel program>)
-;; to (<library> ... (program . <toplevel program>))
-
-(define (normalize exps)
-  (define (error)
-    (let ((newline (string #\newline)))
-      (syntax-violation
-       'normalize
-       (string-append
-        "File should be of the form:" newline
-        "      <library>*" newline
-        "    | <library>* <toplevel program>")
-       exps)))
-  (let loop ((exps exps)
-             (state 'libraries)
-             (libraries '())
-             (imports '())
-             (toplevel '()))
-    (if (null? exps)
-      (let ((program (if (pair? toplevel)
-                           `(,(datum->syntax toplevel-template 'program)
-                             (,(datum->syntax toplevel-template (generate-guid 'program)))
-                             ,@imports
-                             (,(datum->syntax toplevel-template 'begin) ,@(reverse toplevel)))
-                           '())))
-        (append (reverse (cons program libraries))))
-      (let ((exp (car exps)))
-        (case state
-          ((libraries)
-            (if (pair? exp)
-              (case (unwrap-annotation (car exp))
-                ((define-library) (loop (cdr exps) 
-                                        'libraries
-                                        (cons exp libraries)
-                                        imports
-                                        toplevel))
-                ((import) (loop (cdr exps) 
-                                'imports
-                                libraries
-                                (cons exp imports)
-                                toplevel))
-                (else (loop (cdr exps)
-                            'program
-                            libraries
-                            imports
-                            (cons exp toplevel))))
-              (loop (cdr exps) 'program libraries imports (cons exp toplevel))))
-           ((imports)
-              (case (unwrap-annotation (car exp))
-                ((import) (loop (cdr exps) 
-                                'imports
-                                libraries
-                                (cons exp imports)
-                                toplevel))
-                (else (loop (cdr exps)
-                            'program
-                            libraries
-                            imports
-                            (cons exp toplevel)))))
-           ((program)
-              (loop (cdr exps) 'program libraries imports (cons exp toplevel))))))))
+(define (normalize-forms exps)
+  (let ((exps (source->syntax toplevel-template exps)))
+    (match exps
+      ((((syntax define-library) . rest))
+       (car exps))
+      ((((syntax define-library) . rest) . rest)
+       (syntax-violation 'define-library "Invalid expressions outside of define-library" rest))
+      (else
+       (let loop ((imports '())
+                  (exps exps))
+         (if (null? exps)
+           (generate-anonymous-module #f (reverse imports) exps)
+           (match (car exps)
+             (((syntax import) . _)
+              (loop (cons (car exps) imports) (cdr exps)))
+             (else (generate-anonymous-module #f (reverse imports) exps)))))))))
 
 (define (read-file-from-reader reader)
   (let f ((x (read-annotated reader)))
@@ -2411,7 +2310,7 @@
                    '()
                    '()
                    0
-                   `(anonymous)
+                   '()
                    (make-source "<intrinsic>" 1 0)))
 
 ;;==========================================================================
@@ -2425,7 +2324,7 @@
                    '()
                    '()
                    0
-                   #f
+                   '()
                    (make-source "<toplevel>" 1 0)))
 
 (define (source->syntax tid datum)
@@ -2565,7 +2464,6 @@
 (rt:runtime-add-primitive 'ex:source-line source-line)
 (rt:runtime-add-primitive 'ex:source-column source-column)
 (rt:runtime-add-primitive 'ex:environment environment)
-(rt:runtime-add-primitive 'ex:environment-bindings environment-bindings)
 (rt:runtime-add-primitive 'ex:eval loki-eval)
 (rt:runtime-add-primitive 'ex:load loki-load)
 (rt:runtime-add-primitive 'ex:syntax-violation syntax-violation)
