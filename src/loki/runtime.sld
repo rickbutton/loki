@@ -28,7 +28,6 @@
         rt:library-imports
         rt:library-builds
         rt:library-syntax-defs
-        rt:library-bound-vars
         rt:library-forms
         rt:library-build
         rt:library-visited?
@@ -42,9 +41,7 @@
         rt:invoke-library!
         rt:lookup-library
         rt:lookup-library/false
-        rt:runtime-add-primitive
-        rt:runtime-run-expression
-        rt:runtime-run-program)
+        rt:runtime-add-primitive)
 (begin
 
 (define rt:library-dirs (list "src"))
@@ -59,7 +56,7 @@
 
 
 (define-record-type <library>
-    (make-library-record name envs exports imports builds syntax-defs bound-vars forms build visited? invoked?)
+    (make-library-record name envs exports imports builds syntax-defs forms build visited? invoked?)
     rt:library?
     (name        rt:library-name)
     (envs        rt:library-envs)
@@ -67,14 +64,13 @@
     (imports     rt:library-imports)
     (builds      rt:library-builds)
     (syntax-defs rt:library-syntax-defs)
-    (bound-vars  rt:library-bound-vars)
     (forms       rt:library-forms)
     (build       rt:library-build)
     (visited?    rt:library-visited? rt:library-visited?-set!)
     (invoked?    rt:library-invoked? rt:library-invoked?-set!))
 
-(define (rt:make-library name envs exports imports builds syntax-defs bound-vars forms build)
-  (make-library-record name envs exports imports builds syntax-defs bound-vars forms build #f #f))
+(define (rt:make-library name envs exports imports builds syntax-defs forms build)
+  (make-library-record name envs exports imports builds syntax-defs forms build #f #f))
 
 (define rt:imported '())
 (define (import-library name build phase importer run-or-expand)
@@ -186,11 +182,10 @@
             (raise err))))
     (lambda ()
       (let ((host-scheme (compile-core-to-host-scheme prog)))
-        (map (lambda (e)
-          (eval e runtime-env)) host-scheme)))))
+        (eval `(begin ,@host-scheme) runtime-env)))))
 
 (define (rt:runtime-run-expression e)
-  (car (rt:runtime-run-program (list e))))
+  (rt:runtime-run-program (list e)))
 
 (define (rt:runtime-add-primitive name value)
   (rt:runtime-run-expression (core::define-global! (core::ref name) (core::constant value))))
@@ -532,8 +527,6 @@
   ;; builds
   '()
   ;; syntax-defs
-  '()
-  ;; bound-vars
   '()
   ;; forms
   '()

@@ -4,7 +4,7 @@
 (import (scheme process-context))
 (import (loki util))
 (import (loki message))
-(import (loki expander))
+(import (prefix (loki expander) ex:))
 (import (loki compiler))
 (import (loki runtime))
 (import (loki path))
@@ -51,6 +51,7 @@
           (error "target required"))
         (for-each
           (lambda (target)
+            (debug "running" target)
             (rt:import-library (rt:library-name (ex:expand-file (make-path target)))))
           (loki-options-targets options))))
 

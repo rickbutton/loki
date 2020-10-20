@@ -14,25 +14,6 @@
 ;;;
 ;;;=================================================================================
 ;;;
-;;; COMPILATION:
-;;; ------------
-;;;    
-;;; EX:REPL evaluates a sequence of library definitions, commands, and top-level 
-;;; import forms in the interactive environment.  The semantics for 
-;;; evaluating libraries in and importing bindings into the interactive 
-;;; environment is consistent with the ERR5RS proposal at
-;;; http://scheme-punks.cyber-rush.org/wiki/index.php?title=ERR5RS:Libraries.
-;;; Bindings in the interactive environment persist between invocations 
-;;; of REPL. 
-;;;
-;;; FORMAT OF EXPANDED CODE:
-;;; ------------------------
-;;;
-;;; We expand internal and library definitions, as well as letrec and letrec*
-;;; completely to lambda and set! 
-;;; It would be very easy to abstract or change, but we don't bother for now
-;;; until implementors other than Larceny show a serious interest.
-;;;
 ;;; SIZE OF OBJECT CODE:
 ;;; --------------------
 ;;;
@@ -78,28 +59,18 @@
 (import (loki path))
 (import (lang core))
 
-(export (rename identifier?               ex:identifier?)
-        (rename bound-identifier=?        ex:bound-identifier=?)
-        (rename free-identifier=?         ex:free-identifier=?)
-        (rename generate-temporaries      ex:generate-temporaries)
-        (rename datum->syntax             ex:datum->syntax)
-        (rename syntax->datum             ex:syntax->datum)
-        (rename environment               ex:environment)
-        (rename loki-eval                 ex:eval)
-        (rename loki-load                 ex:load)
-        (rename syntax-violation          ex:syntax-violation)
-        (rename loki-features             ex:features)
-    
-        (rename expand-file               ex:expand-file)
-
-        (rename invalid-form              ex:invalid-form)
-        (rename register-macro!           ex:register-macro!)
-        (rename syntax-rename             ex:syntax-rename)
-        (rename map-while                 ex:map-while)
-        (rename dotted-length             ex:dotted-length)
-        (rename dotted-butlast            ex:dotted-butlast)
-        (rename dotted-last               ex:dotted-last)
-        (rename free=?                    ex:free=?))
+(export identifier?
+        bound-identifier=?
+        free-identifier=?
+        generate-temporaries
+        datum->syntax
+        syntax->datum
+        environment
+        loki-eval
+        loki-load
+        syntax-violation
+        loki-features
+        expand-file)
 (begin
 
 
@@ -691,21 +662,20 @@
 ;; <type> ::= expander | transformer | variable-transformer
 
 (define-record-type <macro>
-  (make-macro type proc exp)
+  (make-macro type proc)
   macro?
   (type macro-type)
-  (proc macro-proc)
-  (exp macro-exp))
+  (proc macro-proc))
 
-(define (make-expander proc)             (make-macro 'expander proc #f))
-(define (make-transformer proc exp)          (make-macro 'transformer proc exp))
+(define (make-expander proc)             (make-macro 'expander proc))
+(define (make-transformer proc)          (make-macro 'transformer proc))
 
 (define (make-user-macro procedure-or-macro)
   (cond
     ((macro? procedure-or-macro)
       procedure-or-macro)
     ((procedure? procedure-or-macro)
-      (make-transformer procedure-or-macro #f))
+      (make-transformer procedure-or-macro))
     (else
       (error "Invalid user macro" procedure-or-macro))))
 
@@ -728,7 +698,7 @@
              (let ((name (car def)) (macro (cdr def)))
                 (if (macro? macro)
                   (register-macro! name macro)
-                  (register-macro! name (make-transformer (rt:runtime-run-expression macro) (compile-core-to-host-scheme (list macro)))))))
+                  (register-macro! name (make-transformer (evaluate-macro macro))))))
            (rt:library-syntax-defs library)))
 
 ;; Calls a macro with a new color.
@@ -737,14 +707,24 @@
   (set! *color* (generate-color))
   ((macro-proc macro) t))
 
-(define (make-call-trace id k)
-  k
-  #;`(%trace ,(if id
-                (string-append (symbol->string (id-name id))
-                               " "
-                               (source->string (id-source id)))
-                'unknown)
-             ,k))
+(define (expand-macro t)
+  (let* ((imports (datum->syntax toplevel-template '((import (loki core primitives)))))
+         (expanded (expand t))
+         (module (rt:make-library `(macro ,(generate-guid 'm))
+                                  '()
+                                  '()
+                                  '()
+                                  '()
+                                  '()
+                                  (list expanded)
+                                  (generate-guid 'build))))
+    module))
+
+(define (evaluate-macro module)
+  (rt:register-library! module)
+  (rt:library-visited?-set! module #f)
+  (rt:library-invoked?-set! module #f)
+  (rt:import-library (rt:library-name module)))
 
 ;;=========================================================================
 ;;
@@ -846,7 +826,8 @@
           (core::set! (binding->core::ref binding) (expand e)))
          ((pattern-variable)
           (syntax-violation 'set! "Pattern variable used outside syntax template" exp id))
-         (else (core::set! (core::ref (make-toplevel-name (id-name id))) (expand e))))))))
+         (else
+          (core::set! (core::ref (make-toplevel-name (id-name id))) (expand e))))))))
 
 ;; Expression begin.
 
@@ -1103,8 +1084,8 @@
                        (let ((mapping (make-map 'macro id (empty-attrs))))
                          (env-extend! (list mapping) common-env)
                          (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
-                                      (expand rhs))))
-                           (register-macro! (binding-name (cdr mapping)) (make-transformer (rt:runtime-run-expression rhs-expanded) rhs))
+                                      (expand-macro rhs))))
+                           (register-macro! (binding-name (cdr mapping)) (make-transformer (evaluate-macro rhs-expanded)))
                            (loop (cdr ws)
                                  forms
                                  ;FIXME
@@ -1135,13 +1116,12 @@
                                             (case type
                                               ((let-syntax)    original-env)
                                               ((letrec-syntax) extended-env))))
-                                 (map expand rhs)))
-                              (macros (map (lambda (e) (rt:runtime-run-expression e)) rhs-expanded)))
-                         (for-each (lambda (mapping macro rhs)
-                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro rhs)))
+                                 (map expand-macro rhs)))
+                              (macros (map evaluate-macro rhs-expanded)))
+                         (for-each (lambda (mapping macro)
+                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                    usage-diff
-                                   macros
-                                   rhs)
+                                   macros)
                          (fluid-let ((*usage-env* extended-env))
                            (loop (cdr ws)
                                  (cons (list #f #f (expand-let `((,rename 'let) () ,@body))) forms)
@@ -1647,7 +1627,6 @@
                                                imported-libraries
                                                (current-builds imported-libraries)
                                                syntax-definitions
-                                               bound-variables
                                                (emit-body forms (bound-variables->emit-toplevel-if-bound? bound-variables))
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
@@ -2064,7 +2043,7 @@
              (syn (generate-anonymous-module #t imports (list exp))))
         (fluid-let ((*toplevel-color* toplevel-color))
           (let ((module (expand-module syn)))
-            (car (rt:import-library (rt:library-name module)))))))))
+            (rt:import-library (rt:library-name module))))))))
 
 ;;==========================================================================
 ;;
@@ -2404,8 +2383,6 @@
     (map (lambda (mapping)
            (cons (car mapping) (make-expander (cdr mapping))))
          primitive-macro-mapping)
-    ;; bound-vars
-    '()
     ;; forms
     '()
     ;; build
@@ -2431,8 +2408,6 @@
    ;; builds
    '()
    ;; syntax-defs
-   '()
-   ;; bound-vars
    '()
    ;; forms
    '()
