@@ -50,16 +50,15 @@
 (import (srfi 1))
 (import (srfi 128))
 (import (srfi 146 hash))
-(import (loki shared))
 (import (loki runtime))
 (import (loki util))
-(import (loki message))
-(import (loki reader))
 (import (loki path))
 (import (lang core))
 
+(import (loki core reader))
+(import (loki core syntax))
+
 (import (loki compiler intrinsics))
-(import (loki compiler syntax))
 (import (loki compiler loader))
 (import (loki compiler binding))
 (import (loki compiler environment))
@@ -1611,7 +1610,7 @@
 (define (library-ref-helper e)
   (match e
     (((? library-name-part? ids) ___) ids)
-    (- (raise (make-loki-error e "Invalid library reference.")))))
+    (- (error "Invalid library reference." e))))
 
 ;;==========================================================================
 ;;

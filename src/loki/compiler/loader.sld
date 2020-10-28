@@ -1,7 +1,7 @@
 (define-library (loki compiler loader)
 (import (scheme base))
-(import (loki reader))
 (import (loki runtime))
+(import (loki core reader))
 (import (loki compiler util))
 (import (loki compiler environment))
 (import (loki compiler macro))

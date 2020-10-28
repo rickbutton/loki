@@ -1,6 +1,6 @@
 (define-library (scheme read)
   (import (loki core primitives))
-  (import (only (loki reader) make-reader read-datum))
+  (import (only (loki core reader) make-reader read-datum))
   (import (loki core io))
   (import (loki core case-lambda))
   (export read)

@@ -1,6 +1,3 @@
-;;
-;; loki reader
-;;
 ;; This is a port of the r7rs/r6rs reader located at:
 ;; https://github.com/weinholt/laesare
 ;; with r6rs support removed.
@@ -27,13 +24,13 @@
 ;; LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 ;; FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 ;; DEALINGS IN THE SOFTWARE.
-(define-library (loki reader)
+(define-library (loki core reader)
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
+(import (loki core printer))
+(import (loki core syntax))
 (import (loki compiler util))
-(import (loki compiler syntax))
-(import (loki printer))
 (cond-expand
   (loki (import (loki core exception)))
   (gauche (import (only (gauche base) char-general-category))))

@@ -2,7 +2,7 @@
   (import (scheme base))
   (import (scheme case-lambda))
   (import (scheme write))
-  (import (loki printer))
+  (import (loki core printer))
   (import (except (srfi 69) string-hash string-ci-hash))
   (import (srfi 95))
   (import (srfi 128))

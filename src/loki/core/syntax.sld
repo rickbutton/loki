@@ -1,6 +1,5 @@
-(define-library (loki compiler syntax)
+(define-library (loki core syntax)
 (import (scheme base))
-(import (loki compiler util))
 (export  <annotation>
          annotation?
          annotation-type?
@@ -27,6 +26,7 @@
         source-column
         source->string
 
+        sexp-map
         integer-syntax?
         syntax->datum
         datum->syntax)
@@ -116,6 +116,15 @@
 (define (unwrap-annotation a)
     (if (annotation? a) (annotation-expression a) a))
 (define (integer-syntax? x) (and (annotation-type? 'value x) (integer? (annotation-expression x))))
+
+(define (sexp-map f s)
+  (cond ((null? s) '())
+        ((pair? s)
+          (cons (sexp-map f (car s))
+            (sexp-map f (cdr s))))
+        ((vector? s)
+         (apply vector (sexp-map f (vector->list s))))
+        (else (f s))))
 
 (define (syntax->datum exp)
   (sexp-map (lambda (leaf)

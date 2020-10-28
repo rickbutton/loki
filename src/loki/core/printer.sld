@@ -1,4 +1,4 @@
-(define-library (loki printer)
+(define-library (loki core printer)
 (import (scheme base))
 (import (scheme case-lambda))
 (cond-expand

@@ -4,7 +4,6 @@
 (import (scheme read))
 (import (scheme eval))
 (import (scheme process-context))
-(import (loki reader))
 (import (loki core intrinsics))
 
 (define env (environment '(scheme base)))

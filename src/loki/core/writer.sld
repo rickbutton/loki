@@ -1,9 +1,9 @@
-(define-library (loki writer)
+(define-library (loki core writer)
 (import (loki core exception))
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
-(import (loki printer))
+(import (loki core printer))
 (import (srfi 69))
 (export display write
         write-shared write-simple

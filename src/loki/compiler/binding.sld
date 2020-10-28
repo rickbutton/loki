@@ -2,8 +2,8 @@
 (import (scheme base))
 (import (srfi 128))
 (import (srfi 146 hash))
+(import (loki core syntax))
 (import (loki compiler util))
-(import (loki compiler syntax))
 (export make-binding
         binding?
         binding-type

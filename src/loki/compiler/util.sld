@@ -5,10 +5,8 @@
 (import (srfi 1))
 (import (loki util))
 (export for-all
-
         map-while
         flatten
-        sexp-map
         dotted-memp
         dotted-map
         dotted-length
@@ -43,15 +41,6 @@
         ((pair? l) (cons (car l)
                          (flatten (cdr l))))
         (else (list l))))
-
-(define (sexp-map f s)
-  (cond ((null? s) '())
-        ((pair? s)
-          (cons (sexp-map f (car s))
-            (sexp-map f (cdr s))))
-        ((vector? s)
-         (apply vector (sexp-map f (vector->list s))))
-        (else (f s))))
 
 (define (dotted-memp proc ls)
   (cond ((null? ls) #f)
