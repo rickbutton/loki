@@ -19,7 +19,6 @@
         compose
         generate-guid
         check
-        assert
         call-with-string-output-port)
 (begin
 
@@ -154,12 +153,6 @@
 (define (check x p? from)
   (or (p? x)
       (syntax-violation from "Invalid argument" x)))
-
-(define-syntax assert
-  (syntax-rules ()
-    ((assert e)
-      (let ((e2 e))
-        (if e2 e2 (error "assertion failed" 'e))))))
 
 (define (call-with-string-output-port proc)
     (define port (open-output-string))

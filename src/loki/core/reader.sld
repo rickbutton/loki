@@ -30,7 +30,6 @@
 (import (scheme case-lambda))
 (import (loki core printer))
 (import (loki core syntax))
-(import (loki compiler util))
 (cond-expand
   (loki (import (loki core exception)))
   (gauche (import (only (gauche base) char-general-category))))
@@ -42,8 +41,7 @@
         read-annotated
         read-datum
         get-lexeme
-        reader-fold-case?-set!
-        call-with-string-output-port)
+        reader-fold-case?-set!)
 (begin
 
 (cond-expand
@@ -57,6 +55,17 @@
       (and (> (char->integer c) 127)
            (memq (char-general-category c) ;XXX: could be done faster
              '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))))
+
+(define-syntax assert
+  (syntax-rules ()
+    ((assert e)
+      (let ((e2 e))
+        (if e2 e2 (error "assertion failed" 'e))))))
+
+(define (call-with-string-output-port proc)
+    (define port (open-output-string))
+    (proc port)
+    (get-output-string port))
 
 (define *annotate* (make-parameter (lambda (type source datum) datum)))
 
@@ -481,7 +490,7 @@
                                 (values 'value #\xFFFD))
                                ((null? (cdr char*)) (values 'value (car char*)))
                                ((char=? (car char*) #\x)
-                                (cond ((for-all (lambda (c)
+                                (cond ((for-each (lambda (c)
                                                   (or (char<=? #\0 c #\9)
                                                       (char-ci<=? #\a c #\f)))
                                                 (cdr char*))
