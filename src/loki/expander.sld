@@ -55,9 +55,16 @@
 (import (loki util))
 (import (loki message))
 (import (loki reader))
-(import (loki compiler))
 (import (loki path))
 (import (lang core))
+
+(import (loki compiler intrinsics))
+(import (loki compiler loader))
+(import (loki compiler binding))
+(import (loki compiler environment))
+(import (loki compiler macro))
+(import (loki compiler match))
+(import (loki compiler util))
 
 (export identifier?
         bound-identifier=?
@@ -73,101 +80,6 @@
         expand-file)
 (begin
 
-
-;; A trivial but extremely useful s-expression matcher.
-;; Implements a subset of Wright's matcher's patterns.
-;; Includes additional (syntax id) pattern that matches
-;; if input is identifier? and free=? to 'id.
-(define-syntax match
-  (syntax-rules ()
-    ((match (op arg ...) clause ...)
-     (let ((x (op arg ...)))
-       (match x clause ...)))
-    ((match x)
-     (invalid-form x))
-    ((match x (pat e ...) clause ...)
-     (matcher "base" pat "done" x (e ...) (lambda () (match x clause ...))))))
-
-(define-syntax matcher
-  (syntax-rules (- ___ ? syntax)
-    ((matcher "base" () k arg ...)
-     (matcher k (lambda (x sk fk) (if (null? x) (sk) (fk))) () arg ...))
-    ((matcher "base" - k arg ...)
-     (matcher k (lambda (x sk fk) (sk)) () arg ...))
-    ((matcher "base" (syntax id) k arg ...)
-     (matcher k
-              (lambda (x sk fk)
-                (if (free=? x 'id) (sk) (fk)))
-              ()
-              arg ...))
-    ((matcher "base" (? pred? p) k arg ...)
-     (matcher "base" p "predicate" pred? k arg ...))
-    ((matcher "predicate" code vars pred? k arg ...)
-     (matcher k
-              (lambda (x sk fk)
-                (if (pred? x)
-                    (code x sk fk)
-                    (fk)))
-              vars
-              arg ...))
-    ((matcher "base" (p1 ___ tailp ...) k arg ...)
-     (matcher "base" p1 "ellipses" (tailp ...) k arg ...))
-    ((matcher "ellipses" code vars (tailp ...) k arg ...)
-     (matcher k
-              (lambda (x sk fk)
-                (let loop ((x x)
-                           (result '()))
-                  (define (match-tail)
-                    (match x
-                      ((tailp ...)
-                       (apply sk (if (null? result)
-                                     (map (lambda (ignore) '()) 'vars)
-                                     (apply map list (reverse result)))))
-                      (- (fk))))
-                  (cond ((null? x) (match-tail))
-                        ((pair? x)
-                         (code (car x)
-                               (lambda car-vars
-                                 (loop (cdr x) (cons car-vars result)))
-                               match-tail))
-                        (else (fk)))))
-              vars
-              arg ...))
-    ((matcher "base" (p1 . p2) k arg ...)
-     (matcher "base" p1 "pair" p2 k arg ...))
-    ((matcher "pair" car-code car-vars p2 k arg ...)
-     (matcher "base" p2 "pair-done" car-code car-vars k arg ...))
-    ((matcher "pair-done" cdr-code (cdr-var ...) car-code (car-var ...) k arg ...)
-     (matcher k
-              (lambda (x sk fk)
-                (if (pair? x)
-                    (car-code (car x)
-                              (lambda (car-var ...)
-                                (cdr-code (cdr x)
-                                          (lambda (cdr-var ...)
-                                            (sk car-var ... cdr-var ...))
-                                          fk))
-                              fk)
-                    (fk)))
-              (car-var ... cdr-var ...)
-              arg ...))
-    ((matcher "base" #(p ___) k arg ...)
-     (matcher "base" (p ___) "vector" k arg ...))
-    ((matcher "vector" list-code vars k arg ...)
-     (matcher k
-              (lambda (x sk fk)
-                (if (vector? x)
-                    (list-code (vector->list x)
-                               sk
-                               fk)
-                    (fk)))
-              vars
-              arg ...))
-    ((matcher "base" id k arg ...)
-     (matcher k (lambda (x sk fk) (sk x)) (id) arg ...))
-    ((matcher "done" code vars x (e ...) fk)
-     (code x (lambda vars e ...) fk))))
-
 ;;==========================================================================
 ;;
 ;; Dynamic parameters:
@@ -182,10 +94,6 @@
 (define *phase*            0)
 ;; current color for painting identifiers upon renaming to be initialized
 (define *color*            #f)
-;; global table mapping <binding name> of keyword to <macro> object
-(define *macro-table*      (hashmap (make-default-comparator)))
-;; maps <symbolic key> of reflected environment to actual <environment>
-(define *env-table*        '())
 ;; current library name as list of symbols or '() for toplevel
 (define *current-library*  '())
 ;; car of this records bindings already referenced in current body
@@ -302,52 +210,18 @@
 ;; For macro bindings, it is the key for looking up the transformer
 ;; in the global macro table.
 
-(define (empty-attrs) (hashmap (make-default-comparator)))
 (define (dimension-attrs dimension) (hashmap-set (empty-attrs) 'dimension dimension))
-
-(define-record-type <binding>
-  (make-binding-record type name levels attrs library)
-  binding?
-  (type binding-type)
-  (name binding-name)
-  (levels binding-levels)
-  (attrs binding-attrs binding-attrs-set!)
-  (library binding-library))
-
 (define (make-binding type name levels attrs library)
   (let ((binding (make-binding-record type name levels attrs library)))
     (binding-attr-set! binding 'sequence-counter *sequence-counter*)
     (binding-attr-set! binding 'lambda-color *lambda-color*)
     binding))
-
-(define (binding-attr binding name)
-  (hashmap-ref (binding-attrs binding) name (lambda () #f)))
-(define (binding-attr! binding name)
-  (hashmap-ref (binding-attrs binding) name (lambda () (error "binding doesn't have required attr" binding name))))
-(define (binding-attr-set! binding name value)
-  (binding-attrs-set! binding (hashmap-set (binding-attrs binding) name value)))
-
 (define (binding-mutable? binding) (binding-attr binding 'mutable?))
 (define (binding-mutable-set! binding mutable?) (binding-attr-set! binding 'mutable? mutable?))
 (define (binding-dimension binding) (binding-attr! binding 'dimension))
 (define (binding-sequence-counter binding) (binding-attr! binding 'sequence-counter))
 (define (binding-lambda-color binding) (binding-attr! binding 'lambda-color))
-
-;; Looks up binding first in usage environment and
-;; then in attached transformer environments.
-;; Toplevel forward references are treated specially.
-;; Returns <binding> | #f if unbound.
-
-(define (binding id)
-  (let ((name (id-name id)))
-    (let loop ((env    *usage-env*)
-               (envs   (id-transformer-envs id))
-               (colors (id-colors id)))
-      (or (env-lookup (cons name colors) env)
-          (and (pair? envs)
-               (loop (env-reify (car envs))
-                     (cdr envs)
-                     (cdr colors)))))))
+(define (binding id) (binding-lookup id *usage-env*))
 
 ;;=========================================================================
 ;;
@@ -420,124 +294,6 @@
 
            id))))
 
-;;=========================================================================
-;;
-;; Environments:
-;;
-;;=========================================================================
-
-;; Frames can be added, or the leftmost frame can be destructively
-;; updated in the case of binding constructs such as bodies where
-;; definitions are incrementally discovered.
-
-(define (make-null-env) '())
-(define (make-unit-env) (env-extend '() (make-null-env)))
-
-(define (make-null-frame) (hashmap (make-default-comparator)))
-
-(define (mappings->frame mappings)
-  (list (alist->hashmap! (make-null-frame) mappings)))
-(define (mappings->frame! frame mappings)
-  (set-car! frame (alist->hashmap! (car frame) mappings)))
-
-;; Adds a new frame containing mappings to env.
-
-(define (env-extend mappings env)
-  (cons (mappings->frame mappings) env))
-
-;; Destructively extends the leftmost frame in env.
-
-(define (env-extend! mappings env)
-  (let ((frame (car env)))
-    (mappings->frame! frame mappings)))
-
-(define (frame-lookup key frame)
-  (hashmap-ref (car frame) key (lambda () #f) (lambda (value) (cons key value))))
-
-;; Returns <object> | #f
-
-(define (env-lookup key env)
-  (and (pair? env)
-       (or (let* ((frame (car env))
-                  (probe (frame-lookup key frame)))
-             (and probe
-                  (or (cdr probe)
-                      (syntax-violation
-                       #f "Out of context reference to identifier" (car key)))))
-           (env-lookup key (cdr env)))))
-
-;; Is id already bound in leftmost frame?
-
-(define (duplicate? id env)
-  (let ((frame (car env)))
-    (frame-lookup (cons (id-name id) (id-colors id))
-                  frame)))
-
-;; Returns a single-symbol <key> representing an
-;; environment that can be included in object code.
-
-(define (env-reflect env)
-  (cond ((and (not (null? *env-table*))      ; +++
-              (eq? env (cdar *env-table*)))  ; +++
-         (caar *env-table*))                 ; +++
-        (else
-         (let ((key (generate-guid 'env)))
-           (set! *env-table*
-                 (cons (cons key env)
-                       *env-table*))
-           key))))
-
-;; The inverse of the above.
-
-(define (env-reify key-or-env)
-  (if (symbol? key-or-env)
-      (cdr (assq key-or-env *env-table*))
-      key-or-env))
-
-; TODO - make compress, uncompress work for fancier frames
-(define (compress env-table)
-  env-table
-  #;(let ((frame-table '())
-        (count 0))
-    (for-each (lambda (entry)
-                (for-each (lambda (frame)
-                            (if (not (assq frame frame-table))
-                                (begin
-                                  (set! frame-table (cons (cons frame count) frame-table))
-                                  (set! count (+ 1 count)))))
-                          (cdr entry)))
-              env-table)
-    (cons (map (lambda (env-entry)
-                 (cons (car env-entry)
-                       (map (lambda (frame)
-                              (cdr (assq frame frame-table)))
-                            (cdr env-entry))))
-               env-table)
-          (map (lambda (frame-entry)
-                 (cons (cdr frame-entry)
-                       (list (map (lambda (mapping)
-                                    (cons (car mapping)
-                                          (let ((binding (cdr mapping)))
-                                            (case (binding-type binding)
-                                              ;; Pattern variable bindings can never be
-                                              ;; used in client, so don't waste space.
-                                              ;; Should really do the same with all local
-                                              ;; bindings, but there are usually much less
-                                              ;; of them, so don't bother for now.
-                                              ((pattern-variable) #f) ; +++
-                                              (else binding)))))
-                                  (caar frame-entry)))))
-               frame-table))))
-
-(define (uncompress compressed-env-table)
-  compressed-env-table
-  #;(if (null? compressed-env-table) '()
-    (map (lambda (env-entry)
-           (cons (car env-entry)
-                 (map (lambda (frame-abbrev)
-                        (cdr (assv frame-abbrev (cdr compressed-env-table))))
-                      (cdr env-entry))))
-         (car compressed-env-table))))
 
 ;;=========================================================================
 ;;
@@ -552,7 +308,6 @@
 ;; usage phase and the transformer phase.
 ;;
 ;;=========================================================================
-
 (define (syntax-reflect id)
   (let ((source (id-source id)))
     (set! *syntax-reflected* #t)
@@ -647,62 +402,7 @@
                     (else leaf)))
             datum))
 
-
-;;=========================================================================
-;;
-;; Macro objects:
-;;
-;;=========================================================================
-
-;; Expanders are system macros that fully expand
-;; their arguments to core Scheme, while
-;; transformers and variable transformers are
-;; user macros.
-
-;; <type> ::= expander | transformer | variable-transformer
-
-(define-record-type <macro>
-  (make-macro type proc)
-  macro?
-  (type macro-type)
-  (proc macro-proc))
-
-(define (make-expander proc)             (make-macro 'expander proc))
-(define (make-transformer proc)          (make-macro 'transformer proc))
-
-(define (make-user-macro procedure-or-macro)
-  (cond
-    ((macro? procedure-or-macro)
-      procedure-or-macro)
-    ((procedure? procedure-or-macro)
-      (make-transformer procedure-or-macro))
-    (else
-      (error "Invalid user macro" procedure-or-macro))))
-
-;; Returns <macro>.
-
-(define (binding->macro binding t)
-  (hashmap-ref *macro-table*
-               (binding-name binding)
-               (lambda () (raise (make-loki-error t "Reference to macro keyword out of context")))))
-
-;; Registering macro.
-
-(define (register-macro! binding-name procedure-or-macro)
-  (set! *macro-table* (hashmap-set *macro-table* binding-name procedure-or-macro)))
-
-;; Register macros in library
-
-(define (visit-library! library)
-  (for-all (lambda (def)
-             (let ((name (car def)) (macro (cdr def)))
-                (if (macro? macro)
-                  (register-macro! name macro)
-                  (register-macro! name (make-transformer (evaluate-macro macro))))))
-           (rt:library-syntax-defs library)))
-
 ;; Calls a macro with a new color.
-
 (define (invoke-macro macro t)
   (set! *color* (generate-color))
   ((macro-proc macro) t))
@@ -720,12 +420,6 @@
                                   (generate-guid 'build))))
     module))
 
-(define (evaluate-macro module)
-  (rt:register-library! module)
-  (rt:library-visited?-set! module #f)
-  (rt:library-invoked?-set! module #f)
-  (rt:import-library (rt:library-name module)))
-
 ;;=========================================================================
 ;;
 ;; Expander dispatch:
@@ -737,7 +431,7 @@
     (let ((binding (operator-binding t)))
       (cond (binding (case (binding-type binding)
                        ((macro)
-                        (let ((macro (binding->macro binding t)))
+                        (let ((macro (binding-name->macro (binding-name binding) t)))
                           (let ((expanded-once (invoke-macro macro t)))
                             (case (macro-type macro)
                               ((expander) expanded-once)
@@ -766,7 +460,7 @@
     (let ((binding (operator-binding t)))
       (cond (binding (case (binding-type binding)
                        ((macro)
-                        (let ((macro (binding->macro binding t)))
+                        (let ((macro (binding-name->macro (binding-name binding) t)))
                           (case (macro-type macro)
                             ((expander) (values t binding))
                             (else
@@ -811,7 +505,7 @@
        (register-use! id binding)
        (case (and binding (binding-type binding))
          ((macro)
-          (let ((macro (binding->macro binding id)))
+          (let ((macro (binding-name->macro (binding-name binding) id)))
             (case (macro-type macro)
               ((variable-transformer)
                (expand (invoke-macro macro exp)))
@@ -978,26 +672,6 @@
 ;; Bodies and sequences:
 ;;
 ;;=========================================================================
-
-;; R6RS splicing of internal let-syntax and letrec-syntax
-;; requires that we remember the bindings visible in each
-;; form for later expansion of deferred right hand sides
-;; and expressions.  This is done by attaching
-;; the environment to the expression.
-;; We call the resulting data structure a wrap.
-;; Wraps are only used internally in processing of bodies,
-;; and are never seen by user macros.
-
-(define-record-type <wrap>
-  (make-wrap-record env exp id sequence-counter)
-  wrap?
-  (env wrap-env)
-  (exp wrap-exp)
-  (id wrap-id)
-  (sequence-counter wrap-sequence-counter))
-(define (make-wrap env exp id)
-  (make-wrap-record env exp id *sequence-counter*))
-
 ;; The continuation k is evaluated in the body environment.  This is
 ;; used for example by expand-library to obtain the correct bindings of
 ;; exported identifiers.
@@ -1009,6 +683,23 @@
 ;; At TOPLEVEL, we may have a sequence of expressions, definitions, macros,
 ;; import declarations, libraries and programs wrapped in (program ---).
 ;; Redefinitions are allowed at toplevel.
+
+;; R6RS splicing of internal let-syntax and letrec-syntax
+;; requires that we remember the bindings visible in each
+;; form for later expansion of deferred right hand sides
+;; and expressions.  This is done by attaching
+;; the environment to the expression.
+;; We call the resulting data structure a wrap.
+;; Wraps are only used internally in processing of bodies,
+;; and are never seen by user macros.
+(define-record-type <wrap>
+  (make-wrap-record env exp id sequence-counter)
+  wrap?
+  (env wrap-env)
+  (exp wrap-exp)
+  (id wrap-id)
+  (sequence-counter wrap-sequence-counter))
+(define (make-wrap env exp id) (make-wrap-record env exp id *sequence-counter*))
 
 (define (scan-sequence body-type make-map body-forms k)
 
@@ -1253,8 +944,8 @@
           (core::letrec (list (core::let-var temp input))
                         (list (process-match temp pattern sk fk))))
         (match pattern
-          ((syntax _)         sk)
-          ((syntax ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
+          ((% free=? _)         sk)
+          ((% free=? ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
           (()                 (core::if (core::apply-anon %null? input) sk fk))
           ((? literal? id)
             (core::if (core::if (core::apply-anon ex:identifier? input)
@@ -1267,7 +958,7 @@
           ((? identifier? id) 
           (core::letrec (list (core::let-var (binding->core::ref (binding id)) input))
                         (list sk)))
-          ((p (syntax ...))
+          ((p (% free=? ...))
            (let* ((pvars (map car (pattern-vars p 0)))
                   (bindings (map binding pvars))
                   (refs (map binding->core::ref bindings)))
@@ -1300,7 +991,7 @@
                                                                                                        (core::anon-ref list)
                                                                                                        columns)))
                                                               fk))))))))
-          ((p (syntax ...) . tail)
+          ((p (% free=? ...) . tail)
            (let ((tail-length (core::constant (dotted-length tail))))
              (core::if (core::apply-anon %gte (core::apply-anon ex:dotted-length input) tail-length)
                        (process-match (core::apply-anon ex:dotted-butlast input tail-length)
@@ -1337,13 +1028,13 @@
 
   (define (pattern-vars pattern level)
     (match pattern
-      ((p (syntax ...) . tail) (append (pattern-vars p (+ level 1))
+      ((p (% free=? ...) . tail) (append (pattern-vars p (+ level 1))
                                        (pattern-vars tail level)))
       ((p1 . p2)               (append (pattern-vars p1 level)
                                        (pattern-vars p2 level)))
       (#(ps ___)               (pattern-vars ps level))
-      ((syntax ...)            '())
-      ((syntax _)              '())
+      ((% free=? ...)            '())
+      ((% free=? _)              '())
       ((? literal? -)          '())
       ((? identifier? id)      (list (cons id level)))
       (-                       '())))
@@ -1398,7 +1089,7 @@
 
 (define (process-template template dim ellipses-quoted?)
   (match template
-    ((syntax ...)
+    ((% free=? ...)
      (if (not ellipses-quoted?)
          (syntax-violation 'syntax "Invalid occurrence of ellipses in syntax template" template))
      (syntax-reflect template))
@@ -1416,10 +1107,10 @@
                        (syntax-violation 'syntax "Template dimension error (too few ...'s?)" id))))
              (else
                (syntax-reflect id)))))
-    (((syntax ...) p)
+    (((% free=? ...) p)
      (process-template p dim #t))
     ((? (lambda (_) (not ellipses-quoted?))
-        (t (syntax ...) . tail))
+        (t (% free=? ...) . tail))
      (let* ((head (segment-head template)) 
             (mappings
              (map (lambda (mapping)
@@ -1484,7 +1175,7 @@
                                dim))))
                (cons (cons id binding) free)
                free))))
-    ((t (syntax ...) . rest)
+    ((t (% free=? ...) . rest)
      (free-meta-variables t 
                           dim 
                           (free-meta-variables (segment-tail template) dim free deeper)
@@ -1499,7 +1190,7 @@
 
 (define (segment-depth pattern)
   (match pattern
-    ((p (syntax ...) . rest)
+    ((p (% free=? ...) . rest)
      (+ 1 (segment-depth (cdr pattern))))
     (- 0)))
   
@@ -1509,12 +1200,12 @@
   (let ((head
          (let recur ((pattern pattern))
            (match pattern
-             ((h (syntax ...) (syntax ...) . rest)
+             ((h (% free=? ...) (% free=? ...) . rest)
               (cons h (recur (cdr pattern))))
-             ((h (syntax ...) . rest)
+             ((h (% free=? ...) . rest)
               (list h))))))
     (match head 
-      ((h (syntax ...) . rest)
+      ((h (% free=? ...) . rest)
        head)
       (- (car head)))))   
 
@@ -1523,7 +1214,7 @@
 (define (segment-tail pattern)
   (let loop ((pattern (cdr pattern)))
     (match pattern
-      (((syntax ...) . tail)
+      (((% free=? ...) . tail)
        (loop tail))
       (- pattern))))
 
@@ -1599,7 +1290,7 @@
              (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
              (env-import! keyword imports *usage-env*)
 
-             (let ((initial-env-table *env-table*))   ; +++ space
+             (with-reified-env-table (lambda (reify-env-table)
                (scan-sequence module-type
                               (case module-type
                                 ((toplevel) make-toplevel-mapping)
@@ -1621,7 +1312,7 @@
                                         (library (rt:make-library
                                                name
                                                (if *syntax-reflected*
-                                                 (compress (drop-tail *env-table* initial-env-table))
+                                                 (reify-env-table)
                                                  '())
                                                exports
                                                imported-libraries
@@ -1630,7 +1321,7 @@
                                                (emit-body forms (bound-variables->emit-toplevel-if-bound? bound-variables))
                                                (generate-guid 'build))))
                                     (rt:register-library! library)
-                                    library)))))))))))
+                                    library))))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
@@ -1645,25 +1336,6 @@
          (rt:library-build (rt:lookup-library (car lib-entry))))
        imported-libraries))
 
-(define (import-libraries-for-expand imports builds phase)
-  (rt:import-libraries-for
-   imports
-   builds
-   phase
-   (lambda (library phase imported)
-     (if (and (>= phase 0)
-              (not (rt:library-visited? library)))
-         (begin
-           (set! *env-table* (append (uncompress (rt:library-envs library)) *env-table*))
-           (visit-library! library)
-           (rt:library-visited?-set! library #t)))
-     (if (and (>= phase 1)
-              (not (rt:library-invoked? library)))
-         (begin 
-           (rt:invoke-library! library)
-           (rt:library-invoked?-set! library #t))))
-   'expand))
-
 (define (scan-declarations declarations)
     (let loop ((declarations declarations)
                (imported-libraries '())
@@ -1672,16 +1344,16 @@
                (body-forms '()))
       (define (scan-cond-expand-feature-clause feature-clause)
         (match feature-clause
-          ((syntax else) #t)
-          (((syntax and)) #t)
-          (((syntax and) req1 req2 ___)
+          ((% free=? else) #t)
+          (((% free=? and)) #t)
+          (((% free=? and) req1 req2 ___)
             (and (scan-cond-expand-feature-clause req1)
                  (scan-cond-expand-feature-clause req2)))
-          (((syntax or)) #f)
-          (((syntax or) req1 req2 ___)
+          (((% free=? or)) #f)
+          (((% free=? or) req1 req2 ___)
             (or (scan-cond-expand-feature-clause req1)
                 (scan-cond-expand-feature-clause req2)))
-          (((syntax not) req) (not (scan-cond-expand-feature-clause req)))
+          (((% free=? not) req) (not (scan-cond-expand-feature-clause req)))
           ((? identifier? feature-id) (feature? (syntax->datum feature-id)))))
 
       (define (scan-cond-expand-clauses clauses)
@@ -1727,34 +1399,34 @@
                     (lambda (dup) (syntax-violation 'export "Duplicate export" dup exports)))
                     (values imported-libraries imports exports body-forms))
         (match (car declarations)
-            (((syntax import) specs ___)
+            (((% free=? import) specs ___)
                 (call-with-values
                     (lambda () (scan-imports specs imported-libraries imports))
                     (lambda (imported-libraries imports)
                       (loop (cdr declarations) imported-libraries imports exports body-forms))))
-            (((syntax export) sets ___)
+            (((% free=? export) sets ___)
                 (loop (cdr declarations)
                       imported-libraries
                       imports
                       (append exports (scan-exports sets))
                       body-forms))
-            (((syntax cond-expand) clauses ___)
+            (((% free=? cond-expand) clauses ___)
                 (scan-cond-expand-clauses clauses))
-            (((syntax include) includes ___)
+            (((% free=? include) includes ___)
                 (loop (cdr declarations)
                       imported-libraries
                       imports
                       exports
                       (append body-forms (apply append (scan-includes (caar declarations) includes #f)))))
-            (((syntax include-ci) includes ___)
+            (((% free=? include-ci) includes ___)
                 (loop (cdr declarations)
                       imported-libraries
                       imports
                       exports
                       (append body-forms (apply append (scan-includes (caar declarations) includes #t)))))
-            (((syntax include-library-declarations) includes ___)
+            (((% free=? include-library-declarations) includes ___)
                 (scan-include-library-declarations (caar declarations) includes))
-            (((syntax begin) forms ___)
+            (((% free=? begin) forms ___)
                 (loop (cdr declarations)
                       imported-libraries
                       imports
@@ -1781,7 +1453,7 @@
   (match set
     ((? identifier? x)
      `((,x ,x 0)))
-    (((syntax rename) (? identifier? x) (? identifier? y))
+    (((% free=? rename) (? identifier? x) (? identifier? y))
      `((,y ,x 0)))
     (- (syntax-violation 'export "Invalid export set" set))))
 
@@ -1829,14 +1501,14 @@
                     names))
 
         (match import-set
-          (((syntax primitives) (? identifier? xs) ___)
+          (((% free=? primitives) (? identifier? xs) ___)
            (values #f
                    levels
                    (map (lambda (mapping)
                           (cons (car mapping) (make-binding 'variable (cdr mapping) levels (empty-attrs) '())))
                         (adjuster (map (lambda (name) (cons name name))
                                        (syntax->datum xs))))))
-          (((syntax only) set (? identifier? xs) ___)
+          (((% free=? only) set (? identifier? xs) ___)
            (let ((args (syntax->datum xs)))
              (loop set
                    (compose adjuster (lambda (mappings)
@@ -1844,7 +1516,7 @@
                                        (filter (lambda (mapping)
                                                  (memq (car mapping) args))
                                                mappings))))))
-          (((syntax except) set (? identifier? xs) ___)
+          (((% free=? except) set (? identifier? xs) ___)
            (let ((args (syntax->datum xs)))
              (loop set
                    (compose adjuster (lambda (mappings)
@@ -1852,7 +1524,7 @@
                                        (filter (lambda (mapping)
                                                  (not (memq (car mapping) args)))
                                                mappings))))))
-          (((syntax prefix) set (? identifier? pre))
+          (((% free=? prefix) set (? identifier? pre))
            (loop set
                  (compose adjuster (lambda (mappings)
                                      (map (lambda (mapping)
@@ -1862,7 +1534,7 @@
                                                     (symbol->string (car mapping))))
                                                   (cdr mapping)))
                                           mappings)))))
-          (((syntax rename) set ((? identifier? xs) (? identifier? ys)) ___)
+          (((% free=? rename) set ((? identifier? xs) (? identifier? ys)) ___)
            (let ((args (syntax->datum (cddr import-set))))
              (loop set
                    (compose adjuster
@@ -1873,11 +1545,11 @@
                                                  (else (car mapping)))
                                            (cdr mapping)))
                                    mappings))))))
-          (((syntax primitives) . -) (invalid-form import-set))
-          (((syntax only)       . -) (invalid-form import-set))
-          (((syntax except)     . -) (invalid-form import-set))
-          (((syntax prefix)     . -) (invalid-form import-set))
-          (((syntax rename)     . -) (invalid-form import-set))
+          (((% free=? primitives) . -) (invalid-form import-set))
+          (((% free=? only)       . -) (invalid-form import-set))
+          (((% free=? except)     . -) (invalid-form import-set))
+          (((% free=? prefix)     . -) (invalid-form import-set))
+          (((% free=? rename)     . -) (invalid-form import-set))
           (-
            (let ((library-ref (library-ref import-set)))
              (if library-ref
@@ -1901,13 +1573,13 @@
 
 (define (scan-levels spec)
   (match spec
-    (((syntax for) set levels ___)
+    (((% free=? for) set levels ___)
      (let ((levels
             (map (lambda (level)
                    (match level
-                     ((syntax run)                   0)
-                     ((syntax expand)                1)
-                     (((syntax meta) (? integer-syntax? n)) (annotation-expression n))
+                     ((% free=? run)                   0)
+                     ((% free=? expand)                1)
+                     (((% free=? meta) (? integer-syntax? n)) (annotation-expression n))
                      (- (syntax-violation 'for "Invalid level in for spec" spec level))))
                  levels)))
        (check-set? levels = (lambda (dup) (syntax-violation 'for "Repeated level in for spec" spec dup)))
@@ -1965,8 +1637,8 @@
 (define (library-ref e)
   (library-ref-helper
    (match e
-     (((syntax define-library) name) name)
-     (((syntax define-library) . -)  (invalid-form e))
+     (((% free=? define-library) name) name)
+     (((% free=? define-library) . -)  (invalid-form e))
      (- e))))
 
 (define (library-ref-helper e)
@@ -2012,13 +1684,6 @@
                    '()
                    (make-source "<eval>" 1 0)))
 
-(define-record-type <environment>
-  (make-environment import-specs toplevel-color)
-  environment?
-  (import-specs environment-import-specs)
-  (toplevel-color environment-toplevel-color))
-  
-
 (define (environment . import-specs)
   (fluid-let ((*usage-env* (make-unit-env)))
     (env-import! eval-template (make-library-language) *usage-env*)
@@ -2045,138 +1710,11 @@
           (let ((module (expand-module syn)))
             (rt:import-library (rt:library-name module))))))))
 
-;;==========================================================================
-;;
-;; Library reflection:
-;;
-;;=========================================================================
-
-(define (format-mapping mapping)
-  `((name ,(caar mapping))
-    (type ,(binding-type (cdr mapping)))
-    (from ,(binding-library (cdr mapping)))
-    (levels ,(binding-levels (cdr mapping)))))
-
 ;;=====================================================================
 ;;
 ;; Utilities:
 ;;
 ;;=====================================================================
-
-(define (map-while f lst k)
-  (cond ((null? lst) (k '() '()))
-        ((pair? lst)
-         (let ((head (f (car lst))))
-           (if head
-               (map-while f
-                          (cdr lst)
-                          (lambda (answer rest)
-                            (k (cons head answer)
-                               rest)))
-               (k '() lst))))
-        (else  (k '() lst))))
-
-(define (flatten l)
-  (cond ((null? l) l)
-        ((pair? l) (cons (car l)
-                         (flatten (cdr l))))
-        (else (list l))))
-
-(define (sexp-map f s)
-  (cond ((null? s) '())
-        ((pair? s)
-          (cons (sexp-map f (car s))
-            (sexp-map f (cdr s))))
-        ((vector? s)
-         (apply vector (sexp-map f (vector->list s))))
-        (else (f s))))
-
-(define (dotted-memp proc ls)
-  (cond ((null? ls) #f)
-        ((pair? ls) (if (proc (car ls))
-                        ls
-                        (dotted-memp proc (cdr ls))))
-        (else (and (proc ls)
-                   ls))))
-
-(define (dotted-map f lst)
-  (cond ((null? lst) '())
-        ((pair? lst) (cons (f (car lst))
-                           (dotted-map f (cdr lst))))
-        (else (f lst))))
-
-;; Returns 0 also for non-list a la SRFI-1 protest.
-
-(define (dotted-length dl)
-  (cond ((null? dl) 0)
-        ((pair? dl) (+ 1 (dotted-length (cdr dl))))
-        (else 0)))
-
-(define (dotted-butlast ls n)
-  (let recurse ((ls ls)
-                (length-left (dotted-length ls)))
-    (cond ((< length-left n) (error "dotted-butlast: List too short" ls n))
-          ((= length-left n) '())
-          (else
-           (cons (car ls)
-                 (recurse (cdr ls)
-                          (- length-left 1)))))))
-
-(define (dotted-last ls n)
-  (let recurse ((ls ls)
-                (length-left (dotted-length ls)))
-    (cond ((< length-left n) (error "dotted-last: List too short" ls n))
-          ((= length-left n) ls)
-          (else
-           (recurse (cdr ls)
-                    (- length-left 1))))))
-
-(define (check-set? ls = fail)
-  (or (null? ls)
-      (if (memp (lambda (x)
-                  (= x (car ls)))
-                (cdr ls))
-          (fail (car ls))
-          (check-set? (cdr ls) = fail))))
-
-(define (unionv . sets)
-  (cond ((null? sets) '())
-        ((null? (car sets))
-         (apply unionv (cdr sets)))
-        (else
-         (let ((rest (apply unionv
-                            (cdr (car sets))
-                            (cdr sets))))
-           (if (memv (car (car sets)) rest)
-               rest
-               (cons (car (car sets)) rest))))))
-
-(define (drop-tail list tail)
-  (cond ((null? list)    '())
-        ((eq? list tail) '())
-        (else
-         (cons (car list)
-               (drop-tail (cdr list) tail)))))
-
-(define (join e separator)
-  (define (tostring x)
-    (cond ((symbol? x)
-           (symbol->string x))
-          ((number? x)
-           (number->string x))
-          (else
-           (error "join: Invalid argument." e))))
-  (if (null? e)
-      ""
-      (string-append
-       (tostring (car e))
-       (apply string-append
-              (map (lambda (x)
-                     (string-append separator (tostring x)))
-                   (cdr e))))))
-
-(define (compose f g)
-  (lambda (x) (f (g x))))
 
 (define (check x p? from)
   (or (p? x)
@@ -2248,9 +1786,9 @@
 (define (normalize-forms exps)
   (let ((exps (source->syntax toplevel-template exps)))
     (match exps
-      ((((syntax define-library) . rest))
+      ((((% free=? define-library) . rest))
        (car exps))
-      ((((syntax define-library) . rest) . rest)
+      ((((% free=? define-library) . rest) . rest)
        (syntax-violation 'define-library "Invalid expressions outside of define-library" rest))
       (else
        (let loop ((imports '())
@@ -2258,7 +1796,7 @@
          (if (null? exps)
            (generate-anonymous-module #f (reverse imports) exps)
            (match (car exps)
-             (((syntax import) . _)
+             (((% free=? import) . _)
               (loop (cons (car exps) imports) (cdr exps)))
              (else (generate-anonymous-module #f (reverse imports) exps)))))))))
 

@@ -1,9 +1,6 @@
-(define-library (loki compiler)
+(define-library (loki compiler intrinsics)
 (import (scheme base))
-(import (scheme time))
-(import (loki util))
-(import (loki match))
-(export compiler-intrinsics intrinsic? generate-guid)
+(export compiler-intrinsics intrinsic?)
 (begin
 
 (define compiler-intrinsics '(
@@ -54,27 +51,5 @@
 
 (define (intrinsic? i)
   (member i compiler-intrinsics))
-
-;; Generate-guid returns a fresh symbol that has a globally
-;; unique external representation and is read-write invariant.
-;; Your local gensym will probably not satisfy both conditions.
-;; Prefix makes it disjoint from all builtins.
-;; Uniqueness is important for incremental and separate expansion.
-
-(define guid-prefix "&")
-(define (unique-token)
-  (number->string (current-jiffy) 32))
-(define generate-guid
-  (let ((token (unique-token))
-        (ticks 0))
-    (lambda (symbol)
-      (set! ticks (+ ticks 1))
-      (string->symbol
-       (string-append guid-prefix
-                      (symbol->string symbol)
-                      "~"
-                      token
-                      "~"
-                      (number->string ticks))))))
 
 ))

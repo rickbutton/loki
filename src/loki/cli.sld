@@ -5,7 +5,6 @@
 (import (loki util))
 (import (loki message))
 (import (prefix (loki expander) ex:))
-(import (loki compiler))
 (import (loki runtime))
 (import (loki path))
 (import (srfi 37))

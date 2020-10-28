@@ -4,7 +4,6 @@
 (import (loki match))
 (import (loki util))
 (import (loki core reflect))
-(import (loki compiler))
 (import (loki match))
 (import (srfi 1))
 (export core::anon-ref
