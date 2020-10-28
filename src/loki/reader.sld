@@ -31,6 +31,8 @@
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
+(import (loki compiler util))
+(import (loki compiler syntax))
 (import (loki printer))
 (cond-expand
   (loki (import (loki core exception)))
@@ -39,17 +41,11 @@
   (gauche (import (gauche base))
           (import (scheme write))))
 (import (srfi 69))
-(export make-reader read-annotated read-datum
+(export make-reader
+        read-annotated
+        read-datum
         get-lexeme
         reader-fold-case?-set!
-        <source> make-source source?  source-file source-line
-        source-column source->string
-        <annotation> annotation?  annotation-type?
-        annotation-expression annotation-source unwrap-annotation
-        syntax->source
-        <identifier-context> identifier?  make-identifier id-source
-        id-name id-colors id-transformer-envs id-displacement
-        id-maybe-library integer-syntax?
         call-with-string-output-port)
 (begin
 
@@ -65,124 +61,7 @@
            (memq (char-general-category c) ;XXX: could be done faster
              '(Lu Ll Lt Lm Lo Mn Nl No Pd Pc Po Sc Sm Sk So Co Nd Mc Me)))))
 
-(define-syntax assert
-  (syntax-rules ()
-    ((assert e)
-      (let ((e2 e))
-        (if e2 e2 (error "assertion failed" 'e))))))
-
-(define (for-all proc l . ls)
-  (or (null? l)
-      (and (apply proc (car l) (map car ls))
-           (apply for-all proc (cdr l) (map cdr ls)))))
-
-
-(define (call-with-string-output-port proc)
-    (define port (open-output-string))
-    (proc port)
-    (get-output-string port))
-
-(define-record-type <source>
-    (make-source file line column)
-    source?
-    (file source-file)
-    (line source-line)
-    (column source-column))
-(define (source->string s)
-    (string-append 
-        (source-file s)
-        " ["
-        (number->string (source-line s))
-        ":"
-        (number->string (source-column s))
-        "]"))
-
-
-(define-record-type <annotation>
-    (make-annotation-record type expression source context)
-    annotation?
-    (type annotation-type)
-    (expression annotation-expression)
-    (source annotation-source)
-    (context annotation-context))
-
-(define (annotation-type? type a)
-    (and (annotation? a)
-         (eq? type (annotation-type a))))
-
-(define (make-annotation type expr src)
-    (make-annotation-record type expr src #f))
-
-(define (datum->annotation type source datum)
-  (assert (source? source))
-  (make-annotation type datum
-                   source))
-
 (define *annotate* (make-parameter (lambda (type source datum) datum)))
-
-(define-record-type <identifier-context>
-    (make-identifier-context colors transformer-envs displacement maybe-library)
-    identifier-context?
-    (colors identifier-context-colors)
-    (transformer-envs identifier-context-transformer-envs)
-    (displacement identifier-context-displacement)
-    (maybe-library identifier-context-maybe-library))
-
-;;==========================================================================
-;;
-;; Identifiers:
-;;
-;;==========================================================================
-;; <name>             ::= <symbol>
-;; <colors>           ::= (<color> ...)
-;; <transformer-envs> ::= (<env> ...)
-;; <displacement>     ::= <integer>
-;; <maybe-library>    ::= (<symbol> ...) | #f
-;;
-;; where
-;;   <name>             : The symbolic name of the identifier in the source.
-;;   <colors>           : Each time an introduced identifier is renamed, a fresh
-;;                        color gets prepended to its <colors>.
-;;   <transformer-envs> : List of reflected transformer environments.
-;;                        The environment (env-reify (car <transformer-envs>)) was the
-;;                        usage environment valid during expansion of any (syntax id)
-;;                        expression whose evaluation introduced this identifier, while
-;;                        (cdr <transformer-envs>) are in turn the reflected
-;;                        <transformer-envs> of the original id.
-;;   <displacement>     : Integer that keeps track of shifts in phases
-;;                        between transformer and usage sites of identifier.
-;;   <maybe-library>    : Library name if identifier was introduced by evaluation of
-;;                        a (syntax ...) expression, otherwise #f.
-;;                        The empty name '() is used for toplevel.
-(define (make-identifier name colors transformer-envs displacement maybe-library src)
-    (make-annotation-record 'identifier name src
-        (make-identifier-context colors transformer-envs displacement maybe-library)))
-(define (identifier? i)
-    (and (annotation? i) (eq? 'identifier (annotation-type i))))
-(define (id-source i)
-    (assert (eq? 'identifier (annotation-type i)))
-    (annotation-source i))
-(define (id-name i)
-    (assert (eq? 'identifier (annotation-type i)))
-    (annotation-expression i))
-(define (id-colors i)
-  (unless (annotation-context i) (error "id-colors: not an identifier" i))
-  (identifier-context-colors (annotation-context i)))
-(define (id-transformer-envs i) (identifier-context-transformer-envs (annotation-context i)))
-(define (id-displacement i) (identifier-context-displacement (annotation-context i)))
-(define (id-maybe-library i) (identifier-context-maybe-library (annotation-context i)))
-
-(define (unwrap-annotation a)
-    (if (annotation? a) (annotation-expression a) a))
-
-(define (syntax->source s)
-    (cond
-        ((annotation? s) (annotation-source s))
-        ((and (pair? s) (annotation? (car s)))
-            (annotation-source (car s)))
-        ((pair? s) (syntax->source (cdr s)))
-        (else #f)))
-(define (integer-syntax? x) (and (annotation-type? 'value x) (integer? (annotation-expression x))))
 
 ;; Peek at the next char from the reader.
 (define (lookahead-char reader)
@@ -910,6 +789,5 @@
       (source-file x) ":"
       (number->string (source-line x)) ":"
       (number->string (source-column x))))))
-
         
 ))

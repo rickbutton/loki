@@ -1,6 +1,5 @@
 (define-library (lang core)
 (import (scheme base))
-(import (loki reader))
 (import (loki match))
 (import (loki util))
 (import (loki core reflect))

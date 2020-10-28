@@ -59,6 +59,7 @@
 (import (lang core))
 
 (import (loki compiler intrinsics))
+(import (loki compiler syntax))
 (import (loki compiler loader))
 (import (loki compiler binding))
 (import (loki compiler environment))
@@ -123,14 +124,6 @@
   (or (id-maybe-library id)
       *current-library*))
 
-(define (bound-identifier=? x y)
-  (check x identifier? 'bound-identifier=?)
-  (check y identifier? 'bound-identifier=?)
-  (and (eq? (id-name x)
-            (id-name y))
-       (equal? (id-colors x)
-               (id-colors y))))
-
 ;; As required by r6rs, when this returns, the result is #t
 ;; if and only if the two identifiers resolve to the same binding.
 ;; It also treats unbound identifiers specially.
@@ -163,8 +156,6 @@
            (register-use! y by))
       result)))
 
-;; For internal use
-
 (define (free=? x symbol)
   (and (identifier? x)
        (let  ((bx (binding x)))
@@ -193,34 +184,38 @@
 
 ;;=========================================================================
 ;;
-;; Bindings:
+;; Error handling
 ;;
 ;;=========================================================================
+(define (syntax->source s)
+    (cond
+        ((annotation? s) (annotation-source s))
+        ((and (pair? s) (annotation? (car s)))
+            (annotation-source (car s)))
+        ((pair? s) (syntax->source (cdr s)))
+        (else #f)))
 
-;; <binding> ::= (variable         <binding-name> (<level> ...) <attrs { mutable? }>  <library-name>)
-;;            |  (macro            <binding-name> (<level> ...) <attrs>  <library-name>)
-;;            |  (pattern-variable <binding-name> (<level> ...) <attrs { dimension }> <library-name>)
-;;            |  #f  (out of context binding from another library)
-;; <mutable> ::= #t | #f
-;; <dimension> ::= 0 | 1 | 2 | ...
-;; <binding-name> ::= <symbol> uniquely identifying binding.
-;; <binding-name> is used for free-identifier=? comparison.
-;; For variable and pattern variable bindings, it is the same
-;; as the symbol emitted for the binding in the object code.
-;; For macro bindings, it is the key for looking up the transformer
-;; in the global macro table.
+(define (syntax-violation who message form . maybe-subform)
+  (let* ((subform (cond ((null? maybe-subform) #f)
+                       ((and (pair? maybe-subform)
+                             (null? (cdr maybe-subform)))
+                        (car maybe-subform))
+                       (else (error "syntax-violation: Invalid subform in syntax violation"
+                                    maybe-subform))))
+        (form-source (syntax->source form))
+        (subform-source (syntax->source subform)))
+    
+    (error (call-with-string-output-port (lambda (out)
+                (if who (display who out))
+                (if who (display " - " out))
+                (display message out)
+                (display "\n" out)
+                (display form out)))
+           (or form-source subform-source))))
+(define (invalid-form exp)
+  (syntax-violation #f "Invalid form" exp))
 
-(define (dimension-attrs dimension) (hashmap-set (empty-attrs) 'dimension dimension))
-(define (make-binding type name levels attrs library)
-  (let ((binding (make-binding-record type name levels attrs library)))
-    (binding-attr-set! binding 'sequence-counter *sequence-counter*)
-    (binding-attr-set! binding 'lambda-color *lambda-color*)
-    binding))
-(define (binding-mutable? binding) (binding-attr binding 'mutable?))
-(define (binding-mutable-set! binding mutable?) (binding-attr-set! binding 'mutable? mutable?))
-(define (binding-dimension binding) (binding-attr! binding 'dimension))
-(define (binding-sequence-counter binding) (binding-attr! binding 'sequence-counter))
-(define (binding-lambda-color binding) (binding-attr! binding 'lambda-color))
+(define (attrs-from-context) (default-attrs *sequence-counter* *lambda-color*))
 (define (binding id) (binding-lookup id *usage-env*))
 
 ;;=========================================================================
@@ -373,35 +368,12 @@
                    (list *color*)
                    (list (env-extend
                           (list (cons (cons symbol '())
-                                      (make-binding type symbol '(0) (empty-attrs) '())))
+                                      (make-binding type symbol '(0) (attrs-from-context) '())))
                           (make-null-env)))
                    *phase*
                    #f
                    (make-source "<unknown>" 1 0)))
                    
-(define (syntax->datum exp)
-  (sexp-map (lambda (leaf)
-              (cond ((identifier? leaf) (id-name leaf))
-                    ((annotation? leaf) (annotation-expression leaf))
-                    ((symbol? leaf)
-                     (error "syntax->datum: A symbol is not a valid syntax object" leaf))
-                    (else leaf)))
-            exp))
-
-(define (datum->syntax tid datum)
-  (unless (identifier? tid)
-    (error "datum->syntax: Invalid form" tid))
-  (sexp-map (lambda (leaf)
-              (cond ((symbol? leaf)
-                     (make-identifier leaf
-                                      (id-colors tid)
-                                      (id-transformer-envs tid)
-                                      (id-displacement tid)
-                                      (id-maybe-library tid)
-                                      (id-source tid)))
-                    (else leaf)))
-            datum))
-
 ;; Calls a macro with a new color.
 (define (invoke-macro macro t)
   (set! *color* (generate-color))
@@ -548,7 +520,7 @@
                     values
        (lambda (val-forms syntax-definitions bound-variables)
          (fluid-let ((*usage-env*
-                      (env-extend (map (lambda (name) (make-local-mapping 'variable name (empty-attrs))) names)
+                      (env-extend (map (lambda (name) (make-local-mapping 'variable name (attrs-from-context))) names)
                                   *usage-env*)))
            (let ((bindings (map binding names)))
              ;; Scan-sequence expects the caller to have prepared
@@ -626,7 +598,7 @@
     ((- (? formals? formals) body ___)
      (fluid-let ((*usage-env*
                   (env-extend (map (lambda (formal)
-                                     (make-local-mapping 'variable formal (empty-attrs)))
+                                     (make-local-mapping 'variable formal (attrs-from-context)))
                                    (flatten formals))
                               *usage-env*)))
        (let-values (((named-formals rest-formal) (scan-formals formals)))
@@ -759,7 +731,7 @@
                        (lambda () (parse-definition form #f))
                      (lambda (id rhs)
                        (check-valid-definition id common-env body-type form forms type)
-                       (env-extend! (list (make-map 'variable id (empty-attrs))) common-env)
+                       (env-extend! (list (make-map 'variable id (attrs-from-context))) common-env)
                        (loop (cdr ws)
                              (cons (list (binding id)
                                          #t
@@ -772,7 +744,7 @@
                        (lambda () (parse-definition form #t))
                      (lambda (id rhs)
                        (check-valid-definition id common-env body-type form forms type)
-                       (let ((mapping (make-map 'macro id (empty-attrs))))
+                       (let ((mapping (make-map 'macro id (attrs-from-context))))
                          (env-extend! (list mapping) common-env)
                          (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand-macro rhs))))
@@ -798,7 +770,7 @@
                      (lambda (formals rhs body)
                        (let* ((original-env *usage-env*)
                               (usage-diff   (map (lambda (formal)
-                                                   (make-local-mapping 'macro formal (empty-attrs)))
+                                                   (make-local-mapping 'macro formal (attrs-from-context)))
                                                  formals))
                               (extended-env (env-extend usage-diff original-env))
                               (rhs-expanded
@@ -1331,11 +1303,6 @@
                     imports)
                env))
 
-(define (current-builds imported-libraries)
-  (map (lambda (lib-entry)
-         (rt:library-build (rt:lookup-library (car lib-entry))))
-       imported-libraries))
-
 (define (scan-declarations declarations)
     (let loop ((declarations declarations)
                (imported-libraries '())
@@ -1505,7 +1472,7 @@
            (values #f
                    levels
                    (map (lambda (mapping)
-                          (cons (car mapping) (make-binding 'variable (cdr mapping) levels (empty-attrs) '())))
+                          (cons (car mapping) (make-binding 'variable (cdr mapping) levels (attrs-from-context) '())))
                         (adjuster (map (lambda (name) (cons name name))
                                        (syntax->datum xs))))))
           (((% free=? only) set (? identifier? xs) ___)
@@ -1648,30 +1615,6 @@
 
 ;;==========================================================================
 ;;
-;; Debugging facilities:
-;;
-;;==========================================================================
-
-(define (syntax-violation who message form . maybe-subform)
-  (let* ((subform (cond ((null? maybe-subform) #f)
-                       ((and (pair? maybe-subform)
-                             (null? (cdr maybe-subform)))
-                        (car maybe-subform))
-                       (else (error "syntax-violation: Invalid subform in syntax violation"
-                                    maybe-subform))))
-        (form-source (syntax->source form))
-        (subform-source (syntax->source subform)))
-    
-    (raise (make-loki-error (or form-source subform-source)
-        (call-with-string-output-port (lambda (out)
-            (if who (display who out))
-            (if who (display " - " out))
-            (display message out)
-            (display "\n" out)
-            (display form out)))))))
-
-;;==========================================================================
-;;
 ;;  Eval and environment:
 ;;
 ;;==========================================================================
@@ -1709,19 +1652,6 @@
         (fluid-let ((*toplevel-color* toplevel-color))
           (let ((module (expand-module syn)))
             (rt:import-library (rt:library-name module))))))))
-
-;;=====================================================================
-;;
-;; Utilities:
-;;
-;;=====================================================================
-
-(define (check x p? from)
-  (or (p? x)
-      (syntax-violation from "Invalid argument" x)))
-
-(define (invalid-form exp)
-  (syntax-violation #f "Invalid form" exp))
 
 ;; Puts parameters to a consistent state for the toplevel
 ;; Old state is restored afterwards so that things will be
@@ -1861,7 +1791,7 @@
 
 (define (make-library-language)
   (map (lambda (name)
-         (cons name (make-binding 'macro name '(0) (empty-attrs) '())))
+         (cons name (make-binding 'macro name '(0) (attrs-from-context) '())))
        library-language-names))
 
 ;;===================================================================
@@ -1911,7 +1841,7 @@
     '()
     ;; exports
     (map (lambda (mapping)
-           (cons (car mapping) (make-binding 'macro (car mapping) '(0) (empty-attrs) '())))
+           (cons (car mapping) (make-binding 'macro (car mapping) '(0) (attrs-from-context) '())))
          primitive-macro-mapping)
     ;; imported-libraries
     '()
@@ -1939,7 +1869,7 @@
    '()
    ;; exports
    (map (lambda (intrinsic)
-          (cons intrinsic (make-binding 'variable intrinsic '(0) (empty-attrs) '())))
+          (cons intrinsic (make-binding 'variable intrinsic '(0) (attrs-from-context) '())))
         compiler-intrinsics)
    ;; imported-libraries
    '()

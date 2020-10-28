@@ -2,7 +2,7 @@
 (import (scheme base))
 (import (srfi 128))
 (import (srfi 146 hash))
-(import (loki reader))
+(import (loki compiler syntax))
 (import (loki compiler util))
 (export with-reified-env-table
         load-reified-env-table

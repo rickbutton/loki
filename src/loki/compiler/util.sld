@@ -1,6 +1,7 @@
 (define-library (loki compiler util)
 (import (scheme base))
 (import (scheme time))
+(import (scheme write))
 (import (srfi 1))
 (import (loki util))
 (export for-all
@@ -18,7 +19,10 @@
         drop-tail
         join
         compose
-        generate-guid)
+        generate-guid
+        check
+        assert
+        call-with-string-output-port)
 (begin
 
 (define (map-while f lst k)
@@ -157,5 +161,20 @@
                       token
                       "~"
                       (number->string ticks))))))
+
+(define (check x p? from)
+  (or (p? x)
+      (syntax-violation from "Invalid argument" x)))
+
+(define-syntax assert
+  (syntax-rules ()
+    ((assert e)
+      (let ((e2 e))
+        (if e2 e2 (error "assertion failed" 'e))))))
+
+(define (call-with-string-output-port proc)
+    (define port (open-output-string))
+    (proc port)
+    (get-output-string port))
 
 ))

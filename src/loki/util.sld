@@ -14,7 +14,6 @@
         make-anon-id
         make-named-id
         fluid-let
-        assert
         memp
         for-all
         write-to-string)
@@ -83,9 +82,6 @@
              (lambda results
                (set! p0 saved)
                (apply values results)))))))
-
-(define (assert e)
-    (if e e (error "assertion failed")))
 
 (define (memp proc ls)
   (cond ((null? ls) #f)
