@@ -17,8 +17,8 @@
 (import (srfi 146 gleckler vector-edit-test))
 (import (rename (srfi 151 test) (run-tests run-tests-srfi-151)))
 
-(display "loki tests!\n")
 (test-begin "loki")
+(display "loki tests!\n")
 
 (let ((runner (test-runner-current)))
   (run-tests-srfi-31 runner)

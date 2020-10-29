@@ -416,7 +416,9 @@
                         (syntax-violation #f "Pattern variable used outside syntax template" t)))))
             ((null? t)       (core::constant '()))
             ((list? t)       (core::apply (expand (car t)) (map expand (cdr t))))
-            ((identifier? t) (core::ref (make-toplevel-name (id-name t))))
+            ((identifier? t) (if *current-module*
+                                 (syntax-violation #f "Unbound identifier" t)
+                                 (core::ref (make-toplevel-name (id-name t)))))
             ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
             ((symbol? t)     (syntax-violation #f "Symbol may not appear in syntax object" t))
             (else            (core::constant (syntax->datum t)))))))
