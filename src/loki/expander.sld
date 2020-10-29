@@ -50,7 +50,6 @@
 (import (srfi 1))
 (import (srfi 128))
 (import (srfi 146 hash))
-(import (loki runtime))
 (import (loki util))
 (import (loki path))
 (import (lang core))
@@ -58,6 +57,7 @@
 (import (loki core reader))
 (import (loki core syntax))
 
+(import (loki compiler runtime))
 (import (loki compiler intrinsics))
 (import (loki compiler loader))
 (import (loki compiler binding))
@@ -94,14 +94,14 @@
 (define *phase*            0)
 ;; current color for painting identifiers upon renaming to be initialized
 (define *color*            #f)
-;; current library name as list of symbols or '() for toplevel
-(define *current-library*  '())
+;; current module name as list of symbols or '() for toplevel
+(define *current-module*  '())
 ;; car of this records bindings already referenced in current body
 ;; for detecting when later definitions may violate lexical scope
 (define *used*             (list '()))
 ;; history trace for error reporting
 (define *trace*            '())
-;; whether expanded library introduces identifiers via syntax
+;; whether expanded module introduces identifiers via syntax
 ;; expressions - if not, save lots of space by not including
 ;; env-table in object code
 (define *syntax-reflected* #f)
@@ -119,9 +119,9 @@
 ;; to different <environment> instances
 (define *toplevel-color* #f)
 
-(define (id-library id)
-  (or (id-maybe-library id)
-      *current-library*))
+(define (id-module id)
+  (or (id-maybe-module id)
+      *current-module*))
 
 ;; As required by r6rs, when this returns, the result is #t
 ;; if and only if the two identifiers resolve to the same binding.
@@ -233,7 +233,7 @@
                       (generate-guid (id-name id))
                       (list (source-level id))
                       attrs
-                      *current-library*)))
+                      *current-module*)))
 
 ;; Toplevel binding forms use as binding name the free name
 ;; so that source-level forward references will work in REPL.
@@ -256,8 +256,6 @@
                           '()))
       (make-local-mapping type id attrs)))
 
-;; Generates a library export binding at the current meta-level.
-
 ;;=========================================================================
 ;;
 ;; Infrastructure for binding levels:
@@ -274,17 +272,17 @@
           (syntax-violation
            "invalid reference"
            (string-append "Attempt to use binding of " (symbol->string (id-name id))
-                          " in library (" (join (id-library id) " ")
+                          " in module (" (join (id-module id) " ")
                           ") at invalid level " (number->string (source-level id))
                           ".  Binding is only available at levels: "
                           (join (binding-levels binding) " "))
            id))
-      (or (and (null? (id-library id))
+      (or (and (null? (id-module id))
                (= *phase* 0))
           (syntax-violation
            "invalid reference"
            (string-append "No binding available for " (symbol->string (id-name id))
-                          " in library (" (join (id-library id) " ") ")")
+                          " in library (" (join (id-module id) " ") ")")
 
            id))))
 
@@ -311,17 +309,17 @@
                       (core::constant (cons (env-reflect *usage-env*)
                                           (id-transformer-envs id)))
                       (core::constant (- (- *phase* (id-displacement id)) 1))
-                      (core::constant (id-library id))
+                      (core::constant (id-module id))
                       (core::constant (source-file source))
                       (core::constant (source-line source))
                       (core::constant (source-column source)))))
 
-(define (syntax-rename name colors transformer-envs transformer-phase source-library file line column)
+(define (syntax-rename name colors transformer-envs transformer-phase source-module file line column)
   (make-identifier name
                    (cons *color* colors)
                    transformer-envs
                    (- *phase* transformer-phase)
-                   source-library
+                   source-module
                    (make-source file line column)))
 
 ; FIXME
@@ -342,7 +340,7 @@
                                       (id-colors tid)
                                       (id-transformer-envs tid)
                                       (id-displacement tid)
-                                      (id-maybe-library tid)
+                                      (id-maybe-module tid)
                                       (annotation-source leaf)))
                     (else leaf)))
             datum))
@@ -381,7 +379,7 @@
 (define (expand-macro t)
   (let* ((imports (datum->syntax toplevel-template '((import (loki core primitives)))))
          (expanded (expand t))
-         (module (rt:make-library `(macro ,(generate-guid 'm))
+         (module (make-module `(macro ,(generate-guid 'm))
                                   '()
                                   '()
                                   '()
@@ -484,7 +482,7 @@
                (syntax-violation
                 'set! "Keyword being set! is not a variable transformer" exp id)))))
          ((variable)
-          (or (eq? (binding-library binding) *current-library*)
+          (or (eq? (binding-module binding) *current-module*)
               (syntax-violation
                'set! "Directly or indirectly imported variable cannot be assigned" exp id))
           (binding-mutable-set! binding #t)
@@ -1255,7 +1253,7 @@
            (lambda () (scan-declarations declarations))
          (lambda (imported-libraries imports exports body-forms)
            (fluid-let ((*usage-env*        (make-unit-env))
-                       (*current-library*  name)
+                       (*current-module*  name)
                        (*syntax-reflected* #f))       ; +++ space
 
              (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
@@ -1274,13 +1272,13 @@
                                                      (let ((binding (binding (cadr mapping))))
                                                        (or binding
                                                            (syntax-violation
-                                                            'library "Unbound export" (cadr mapping) t))
+                                                            'module "Unbound export" (cadr mapping) t))
                                                        (if (binding-mutable? binding)
                                                            (syntax-violation
-                                                            'library "Attempt to export mutable variable" t (cadr mapping)))
+                                                            'module "Attempt to export mutable variable" t (cadr mapping)))
                                                        binding)))
                                              exports))
-                                        (library (rt:make-library
+                                        (module (make-module
                                                name
                                                (if *syntax-reflected*
                                                  (reify-env-table)
@@ -1291,8 +1289,8 @@
                                                syntax-definitions
                                                (emit-body forms (bound-variables->emit-toplevel-if-bound? bound-variables))
                                                (generate-guid 'build))))
-                                    (rt:register-library! library)
-                                    library))))))))))))
+                                    (register-module! module)
+                                    module))))))))))))
 
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
@@ -1424,7 +1422,7 @@
     (- (syntax-violation 'export "Invalid export set" set))))
 
 ;; Returns
-;;    (values ((<library reference> <level> ...) ....)
+;;    (values ((<module reference> <level> ...) ....)
 ;;            ((<local name> . <binding>) ...))
 ;; with no repeats.
 
@@ -1433,20 +1431,20 @@
       (values imported-libraries (unify-imports imports))
       (call-with-values
           (lambda () (scan-import-spec (car specs)))
-        (lambda (library-ref levels more-imports)
+        (lambda (module-ref levels more-imports)
           (scan-imports (cdr specs)
-                ;; library-ref = #f if primitives spec
-                (if library-ref
-                    (cons (cons library-ref levels)
+                ;; module-ref = #f if primitives spec
+                (if module-ref
+                    (cons (cons module-ref levels)
                           imported-libraries)
                     imported-libraries)
                 (append more-imports imports))))))
 
-;; Returns (values <library reference> | #f
+;; Returns (values <module reference> | #f
 ;;                 (<level> ...)
 ;;                 ((<local name> . <binding>) ...)
 ;; where <level> ::= <integer>
-;; #f is returned for library name in case of primitives.
+;; #f is returned for module name in case of primitives.
 
 (define (scan-import-spec spec)
 
@@ -1517,10 +1515,10 @@
           (((% free=? prefix)     . -) (invalid-form import-set))
           (((% free=? rename)     . -) (invalid-form import-set))
           (-
-           (let ((library-ref (library-ref import-set)))
-             (if library-ref
-                 (let* ((library (load-library (syntax->datum library-ref)))
-                        (exports (rt:library-exports library))
+           (let ((module-ref (module-ref import-set)))
+             (if module-ref
+                 (let* ((module (load-module (syntax->datum module-ref)))
+                        (exports (module-exports module))
                         (imports
                          (map (lambda (mapping)
                                 (cons (car mapping)
@@ -1529,10 +1527,10 @@
                                                       (binding-name binding)
                                                       (compose-levels levels (binding-levels binding))
                                                       (binding-attrs binding)
-                                                      (binding-library binding)))))
+                                                      (binding-module binding)))))
                               (adjuster (map (lambda (name) (cons name name))
                                              (map car exports))))))
-                   (values (syntax->datum library-ref)
+                   (values (syntax->datum module-ref)
                            levels
                            imports))
                  (syntax-violation 'import "Invalid import set" import-set)))))))))
@@ -1581,9 +1579,9 @@
                       (syntax-violation
                        'import
                        (string-append "Different bindings for identifier imported from libraries ("
-                                      (join (binding-library (cdr mapping)) " ")
+                                      (join (binding-module (cdr mapping)) " ")
                                       ") and ("
-                                      (join (binding-library (cdr probe)) " ") ")")
+                                      (join (binding-module (cdr probe)) " ") ")")
                        (car mapping)))
                   (set-cdr! probe
                             (make-binding (binding-type (cdr probe))
@@ -1591,26 +1589,26 @@
                                           (unionv (binding-levels (cdr probe))
                                                   (binding-levels (cdr mapping)))
                                           (binding-attrs (cdr probe))
-                                          (binding-library (cdr probe)))))
+                                          (binding-module (cdr probe)))))
                 (set! seen (cons mapping seen)))
             (loop (cdr imports)))))))
 
-(define (library-name-part? p)
+(define (module-name-part? p)
     (or (identifier? p) (integer-syntax? p)))
 
-(define (scan-library-name e) (library-ref-helper e))
+(define (scan-library-name e) (module-ref-helper e))
 
-(define (library-ref e)
-  (library-ref-helper
+(define (module-ref e)
+  (module-ref-helper
    (match e
      (((% free=? define-library) name) name)
      (((% free=? define-library) . -)  (invalid-form e))
      (- e))))
 
-(define (library-ref-helper e)
+(define (module-ref-helper e)
   (match e
-    (((? library-name-part? ids) ___) ids)
-    (- (error "Invalid library reference." e))))
+    (((? module-name-part? ids) ___) ids)
+    (- (error "Invalid module reference." e))))
 
 ;;==========================================================================
 ;;
@@ -1628,7 +1626,7 @@
 
 (define (environment . import-specs)
   (fluid-let ((*usage-env* (make-unit-env)))
-    (env-import! eval-template (make-library-language) *usage-env*)
+    (env-import! eval-template (make-module-language) *usage-env*)
     (call-with-values
         (lambda () 
           (fluid-let ((*phase* 0))
@@ -1650,7 +1648,7 @@
              (syn (generate-anonymous-module #t imports (list exp))))
         (fluid-let ((*toplevel-color* toplevel-color))
           (let ((module (expand-module syn)))
-            (rt:import-library (rt:library-name module))))))))
+            (import-module (module-name module))))))))
 
 ;; Puts parameters to a consistent state for the toplevel
 ;; Old state is restored afterwards so that things will be
@@ -1659,7 +1657,7 @@
 (define with-toplevel-parameters
   (lambda (thunk)
     (fluid-let ((*trace*              '())
-                (*current-library*    '())
+                (*current-module*    '())
                 (*phase*              0)
                 (*used*               (list '()))
                 (*color*              (generate-color))
@@ -1670,29 +1668,29 @@
                 (*toplevel-color*     (generate-toplevel-color)))
       (thunk))))
 
-(define (library-name-part->string p)
+(define (module-name-part->string p)
   (if (symbol? p) (symbol->string p)
                   (number->string p)))
 
-(define (library-name->path library-name)
-  (let ((name (map library-name-part->string library-name)))
+(define (module-name->path module-name)
+  (let ((name (map module-name-part->string module-name)))
     (let ((options (map (lambda (dir)
                  (let ((absolute (path-join (current-working-path) dir)))
                    (path-with-suffix (apply path-join absolute name) "sld")))
-               rt:library-dirs)))
+               *module-dirs*)))
       (or (find (lambda (path) (file-exists? (path->string path))) options)
-          (syntax-violation #f (string-append "File not found for library: " (write-to-string name)) name)))))
+          (syntax-violation #f (string-append "File not found for module: " (write-to-string name)) name)))))
 
-(define (load-library name)
+(define (load-module name)
   (or
-    (rt:lookup-library/false name)
-    (begin (loki-load (library-name->path name))
-           (rt:lookup-library name))))
+    (lookup-module/false name)
+    (begin (loki-load (module-name->path name))
+           (lookup-module name))))
 
 (define (loki-load file)
-  (let ((library (expand-file (wrap-path file))))
-    (rt:register-library! library)
-    (rt:import-library (rt:library-name library))))
+  (let ((module (expand-file (wrap-path file))))
+    (register-module! module)
+    (import-module (module-name module))))
 
 ;; This may be used as a front end for the compiler.
 ;; It expands a file consisting of a possibly empty sequence
@@ -1782,16 +1780,16 @@
 ;;
 ;;===================================================================
 
-(define library-language-names
+(define module-language-names
   `(program define-library export import cond-expand
     include-library-declarations
     include include-ci begin for run expand meta only
             except prefix rename primitives))
 
-(define (make-library-language)
+(define (make-module-language)
   (map (lambda (name)
          (cons name (make-binding 'macro name '(0) (attrs-from-context) '())))
-       library-language-names))
+       module-language-names))
 
 ;;===================================================================
 ;;
@@ -1810,11 +1808,11 @@
 
 ;;===================================================================
 ;;
-;; Bootstrap library containing macros defined in this expander.
+;; Bootstrap module containing macros defined in this expander.
 ;;
 ;;===================================================================
 
-(rt:register-library!
+(register-module!
  (let ((primitive-macro-mapping
         `((lambda        . ,expand-lambda)
           (if            . ,expand-if)
@@ -1834,7 +1832,7 @@
           (define-syntax . ,invalid-form)
           (_             . ,invalid-form)
           (...           . ,invalid-form))))
-   (rt:make-library
+   (make-module
     '(loki core primitive-macros)
     ;; envs
     '()
@@ -1857,12 +1855,12 @@
 
 ;;===================================================================
 ;;
-;; Bootstrap library containing compiler intrinsics.
+;; Bootstrap module containing compiler intrinsics.
 ;;
 ;;===================================================================
 
-(rt:register-library!
-  (rt:make-library
+(register-module!
+  (make-module
    '(loki core intrinsics)
    ;; envs
    '()
@@ -1887,37 +1885,37 @@
 (set! *toplevel-env* (make-unit-env))
 (set! *usage-env*    *toplevel-env*)
 
-;; Import only the minimal library language into the toplevel:
+;; Import only the minimal module language into the toplevel:
 
-(env-import! toplevel-template (make-library-language) *toplevel-env*)
+(env-import! toplevel-template (make-module-language) *toplevel-env*)
 (register-macro! 'define-library (make-expander invalid-form))
 (register-macro! 'program (make-expander invalid-form))
 (register-macro! 'import  (make-expander invalid-form))
 
 ;; Register the expander's primitive API surface with the runtime
-(rt:runtime-add-primitive 'ex:identifier? identifier?)
-(rt:runtime-add-primitive 'ex:bound-identifier=? bound-identifier=?)
-(rt:runtime-add-primitive 'ex:free-identifier=? free-identifier=?)
-(rt:runtime-add-primitive 'ex:generate-temporaries generate-temporaries)
-(rt:runtime-add-primitive 'ex:datum->syntax datum->syntax)
-(rt:runtime-add-primitive 'ex:syntax->datum syntax->datum)
-(rt:runtime-add-primitive 'ex:syntax->source syntax->source)
-(rt:runtime-add-primitive 'ex:source-file source-file)
-(rt:runtime-add-primitive 'ex:source-line source-line)
-(rt:runtime-add-primitive 'ex:source-column source-column)
-(rt:runtime-add-primitive 'ex:environment environment)
-(rt:runtime-add-primitive 'ex:eval loki-eval)
-(rt:runtime-add-primitive 'ex:load loki-load)
-(rt:runtime-add-primitive 'ex:syntax-violation syntax-violation)
-(rt:runtime-add-primitive 'ex:features loki-features)
+(runtime-add-primitive 'ex:identifier? identifier?)
+(runtime-add-primitive 'ex:bound-identifier=? bound-identifier=?)
+(runtime-add-primitive 'ex:free-identifier=? free-identifier=?)
+(runtime-add-primitive 'ex:generate-temporaries generate-temporaries)
+(runtime-add-primitive 'ex:datum->syntax datum->syntax)
+(runtime-add-primitive 'ex:syntax->datum syntax->datum)
+(runtime-add-primitive 'ex:syntax->source syntax->source)
+(runtime-add-primitive 'ex:source-file source-file)
+(runtime-add-primitive 'ex:source-line source-line)
+(runtime-add-primitive 'ex:source-column source-column)
+(runtime-add-primitive 'ex:environment environment)
+(runtime-add-primitive 'ex:eval loki-eval)
+(runtime-add-primitive 'ex:load loki-load)
+(runtime-add-primitive 'ex:syntax-violation syntax-violation)
+(runtime-add-primitive 'ex:features loki-features)
 
-(rt:runtime-add-primitive 'ex:invalid-form invalid-form)
-(rt:runtime-add-primitive 'ex:register-macro! register-macro!)
-(rt:runtime-add-primitive 'ex:syntax-rename syntax-rename)
-(rt:runtime-add-primitive 'ex:map-while map-while)
-(rt:runtime-add-primitive 'ex:dotted-length dotted-length)
-(rt:runtime-add-primitive 'ex:dotted-butlast dotted-butlast)
-(rt:runtime-add-primitive 'ex:dotted-last dotted-last)
-(rt:runtime-add-primitive 'ex:free=? free=?)
+(runtime-add-primitive 'ex:invalid-form invalid-form)
+(runtime-add-primitive 'ex:register-macro! register-macro!)
+(runtime-add-primitive 'ex:syntax-rename syntax-rename)
+(runtime-add-primitive 'ex:map-while map-while)
+(runtime-add-primitive 'ex:dotted-length dotted-length)
+(runtime-add-primitive 'ex:dotted-butlast dotted-butlast)
+(runtime-add-primitive 'ex:dotted-last dotted-last)
+(runtime-add-primitive 'ex:free=? free=?)
 
 ))

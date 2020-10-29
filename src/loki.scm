@@ -3,8 +3,9 @@
 (import (scheme process-context))
 (import (loki util))
 (import (prefix (loki expander) ex:))
-(import (loki runtime))
 (import (loki path))
+(import (loki compiler loader))
+(import (loki compiler runtime))
 (import (srfi 37))
 
 (define *version* "0.0.1")
@@ -47,7 +48,7 @@
         (for-each
           (lambda (target)
             (debug "running" target)
-            (rt:import-library (rt:library-name (ex:expand-file (make-path target)))))
+            (import-module (module-name (ex:expand-file (make-path target)))))
           (loki-options-targets options))))
 
 (run-loki-cli (cdr (command-line)))

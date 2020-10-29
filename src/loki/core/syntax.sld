@@ -16,7 +16,7 @@
         id-colors
         id-transformer-envs
         id-displacement
-        id-maybe-library
+        id-maybe-module
 
         <source>
         make-source
@@ -111,7 +111,7 @@
   (identifier-context-colors (annotation-context i)))
 (define (id-transformer-envs i) (identifier-context-transformer-envs (annotation-context i)))
 (define (id-displacement i) (identifier-context-displacement (annotation-context i)))
-(define (id-maybe-library i) (identifier-context-maybe-library (annotation-context i)))
+(define (id-maybe-module i) (identifier-context-maybe-library (annotation-context i)))
 
 (define (unwrap-annotation a)
     (if (annotation? a) (annotation-expression a) a))
@@ -144,7 +144,7 @@
                                       (id-colors tid)
                                       (id-transformer-envs tid)
                                       (id-displacement tid)
-                                      (id-maybe-library tid)
+                                      (id-maybe-module tid)
                                       (id-source tid)))
                     (else leaf)))
             datum))

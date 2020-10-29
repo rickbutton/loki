@@ -10,7 +10,7 @@
         binding-name
         binding-levels
         binding-attrs
-        binding-library
+        binding-module
         binding-attr
         binding-attr!
         binding-attr-set!
@@ -30,10 +30,10 @@
 ;;
 ;;=========================================================================
 
-;; <binding> ::= (variable         <binding-name> (<level> ...) <attrs { mutable? }>  <library-name>)
-;;            |  (macro            <binding-name> (<level> ...) <attrs>  <library-name>)
-;;            |  (pattern-variable <binding-name> (<level> ...) <attrs { dimension }> <library-name>)
-;;            |  #f  (out of context binding from another library)
+;; <binding> ::= (variable         <binding-name> (<level> ...) <attrs { mutable? }>  <module-name>)
+;;            |  (macro            <binding-name> (<level> ...) <attrs>  <module-name>)
+;;            |  (pattern-variable <binding-name> (<level> ...) <attrs { dimension }> <module-name>)
+;;            |  #f  (out of context binding from another module)
 ;; <mutable> ::= #t | #f
 ;; <dimension> ::= 0 | 1 | 2 | ...
 ;; <binding-name> ::= <symbol> uniquely identifying binding.
@@ -44,13 +44,13 @@
 ;; in the global macro table.
 
 (define-record-type <binding>
-  (make-binding type name levels attrs library)
+  (make-binding type name levels attrs module)
   binding?
   (type binding-type)
   (name binding-name)
   (levels binding-levels)
   (attrs binding-attrs binding-attrs-set!)
-  (library binding-library))
+  (module binding-module))
 
 (define (binding-attr binding name)
   (hashmap-ref (binding-attrs binding) name (lambda () #f)))
