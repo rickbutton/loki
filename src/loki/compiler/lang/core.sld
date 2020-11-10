@@ -1,4 +1,4 @@
-(define-library (lang core)
+(define-library (loki compiler lang core)
 (import (scheme base))
 (import (loki match))
 (import (loki util))

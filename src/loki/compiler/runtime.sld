@@ -12,7 +12,7 @@
 (import (loki core fs))
 (import (loki core reflect))
 (import (loki core reader))
-(import (lang core))
+(import (loki compiler lang core))
 (import (srfi 69))
 (import (srfi 151))
 (export runtime-run-program
@@ -55,11 +55,9 @@
       (let ((host-scheme (compile-core-to-host-scheme prog)))
         (eval `(begin ,@host-scheme) runtime-env)))))
 
-(define (runtime-run-expression e)
-  (runtime-run-program (list e)))
-
 (define (runtime-add-primitive name value)
-  (runtime-run-expression (core::define-global! (core::ref name) (core::constant value))))
+  (if (not runtime-env) (runtime-env-init!))
+  (eval `(define ,name ,value) runtime-env))
 
 ; TODO - this sucks, we need exceptions really early
 ; so we can't define exceptions using target-system records

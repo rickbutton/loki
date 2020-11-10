@@ -26,7 +26,6 @@
   (run-tests-srfi-95 runner)
   (run-tests-srfi-113 runner)
   (run-tests-srfi-121 runner)
-  ;(run-tests-srfi-125 runner)
   (run-tests-srfi-128 runner)
   (run-srfi-146-tests runner)
   (run-srfi-146-hash-tests runner)
@@ -43,6 +42,6 @@
   ; the identifier's source location
   ; instead, we will need to remember the current file
   ; during expansion and use that instead, which sucks
-  (load "src/lang/r7rs-tests.scm"))
+  (load "src/loki/compiler/lang/r7rs-tests.scm"))
 
 (test-end "loki")

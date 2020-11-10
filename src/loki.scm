@@ -2,7 +2,7 @@
 (import (scheme write))
 (import (scheme process-context))
 (import (loki util))
-(import (prefix (loki expander) ex:))
+(import (prefix (loki compiler expander) ex:))
 (import (loki path))
 (import (loki compiler loader))
 (import (loki compiler runtime))

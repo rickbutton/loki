@@ -1,5 +1,3 @@
-;;; loki expander
-;;;
 ;;; This library was been ported from the reference implementation
 ;;; of a R6RS macro expander and library support in SRFI-72, to R7RS.
 ;;;
@@ -13,34 +11,7 @@
 ;;;   Copyright statement at http://srfi.schemers.org/srfi-process.html
 ;;;
 ;;;=================================================================================
-;;;
-;;; SIZE OF OBJECT CODE:
-;;; --------------------
-;;;
-;;; The minimal runtime prerequisites has been separated into a small
-;;; include file runtime.scm, which is all that needs to be present for
-;;; executing an expanded program that does not contain runtime
-;;; uses the exports of (rnrs syntax-case) or (rnrs eval).
-;;; See examples.scm for demonstrations of this.
-;;;
-;;; Expanded libraries may contain identifier environment information
-;;; and visit code that could adversely affect the runtime binary size.
-;;; This is not a big problem, for several reasons:
-;;; First, note that this information is only present in libraries that
-;;; define macros.
-;;; Second, the size of the environments saved in the object code can
-;;; usually be reduced dramatically by using 'only' imports.
-;;; Third, the environments, as well as the visit code, can be discarded
-;;; completely from the runtime image of a fully expanded program not
-;;; using (rnrs syntax-case) or (rnrs eval) at runtime.  It is very
-;;; easy to write a little build script that does this.
-;;;
-;;; The only reason for including this information now in the object code
-;;; of a library is to support separate compilation, so one can expand a
-;;; library in one session and use macros from the /expanded/ library to
-;;; expand another library or program in a new session.  The customization
-;;; to get rid of separate compilation, if desired, would be trivial.
-(define-library (loki expander)
+(define-library (loki compiler expander)
 (import (scheme base))
 (import (scheme file))
 (import (scheme write))
@@ -52,7 +23,7 @@
 (import (srfi 146 hash))
 (import (loki util))
 (import (loki path))
-(import (lang core))
+(import (loki compiler lang core))
 
 (import (loki core reader))
 (import (loki core syntax))
