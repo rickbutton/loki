@@ -6,9 +6,9 @@
 
 loki is a (almost!) R7RS-compliant Scheme implementation. loki currently runs on top of Gauche Scheme, but in the future will run on top of a custom virtual machine written in Rust.
 
-#### Why is it called loki?
+#### How much of R7RS is implemented?
 
-In Norse mythology, Loki is a mischievous trickster. Attemting to run scheme in the browser is the epitome of mischief.
+Most of it! loki passes most of the R7RS test suite, except that most number things are broken (except integers), and some I/O operations. loki also has full `syntax-case` macro support with explicit phasing (which will hopefully change to implicit phasing to match R7RS).
 
 #### Isn't implementing a Scheme on top of another Scheme cheating?
 
