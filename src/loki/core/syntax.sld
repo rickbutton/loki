@@ -1,5 +1,8 @@
 (define-library (loki core syntax)
 (import (scheme base))
+(cond-expand
+  (gauche (import (scheme write)))
+  (loki (import (loki core writer))))
 (export  <annotation>
          annotation?
          annotation-type?
@@ -29,7 +32,10 @@
         sexp-map
         integer-syntax?
         syntax->datum
-        datum->syntax)
+        datum->syntax
+        syntax->source
+        syntax-violation
+        invalid-form)
 (begin
 
 (define-record-type <annotation>
@@ -148,5 +154,32 @@
                                       (id-source tid)))
                     (else leaf)))
             datum))
+
+(define (syntax->source s)
+    (cond
+        ((annotation? s) (annotation-source s))
+        ((and (pair? s) (annotation? (car s)))
+            (annotation-source (car s)))
+        ((pair? s) (syntax->source (cdr s)))
+        (else #f)))
+
+(define (syntax-violation who message form . maybe-subform)
+  (let* ((subform (cond ((null? maybe-subform) #f)
+                       ((and (pair? maybe-subform)
+                             (null? (cdr maybe-subform)))
+                        (car maybe-subform))
+                       (else (error "syntax-violation: Invalid subform in syntax violation"
+                                    maybe-subform))))
+        (form-source (syntax->source form))
+        (subform-source (syntax->source subform))
+        (out (open-output-string)))
+    (if who (display who out))
+    (if who (display " - " out))
+    (display message out)
+    (display "\n" out)
+    (display form out)
+    (error (get-output-string out) (or form-source subform-source))))
+(define (invalid-form exp)
+  (syntax-violation #f "Invalid form" exp))
 
 ))

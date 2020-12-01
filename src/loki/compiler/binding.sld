@@ -21,7 +21,8 @@
         binding-lambda-color
         dimension-attrs
         default-attrs
-        bound-identifier=?)
+        bound-identifier=?
+        serialize-binding)
 (begin
 
 ;;=========================================================================
@@ -51,6 +52,13 @@
   (levels binding-levels)
   (attrs binding-attrs binding-attrs-set!)
   (module binding-module))
+
+(define (serialize-binding binding)
+  `(binding ,(binding-type binding)
+            ,(binding-name binding)
+            ,(binding-levels binding)
+            ,(hashmap->alist (binding-attrs binding))
+            ,(binding-module binding)))
 
 (define (binding-attr binding name)
   (hashmap-ref (binding-attrs binding) name (lambda () #f)))

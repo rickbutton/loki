@@ -13,7 +13,6 @@
 ;;;=================================================================================
 (define-library (loki compiler expander)
 (import (scheme base))
-(import (scheme file))
 (import (scheme write))
 (import (scheme cxr))
 (import (scheme process-context))
@@ -157,33 +156,7 @@
 ;; Error handling
 ;;
 ;;=========================================================================
-(define (syntax->source s)
-    (cond
-        ((annotation? s) (annotation-source s))
-        ((and (pair? s) (annotation? (car s)))
-            (annotation-source (car s)))
-        ((pair? s) (syntax->source (cdr s)))
-        (else #f)))
 
-(define (syntax-violation who message form . maybe-subform)
-  (let* ((subform (cond ((null? maybe-subform) #f)
-                       ((and (pair? maybe-subform)
-                             (null? (cdr maybe-subform)))
-                        (car maybe-subform))
-                       (else (error "syntax-violation: Invalid subform in syntax violation"
-                                    maybe-subform))))
-        (form-source (syntax->source form))
-        (subform-source (syntax->source subform)))
-    
-    (error (call-with-string-output-port (lambda (out)
-                (if who (display who out))
-                (if who (display " - " out))
-                (display message out)
-                (display "\n" out)
-                (display form out)))
-           (or form-source subform-source))))
-(define (invalid-form exp)
-  (syntax-violation #f "Invalid form" exp))
 
 (define (attrs-from-context) (default-attrs *sequence-counter* *lambda-color*))
 (define (binding id) (binding-lookup id *usage-env*))
@@ -539,17 +512,13 @@
  (unless (string? file)
         (syntax-violation type
           "Invalid include syntax, requires string literal" file)))
-(define (resolve-include-path id path)
-  (let* ((source (id-source id))
-         (root (make-path (if source (source-file source) ""))))
-    (path-join (path-parent root) path)))
 
 (define (expand-include-file exp fold-case?)
   (match exp
     ((include) (syntax-violation (syntax->datum include) "Invalid include syntax" exp include))
     ((include file)
       (check-valid-include (syntax->datum include) file)
-      (let ((content (read-file (resolve-include-path include (syntax->datum file)) fold-case?)))
+      (let ((content (read-relative-include include (syntax->datum file) fold-case?)))
         (expand `(,(rename 'macro 'begin) ,@(source->syntax include content)))))
     ((include file files ___)
         (expand `(,(rename 'macro 'begin) (,include ,file) (,include ,@files))))))
@@ -865,8 +834,7 @@
 (define (expand-syntax-case exp)
   (define (literal? x)
     (and (identifier? x)
-         (not (or (free=? x '_)
-                  (free=? x '...)))))
+         (not (free=? x '...))))
   (match exp
     ((- e ((? literal? literals) ___) clauses ___)
      (let ((input (core::ref (generate-guid 'input))))
@@ -886,7 +854,6 @@
           (core::letrec (list (core::let-var temp input))
                         (list (process-match temp pattern sk fk))))
         (match pattern
-          ((% free=? _)         sk)
           ((% free=? ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
           (()                 (core::if (core::apply-anon %null? input) sk fk))
           ((? literal? id)
@@ -976,8 +943,8 @@
                                        (pattern-vars p2 level)))
       (#(ps ___)               (pattern-vars ps level))
       ((% free=? ...)            '())
-      ((% free=? _)              '())
       ((? literal? -)          '())
+      ((% free=? _)            '())
       ((? identifier? id)      (list (cons id level)))
       (-                       '())))
 
@@ -1320,7 +1287,7 @@
             (let* ((include (car includes))
                    (str (syntax->datum include)))
               (check-valid-include 'include-library-declarations str)
-              (let ((content (read-file (resolve-include-path op str) #f)))
+              (let ((content (read-relative-include op str #f)))
                 (loop (append (source->syntax op content) (cdr declarations))
                       imported-libraries
                       imports
@@ -1380,7 +1347,7 @@
     (let* ((include (car includes))
            (str (syntax->datum include)))
       (check-valid-include (syntax->datum op) str)
-      (let ((content (read-file (resolve-include-path op str) fold-case?)))
+      (let ((content (read-relative-include op str fold-case?)))
         (cons (source->syntax op content) (scan-includes op (cdr includes) fold-case?))))))
 
 (define (scan-exports sets)
@@ -1641,19 +1608,6 @@
                 (*toplevel-color*     (generate-toplevel-color)))
       (thunk))))
 
-(define (module-name-part->string p)
-  (if (symbol? p) (symbol->string p)
-                  (number->string p)))
-
-(define (module-name->path module-name)
-  (let ((name (map module-name-part->string module-name)))
-    (let ((options (map (lambda (dir)
-                 (let ((absolute (path-join (current-working-path) dir)))
-                   (path-with-suffix (apply path-join absolute name) "sld")))
-               *module-dirs*)))
-      (or (find (lambda (path) (file-exists? (path->string path))) options)
-          (syntax-violation #f (string-append "File not found for module: " (write-to-string name)) name)))))
-
 (define (load-module name)
   (or
     (lookup-module/false name)
@@ -1674,8 +1628,7 @@
 (define (expand-file path)
   (with-toplevel-parameters
     (lambda ()
-      (let ((content (read-file path #f)))
-        (expand-module (normalize-forms content))))))
+      (read-module-path path (lambda (content) (expand-module (normalize-forms content)))))))
 
 (define (generate-anonymous-module toplevel? imports body)
   (let ((keyword (if toplevel? 'toplevel 'program)))
@@ -1688,7 +1641,7 @@
     (match exps
       ((((% free=? define-library) . rest))
        (car exps))
-      ((((% free=? define-library) . rest) . rest)
+      ((((% free=? define-library) . rest) . rest2)
        (syntax-violation 'define-library "Invalid expressions outside of define-library" rest))
       (else
        (let loop ((imports '())
@@ -1699,21 +1652,6 @@
              (((% free=? import) . _)
               (loop (cons (car exps) imports) (cdr exps)))
              (else (generate-anonymous-module #f (reverse imports) exps)))))))))
-
-(define (read-file-from-reader reader)
-  (let f ((x (read-annotated reader)))
-    (if (and (annotation? x) (eof-object? (annotation-expression x)))
-      '()
-      (cons x (f (read-annotated reader))))))
-
-(define (read-file fn fold-case?)
-  (let* ((path (wrap-path fn))
-         (str (path->string path))
-         (p (open-input-file str))
-         (reader (make-reader p str)))
-    (reader-fold-case?-set! reader fold-case?)
-    (let ((content (read-file-from-reader reader)))
-      content)))
 
 ;;==========================================================================
 ;;

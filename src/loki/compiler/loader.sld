@@ -1,13 +1,19 @@
 (define-library (loki compiler loader)
 (import (scheme base))
+(import (scheme file))
+(import (scheme write))
+(import (loki match))
+(import (loki path))
 (import (loki core reader))
+(import (loki core syntax))
 (import (loki compiler util))
 (import (loki compiler environment))
 (import (loki compiler macro))
 (import (loki compiler runtime))
+(import (loki compiler binding))
+(import (loki util))
 (import (srfi 1))
-(export *module-dirs*
-        make-module
+(export make-module
         module-name
         module-envs
         module-exports
@@ -29,7 +35,12 @@
         lookup-module/false
         current-builds
         import-libraries-for-expand
-        evaluate-macro)
+        evaluate-macro
+        serialize-module
+        deserialize-module
+        read-module-path
+        read-relative-include
+        module-name->path)
 (begin
 
 (define *module-dirs* '("src"))
@@ -49,6 +60,73 @@
     (invoked?    module-invoked? module-invoked?-set!))
 (define (make-module name envs exports imports builds syntax-defs forms build)
   (make-module-record name envs exports imports builds syntax-defs forms build #f #f))
+
+(define (serialize-module module)
+  `(module ,(module-name module)
+           ,(module-envs module)
+           ,(map serialize-mapping (module-exports module))
+           ,(module-imports module)
+           ,(module-builds module)
+           ,(module-syntax-defs module)
+           ,(module-forms module)
+           ,(module-build module)))
+(define (serialize-mapping mapping)
+  (cons (car mapping)
+        (serialize-binding (cdr mapping))))
+
+(define (deserialize-module input)
+  (match input
+    (('module name envs exports imports builds syntax-defs forms build)
+     (make-module name envs exports imports builds syntax-defs forms build))
+    (_
+     (error "incorrect format for serialized module" input))))
+
+(define (resolve-include-path id path)
+  (let* ((source (id-source id))
+         (root (make-path (if source (source-file source) ""))))
+    (path-join (path-parent root) path)))
+
+(define (read-file-from-reader reader)
+  (let f ((x (read-annotated reader)))
+    (if (and (annotation? x) (eof-object? (annotation-expression x)))
+      '()
+      (cons x (f (read-annotated reader))))))
+
+(define (read-file fn fold-case?)
+  (let* ((path (wrap-path fn))
+         (str (path->string path))
+         (p (open-input-file str))
+         (reader (make-reader p str)))
+    (reader-fold-case?-set! reader fold-case?)
+    (let ((content (read-file-from-reader reader)))
+      content)))
+
+(define (read-relative-include id fn fold-case?)
+  (read-file (resolve-include-path id fn) fold-case?))
+
+(define (cache-module-output fn output)
+  (let* ((so (path-with-suffix (wrap-path fn) "so"))
+         (port (open-output-file (path->string so))))
+    (write (serialize-module output) port)
+    (close-port port)))
+
+(define (read-module-path fn thunk)
+  (let* ((content (read-file fn #f))
+         (output (thunk content)))
+    (cache-module-output fn output)
+    output))
+
+(define (module-name-part->string p)
+  (if (symbol? p) (symbol->string p)
+                  (number->string p)))
+(define (module-name->path module-name)
+  (let ((name (map module-name-part->string module-name)))
+    (let ((options (map (lambda (dir)
+                 (let ((absolute (path-join (current-working-path) dir)))
+                   (path-with-suffix (apply path-join absolute name) "sld")))
+               *module-dirs*)))
+      (or (find (lambda (path) (file-exists? (path->string path))) options)
+          (syntax-violation #f (string-append "File not found for module: " (write-to-string name)) name)))))
 
 (define imported '())
 (define (import-module* name build phase importer run-or-expand)

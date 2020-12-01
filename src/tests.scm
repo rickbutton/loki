@@ -3,6 +3,8 @@
 (import (scheme load))
 (import (srfi 64))
 
+(import (loki compiler expander))
+
 (import (rename (srfi 31 test) (run-tests run-tests-srfi-31)))
 (import (rename (srfi 64 test) (run-tests run-tests-srfi-64)))
 (import (rename (srfi 95 test) (run-tests run-tests-srfi-95)))

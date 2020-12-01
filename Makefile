@@ -32,4 +32,5 @@ http:
 	npx http-server
 
 clean: 
+	find . -name "*.so" -type f -delete
 	rm -f examples/*.wasm examples/*.wat

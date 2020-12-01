@@ -1,5 +1,7 @@
 (define-library (loki compiler match)
 (import (scheme base))
+(import (loki util))
+(import (loki core syntax))
 (export match)
 (begin
 

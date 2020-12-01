@@ -263,7 +263,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; force compile-time syntax errors with useful messages
 (define-library (loki match)
-(import (scheme base))
+(cond-expand
+  (gauche (import (scheme base)))
+  (loki (import (for (scheme base) run expand (meta 2)))))
 (import (loki core reflect))
 (export match)
 (begin
@@ -1009,6 +1011,8 @@
 ;; This is a little more complicated, and introduces a new let-syntax,
 ;; but should work portably in any R[56]RS Scheme.  Taylor Campbell
 ;; originally came up with the idea.
+(cond-expand
+(gauche
 (define-syntax match-check-ellipsis
   (syntax-rules ()
     ;; these two aren't necessary but provide fast-case failures
@@ -1023,7 +1027,25 @@
                                ((ellipsis? other sk fk) fk))))
        ;; this list of three elements will only match the (foo id) list
        ;; above if `id' is `...'
-       (ellipsis? (a b c) success-k failure-k)))))
+       (ellipsis? (a b c) success-k failure-k))))))
+(loki
+(define-syntax match-check-ellipsis
+  (syntax-rules ()
+    ;; these two aren't necessary but provide fast-case failures
+    ((match-check-ellipsis (a . b) success-k failure-k) failure-k)
+    ((match-check-ellipsis #(a ...) success-k failure-k) failure-k)
+    ;; matching an atom
+    ((match-check-ellipsis id success-k failure-k)
+     (begin
+       (define-syntax check? (syntax-rules ()
+                               ;; iff `id' is `...' here then this will
+                               ;; match a list of any length
+                               ((_ (foo id) sk fk) sk)
+                               ((_ other sk fk) fk)))
+       ;; this list of three elements will only match the (foo id) list
+       ;; above if `id' is `...'
+       (check? (a b c) success-k failure-k)))))))
+
 
 ;; This is portable but can be more efficient with non-portable
 ;; extensions.  This trick was originally discovered by Oleg Kiselyov.

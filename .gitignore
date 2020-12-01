@@ -15,3 +15,4 @@ node_modules
 *.exp
 loki.srfi64.log
 .DS_Store
+*.so

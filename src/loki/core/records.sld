@@ -10,7 +10,8 @@
           (for (loki core exception)    expand run)
           (for (loki core intrinsics)   expand run))
   (export define-record-type vector? record? record-printer record-type-printer record-type-printer-set!
-          record-type record-type-field-tags record-type-name record-accessor)
+          record-type record-type-field-tags record-type-name record-accessor
+          record-ref)
   (begin
 
     ; This implements a record abstraction that is identical to vectors,

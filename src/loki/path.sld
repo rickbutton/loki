@@ -2,6 +2,7 @@
 (import (scheme base))
 (import (srfi 1))
 (import (loki core fs))
+(import (loki util))
 (export
 make-posix-path
 make-windows-path
@@ -265,7 +266,7 @@ current-working-path)
     (if (eq? stem "") (error "path-with-suffix: path does not have a name" path))
     (if (null? suffixes)
       (path-with-name path (string-join (list stem suffix) "."))
-      (path-with-name path (string-join (cons stem (drop-right suffixes 1)) ".")))))
+      (path-with-name path (string-join (append (cons stem (drop-right suffixes 1)) (list suffix)) ".")))))
 
 (define (current-working-path)
   (make-path (current-directory)))

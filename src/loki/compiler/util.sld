@@ -4,6 +4,7 @@
 (import (scheme write))
 (import (srfi 1))
 (import (loki util))
+(import (loki core syntax))
 (export for-all
         map-while
         flatten
