@@ -35,19 +35,9 @@
 (import (loki compiler macro))
 (import (loki compiler match))
 (import (loki compiler util))
+(import (loki compiler features))
 
-(export identifier?
-        bound-identifier=?
-        free-identifier=?
-        generate-temporaries
-        datum->syntax
-        syntax->datum
-        environment
-        loki-eval
-        loki-load
-        syntax-violation
-        loki-features
-        expand-file)
+(export expand-file)
 (begin
 
 ;;==========================================================================
@@ -1564,7 +1554,7 @@
                    '()
                    (make-source "<eval>" 1 0)))
 
-(define (environment . import-specs)
+(define (loki-environment . import-specs)
   (fluid-let ((*usage-env* (make-unit-env)))
     (env-import! eval-template (make-module-language) *usage-env*)
     (call-with-values
@@ -1704,21 +1694,6 @@
 
 ;;===================================================================
 ;;
-;; Language features, for cond-expand.
-;;
-;;===================================================================
-
-(define static-features '(
-  loki
-  wasm
-  r7rs
-  posix))
-(define (loki-features) (list-copy static-features))
-(define (feature? feature)
-  (and (symbol? feature) (member feature static-features)))
-
-;;===================================================================
-;;
 ;; Bootstrap module containing macros defined in this expander.
 ;;
 ;;===================================================================
@@ -1814,7 +1789,7 @@
 (runtime-add-primitive 'ex:source-file source-file)
 (runtime-add-primitive 'ex:source-line source-line)
 (runtime-add-primitive 'ex:source-column source-column)
-(runtime-add-primitive 'ex:environment environment)
+(runtime-add-primitive 'ex:environment loki-environment)
 (runtime-add-primitive 'ex:eval loki-eval)
 (runtime-add-primitive 'ex:load loki-load)
 (runtime-add-primitive 'ex:syntax-violation syntax-violation)
