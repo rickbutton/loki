@@ -1,5 +1,6 @@
 (define-library (loki compiler binding)
 (import (scheme base))
+(import (only (srfi 69) hash-by-identity))
 (import (srfi 128))
 (import (srfi 146 hash))
 (import (loki core syntax))
@@ -9,16 +10,9 @@
         binding-type
         binding-name
         binding-levels
-        binding-attrs
         binding-module
-        binding-attr
-        binding-attr!
-        binding-attr-set!
-        binding-mutable?
-        binding-mutable-set!
-        binding-dimension
-        binding-sequence-counter
-        binding-lambda-color
+        binding=?
+        empty-binding-metadata
         dimension-attrs
         default-attrs
         bound-identifier=?
@@ -45,33 +39,32 @@
 ;; in the global macro table.
 
 (define-record-type <binding>
-  (make-binding type name levels attrs module)
+  (make-binding type name levels module)
   binding?
   (type binding-type)
   (name binding-name)
   (levels binding-levels)
-  (attrs binding-attrs binding-attrs-set!)
   (module binding-module))
+
+(define-syntax record-property-equal?
+  (syntax-rules ()
+    ((_ get a b)
+     (equal? (get a) (get b)))))
+
+(define (binding=? x y)
+  (and (record-property-equal? binding-type x y)
+       (record-property-equal? binding-name x y)
+       (record-property-equal? binding-levels x y)
+       (record-property-equal? binding-module x y)))
+
+(define *binding-comparator* (make-comparator binding? binding=? #f hash-by-identity))
+(define (empty-binding-metadata) (hashmap *binding-comparator*))
 
 (define (serialize-binding binding)
   `(binding ,(binding-type binding)
             ,(binding-name binding)
             ,(binding-levels binding)
-            ,(hashmap->alist (binding-attrs binding))
             ,(binding-module binding)))
-
-(define (binding-attr binding name)
-  (hashmap-ref (binding-attrs binding) name (lambda () #f)))
-(define (binding-attr! binding name)
-  (hashmap-ref (binding-attrs binding) name (lambda () (error "binding doesn't have required attr" binding name))))
-(define (binding-attr-set! binding name value)
-  (binding-attrs-set! binding (hashmap-set (binding-attrs binding) name value)))
-
-(define (binding-mutable? binding) (binding-attr binding 'mutable?))
-(define (binding-mutable-set! binding mutable?) (binding-attr-set! binding 'mutable? mutable?))
-(define (binding-dimension binding) (binding-attr! binding 'dimension))
-(define (binding-sequence-counter binding) (binding-attr! binding 'sequence-counter))
-(define (binding-lambda-color binding) (binding-attr! binding 'lambda-color))
 
 (define (empty-attrs) (hashmap (make-default-comparator)))
 (define (dimension-attrs dimension) (hashmap-set (empty-attrs) 'dimension dimension))

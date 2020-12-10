@@ -78,6 +78,10 @@
 ;; so that we can give separate toplevel namespaces
 ;; to different <environment> instances
 (define *toplevel-color* #f)
+;; current binding metadata map
+;; we need to track some information for use throughout
+;; the expansion phase for bindings
+(define *binding-metadata* #f)
 
 (define (id-module id)
   (or (id-maybe-module id)
@@ -148,8 +152,6 @@
 ;;=========================================================================
 
 
-(define (attrs-from-context) (default-attrs *sequence-counter* *lambda-color*))
-(define (binding id) (binding-lookup id *usage-env*))
 
 ;;=========================================================================
 ;;
@@ -163,11 +165,11 @@
 (define (make-local-mapping type id attrs)
   (cons (cons (id-name id)
               (id-colors id))
-        (make-binding type
-                      (generate-guid (id-name id))
-                      (list (source-level id))
-                      attrs
-                      *current-module*)))
+        (make-binding-meta type
+                           (generate-guid (id-name id))
+                           (list (source-level id))
+                           attrs
+                           *current-module*)))
 
 ;; Toplevel binding forms use as binding name the free name
 ;; so that source-level forward references will work in REPL.
@@ -183,12 +185,39 @@
   (if (null? (id-colors id))
       (cons (cons (id-name id)
                   (id-colors id))
-            (make-binding type
-                          (make-toplevel-name (id-name id))
-                          '(0)
-                          attrs
-                          '()))
+            (make-binding-meta type
+                               (make-toplevel-name (id-name id))
+                               '(0)
+                               attrs
+                               '()))
       (make-local-mapping type id attrs)))
+
+(define (binding-metadata-set! binding metadata)
+  (set! *binding-metadata* (hashmap-set *binding-metadata* binding metadata)))
+(define (binding-metadata binding)
+  (unless (hashmap-contains? *binding-metadata* binding)
+    (binding-metadata-set! binding (empty-binding-metadata)))
+  (hashmap-ref *binding-metadata* binding))
+(define (binding-attr binding name)
+  (hashmap-ref (binding-metadata binding) name (lambda () #f)))
+(define (binding-attr! binding name)
+  (hashmap-ref (binding-metadata binding) name (lambda () (error "binding doesn't have required attr" binding name))))
+(define (binding-attr-set! binding name value)
+  (binding-metadata-set! binding (hashmap-set (binding-metadata binding) name value)))
+
+(define (make-binding-meta type name levels metadata module)
+  (let ((b (make-binding type name levels module)))
+    (binding-metadata-set! b metadata)
+    b))
+
+(define (binding-mutable? binding) (binding-attr binding 'mutable?))
+(define (binding-mutable-set! binding mutable?) (binding-attr-set! binding 'mutable? mutable?))
+(define (binding-dimension binding) (binding-attr binding 'dimension))
+(define (binding-sequence-counter binding) (binding-attr binding 'sequence-counter))
+(define (binding-lambda-color binding) (binding-attr binding 'lambda-color))
+
+(define (attrs-from-context) (default-attrs *sequence-counter* *lambda-color*))
+(define (binding id) (binding-lookup id *usage-env*))
 
 ;;=========================================================================
 ;;
@@ -204,7 +233,7 @@
       (or (memv (source-level id)
                 (binding-levels binding))
           (syntax-violation
-           "invalid reference"
+           'binder
            (string-append "Attempt to use binding of " (symbol->string (id-name id))
                           " in module (" (join (id-module id) " ")
                           ") at invalid level " (number->string (source-level id))
@@ -214,7 +243,7 @@
       (or (and (null? (id-module id))
                (= *phase* 0))
           (syntax-violation
-           "invalid reference"
+           'binder
            (string-append "No binding available for " (symbol->string (id-name id))
                           " in library (" (join (id-module id) " ") ")")
 
@@ -299,7 +328,7 @@
                    (list *color*)
                    (list (env-extend
                           (list (cons (cons symbol '())
-                                      (make-binding type symbol '(0) (attrs-from-context) '())))
+                                      (make-binding-meta type symbol '(0) (attrs-from-context) '())))
                           (make-null-env)))
                    *phase*
                    #f
@@ -347,14 +376,14 @@
                             (binding->core::ref binding)))
                        ((pattern-variable)
                        (begin
-                        (syntax-violation #f "Pattern variable used outside syntax template" t)))))
+                        (syntax-violation 'expand "Pattern variable used outside syntax template" t)))))
             ((null? t)       (core::constant '()))
             ((list? t)       (core::apply (expand (car t)) (map expand (cdr t))))
             ((identifier? t) (if *current-module*
-                                 (syntax-violation #f "Unbound identifier" t)
+                                 (syntax-violation 'expand "Unbound identifier" t)
                                  (core::ref (make-toplevel-name (id-name t)))))
-            ((pair? t)       (syntax-violation #f "Invalid procedure call syntax" t))
-            ((symbol? t)     (syntax-violation #f "Symbol may not appear in syntax object" t))
+            ((pair? t)       (syntax-violation 'expand "Invalid procedure call syntax" t))
+            ((symbol? t)     (syntax-violation 'expand "Symbol may not appear in syntax object" t))
             (else            (core::constant (syntax->datum t)))))))
 
 ;; Only expands while t is a user macro invocation.
@@ -416,15 +445,15 @@
                (expand (invoke-macro macro exp)))
               (else
                (syntax-violation
-                'set! "Keyword being set! is not a variable transformer" exp id)))))
+                'set! "Keyword being set! is not a variable transformer" exp)))))
          ((variable)
           (or (eq? (binding-module binding) *current-module*)
               (syntax-violation
-               'set! "Directly or indirectly imported variable cannot be assigned" exp id))
+               'set! "Directly or indirectly imported variable cannot be assigned" exp))
           (binding-mutable-set! binding #t)
           (core::set! (binding->core::ref binding) (expand e)))
          ((pattern-variable)
-          (syntax-violation 'set! "Pattern variable used outside syntax template" exp id))
+          (syntax-violation 'set! "Pattern variable used outside syntax template" exp))
          (else
           (core::set! (core::ref (make-toplevel-name (id-name id))) (expand e))))))))
 
@@ -505,7 +534,7 @@
 
 (define (expand-include-file exp fold-case?)
   (match exp
-    ((include) (syntax-violation (syntax->datum include) "Invalid include syntax" exp include))
+    ((include) (syntax-violation (syntax->datum include) "Invalid include syntax" exp))
     ((include file)
       (check-valid-include (syntax->datum include) file)
       (let ((content (read-relative-include include (syntax->datum file) fold-case?)))
@@ -797,7 +826,7 @@
     (let ((dup (duplicate? id common-env)))
       (if dup
        (begin
-        (syntax-violation type "Redefinition of identifier in body" (binding id) id)))))
+        (syntax-violation type "Redefinition of identifier in body" id)))))
   (check-used id body-type form))
 
 (define (check-expression-body body-type forms body-forms)
@@ -945,7 +974,7 @@
          (check-set? (map car pvars)
                      bound-identifier=?
                      (lambda (dup)
-                       (syntax-violation 'syntax-case "Repeated pattern variable" clause dup)))
+                       (syntax-violation 'syntax-case "Repeated pattern variable" dup)))
          (let ((mappings (map (lambda (pvar)
                                 (make-local-mapping 'pattern-variable (car pvar) (dimension-attrs (cdr pvar))))
                               pvars)))
@@ -1040,7 +1069,6 @@
                                                       (list (core::constant 'syntax)
                                                             (core::constant 
                                                               "Pattern variables denoting lists of unequal length preceding ellipses")
-                                                            (core::constant (syntax->datum template))
                                                             (core::apply (core::anon-ref list)
                                                                          refs)))))))
                   (gen (if (> (segment-depth template) 1)
@@ -1163,7 +1191,6 @@
              (syntax-violation
               'definition
               "Definition of identifier that may have already affected meaning of undeferred portions of body"
-              form
               id)))))
 
 ;;==========================================================================
@@ -1202,10 +1229,10 @@
                                                      (let ((binding (binding (cadr mapping))))
                                                        (or binding
                                                            (syntax-violation
-                                                            'module "Unbound export" (cadr mapping) t))
+                                                            'module "Unbound export" (cadr mapping)))
                                                        (if (binding-mutable? binding)
                                                            (syntax-violation
-                                                            'module "Attempt to export mutable variable" t (cadr mapping)))
+                                                            'module "Attempt to export mutable variable" (cadr mapping)))
                                                        binding)))
                                              exports))
                                         (module (make-module
@@ -1290,7 +1317,7 @@
                     (lambda (x y)
                         (eq? (id-name (car x))
                              (id-name (car y))))
-                    (lambda (dup) (syntax-violation 'export "Duplicate export" dup exports)))
+                    (lambda (dup) (syntax-violation 'export "Duplicate export" dup)))
                     (values imported-libraries imports exports body-forms))
         (match (car declarations)
             (((% free=? import) specs ___)
@@ -1391,7 +1418,7 @@
                                             (string-append "Identifier not in set: "
                                                            (join (map car mappings) " "))
                                             name
-                                            import-set)))
+                                            )))
                     names))
 
         (match import-set
@@ -1399,7 +1426,7 @@
            (values #f
                    levels
                    (map (lambda (mapping)
-                          (cons (car mapping) (make-binding 'variable (cdr mapping) levels (attrs-from-context) '())))
+                          (cons (car mapping) (make-binding-meta 'variable (cdr mapping) levels (attrs-from-context) '())))
                         (adjuster (map (lambda (name) (cons name name))
                                        (syntax->datum xs))))))
           (((% free=? only) set (? identifier? xs) ___)
@@ -1456,7 +1483,6 @@
                                         (make-binding (binding-type binding)
                                                       (binding-name binding)
                                                       (compose-levels levels (binding-levels binding))
-                                                      (binding-attrs binding)
                                                       (binding-module binding)))))
                               (adjuster (map (lambda (name) (cons name name))
                                              (map car exports))))))
@@ -1474,9 +1500,9 @@
                      ((% free=? run)                   0)
                      ((% free=? expand)                1)
                      (((% free=? meta) (? integer-syntax? n)) (annotation-expression n))
-                     (- (syntax-violation 'for "Invalid level in for spec" spec level))))
+                     (- (syntax-violation 'for "Invalid level in for spec" level))))
                  levels)))
-       (check-set? levels = (lambda (dup) (syntax-violation 'for "Repeated level in for spec" spec dup)))
+       (check-set? levels = (lambda (dup) (syntax-violation 'for "Repeated level in for spec" dup)))
        (values levels set)))
     (- (values '(0) spec))))
 
@@ -1518,7 +1544,6 @@
                                           (binding-name (cdr probe))
                                           (unionv (binding-levels (cdr probe))
                                                   (binding-levels (cdr mapping)))
-                                          (binding-attrs (cdr probe))
                                           (binding-module (cdr probe)))))
                 (set! seen (cons mapping seen)))
             (loop (cdr imports)))))))
@@ -1595,7 +1620,8 @@
                 (*syntax-reflected*   #f)
                 (*sequence-counter*   0)
                 (*lambda-color*       (generate-lambda-color))
-                (*toplevel-color*     (generate-toplevel-color)))
+                (*toplevel-color*     (generate-toplevel-color))
+                (*binding-metadata*     (empty-binding-metadata)))
       (thunk))))
 
 (define (load-module name)
@@ -1689,7 +1715,7 @@
 
 (define (make-module-language)
   (map (lambda (name)
-         (cons name (make-binding 'macro name '(0) (attrs-from-context) '())))
+         (cons name (make-binding 'macro name '(0) '())))
        module-language-names))
 
 ;;===================================================================
@@ -1724,7 +1750,7 @@
     '()
     ;; exports
     (map (lambda (mapping)
-           (cons (car mapping) (make-binding 'macro (car mapping) '(0) (attrs-from-context) '())))
+           (cons (car mapping) (make-binding 'macro (car mapping) '(0) '())))
          primitive-macro-mapping)
     ;; imported-libraries
     '()
@@ -1752,7 +1778,7 @@
    '()
    ;; exports
    (map (lambda (intrinsic)
-          (cons intrinsic (make-binding 'variable intrinsic '(0) (attrs-from-context) '())))
+          (cons intrinsic (make-binding 'variable intrinsic '(0) '())))
         compiler-intrinsics)
    ;; imported-libraries
    '()

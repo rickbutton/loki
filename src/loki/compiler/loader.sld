@@ -48,13 +48,17 @@
 (define-record-type <module>
     (make-module-record name envs exports imports builds syntax-defs forms build visited? invoked?)
     module?
+    ; (symbol ...)
     (name        module-name)
     (envs        module-envs)
     (exports     module-exports)
     (imports     module-imports)
+    ; (build-id ...)
     (builds      module-builds)
     (syntax-defs module-syntax-defs)
+    ; (core ...)
     (forms       module-forms)
+    ; build-id
     (build       module-build)
     (visited?    module-visited? module-visited?-set!)
     (invoked?    module-invoked? module-invoked?-set!))
@@ -107,7 +111,7 @@
 (define (cache-module-output fn output)
   (let* ((so (path-with-suffix (wrap-path fn) "so"))
          (port (open-output-file (path->string so))))
-    (write (serialize-module output) port)
+    (pretty (serialize-module output) port)
     (close-port port)))
 
 (define (read-module-path fn thunk)

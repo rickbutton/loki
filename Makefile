@@ -10,20 +10,15 @@ SCM=gosh
 SCM_FLAGS=-A src
 COMPILE_SCM=$(SCM) $(SCM_FLAGS) src/loki.scm --
 		   
-example: examples/test.wasm examples/test.wat
-	node $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
-
-example-debug: examples/test.wasm examples/test.wat
-	node --inspect-brk $(NODE_FLAGS) host/src/node.mjs examples/test.wasm
-
 test:
 	$(COMPILE_SCM) src/tests.scm
 
 repl:
 	$(COMPILE_SCM) src/repl.scm
 
-compiler:
-	$(COMPILE_SCM) src/yggdrasil.scm
+example:
+	#$(COMPILE_SCM) examples/yggdrasil.scm
+	$(COMPILE_SCM) src/loki/compiler/expander.sld
 
 %.wasm: %.wat
 	wat2wasm $(WABT_FLAGS) --debug-names $< -o $@

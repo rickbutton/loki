@@ -6,6 +6,7 @@
     (cond-expand
       (gauche (import (gauche base))))
     (export 
+        pretty
         map-vector
         fold-left
         all-but-last
@@ -53,6 +54,13 @@
         end
         step)
         fold-var))
+
+(define (pretty v . args)
+  (let ((out (if (pair? args) (car args) (current-output-port))))
+    (cond-expand
+      (gauche (pprint v :port out :newline #f))
+      (else (display v out)))
+    (newline out)))
 
 (cond-expand
 (gauche

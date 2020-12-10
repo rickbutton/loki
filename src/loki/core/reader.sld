@@ -766,7 +766,7 @@
 (define (annotation-printer x writer out)
     (let* ((source (annotation-source x))
            (file (if source (source-file source) #f)))
-      (writer "#<syntax " #t)
+      (writer "#<syntax ")
       (if source
         (string-append
           ":"
@@ -776,7 +776,7 @@
           (number->string (source-column source)) " ")
         " ")
       (writer (annotation-expression x))
-      (writer ">" #t)))
+      (writer ">")))
 
 
 (cond-expand

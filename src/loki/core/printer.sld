@@ -44,7 +44,11 @@
       (syntax-rules ()
         ((_ type printer)
          (define-method write-object ((self type) port)
-            (define (writer x . _) (write x port))
+            (define (writer x . o)
+              (let ((write? (if (pair? o) (car o) #f)))
+                (if write?
+                  (write x port)
+                  (display x port))))
             (printer self writer port)))))))
 
 ))

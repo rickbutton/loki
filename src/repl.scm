@@ -5,8 +5,9 @@
 (import (scheme eval))
 (import (scheme process-context))
 (import (loki core intrinsics))
+(import (loki core exception))
 
-(define env (environment '(scheme base)))
+(define env (environment '(scheme base) '(scheme write)))
 
 (define (repl)
   (guard (error (else (handle-error error)))
@@ -15,11 +16,12 @@
     (let* ((datum (read (current-input-port))))
       (if (eof-object? datum) (exit 0))
       (display (eval datum env))
-      (newline)))
-  (repl))
+      (newline)
+      (repl))))
                 
-(define (handle-error error)
-  (display error)
-  (newline))
+(define (handle-error e)
+  (display (error-object-message e))
+  (newline)
+  (repl))
 
 (repl)
