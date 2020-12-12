@@ -11,6 +11,7 @@
 (import (loki compiler macro))
 (import (loki compiler runtime))
 (import (loki compiler binding))
+(import (loki compiler lang core))
 (import (loki util))
 (import (srfi 1))
 (export make-module
@@ -72,7 +73,7 @@
            ,(module-imports module)
            ,(module-builds module)
            ,(module-syntax-defs module)
-           ,(module-forms module)
+           ,(map core::serialize (module-forms module))
            ,(module-build module)))
 (define (serialize-mapping mapping)
   (cons (car mapping)

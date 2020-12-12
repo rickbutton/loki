@@ -7,7 +7,7 @@
 (import (loki core intrinsics))
 (import (loki core exception))
 
-(define env (environment '(scheme base) '(scheme write)))
+(define env (environment '(scheme base) '(scheme read) '(scheme write)))
 
 (define (repl)
   (guard (error (else (handle-error error)))
@@ -20,7 +20,7 @@
       (repl))))
                 
 (define (handle-error e)
-  (display (error-object-message e))
+  (%abort e)
   (newline)
   (repl))
 

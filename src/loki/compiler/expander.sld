@@ -477,26 +477,23 @@
   (match exp
     ((- ((names values) ___) body ___)
      (check-let-binding-names names)
-     (scan-sequence 'expression-sequence
-                    make-local-mapping
-                    values
-       (lambda (val-forms syntax-definitions bound-variables)
-         (fluid-let ((*usage-env*
-                      (env-extend (map (lambda (name) (make-local-mapping 'variable name (attrs-from-context))) names)
-                                  *usage-env*)))
-           (let ((bindings (map binding names)))
-             ;; Scan-sequence expects the caller to have prepared
-             ;; the frame to which to destructively add bindings.
-             ;; Let bodies need a fresh frame.
-             (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
-               (scan-sequence 'lambda
-                              make-local-mapping
-                              body
-                              (lambda (body-forms syntax-definitions bound-variables)
-                                (core::letrec
-                                  (map (lambda (name binding val) (core::let-var (binding->core::ref binding) (cdr val)))
-                                       names bindings val-forms)
-                                  (emit-body body-forms emit-never-toplevel))))))))))))
+     (let ((val-forms (map expand values)))
+       (fluid-let ((*usage-env*
+                    (env-extend (map (lambda (name) (make-local-mapping 'variable name (attrs-from-context))) names)
+                                *usage-env*)))
+         (let ((bindings (map binding names)))
+           ;; Scan-sequence expects the caller to have prepared
+           ;; the frame to which to destructively add bindings.
+           ;; Let bodies need a fresh frame.
+           (fluid-let ((*usage-env* (env-extend '() *usage-env*)))
+             (scan-sequence 'lambda
+                            make-local-mapping
+                            body
+                            (lambda (body-forms syntax-definitions bound-variables)
+                              (core::letrec
+                                (map (lambda (name binding val) (core::let-var (binding->core::ref binding) val))
+                                     names bindings val-forms)
+                                (emit-body body-forms emit-never-toplevel)))))))))))
 
 ;; Expression let(rec)-syntax:
 

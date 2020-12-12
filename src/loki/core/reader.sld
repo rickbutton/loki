@@ -28,6 +28,7 @@
 (import (scheme base))
 (import (scheme char))
 (import (scheme case-lambda))
+(import (loki util))
 (import (loki core printer))
 (import (loki core syntax))
 (cond-expand

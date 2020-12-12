@@ -14,7 +14,7 @@
         (scheme case-lambda)
         (scheme r5rs)
         (loki test)
-        (for (loki util) expand))
+        (loki util))
 
 (define-syntax test-values
   (syntax-rules ()
@@ -2283,7 +2283,6 @@
             (out (open-output-string))
             (z-str (begin (write z out) (get-output-string out)))
             (expected (guard (err (else err)) expect)))
-       ; BROKEN - non of this is supported
        (test expected (values z))
        (test #t (and (member z-str '(str strs ...)) #t))))))
 ;; Each test is of the form:

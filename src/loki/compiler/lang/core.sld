@@ -20,7 +20,8 @@
         core::apply
         core::apply-anon
         core::atomic?
-        compile-core-to-host-scheme)
+        compile-core-to-host-scheme
+        core::serialize)
 (begin
 
 ; core language!
@@ -136,5 +137,7 @@
 
 (define (compile-core-to-host-scheme terms)
   (map compile-term terms))
+
+(define core::serialize compile-term)
 
 ))
