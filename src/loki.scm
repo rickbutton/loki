@@ -14,11 +14,12 @@
     "loki v" *version* "\n"))
 
 (define-record-type <loki-options>
-  (make-loki-options targets)
+  (make-loki-options targets args)
   loki-options?
-  (targets loki-options-targets loki-options-targets-set!))
+  (targets loki-options-targets loki-options-targets-set!)
+  (args    loki-options-args    loki-options-args-set!))
 (define (default-options)
-  (make-loki-options '()))
+  (make-loki-options '() '()))
 
 (define (display-and-exit-proc msg)
   (lambda (opt name arg options)
@@ -35,20 +36,35 @@
                    "Usage: TODO, someone please fill this in...")))
     (lambda (opt name arg loads)
       (error "Unrecognized option" name))
-    (lambda (op options)
-      (loki-options-targets-set! options
-        (cons op (loki-options-targets options)))
-      options)
+    (let ((mode 'targets)) ; targets | options
+      (lambda (op options)
+        (if (string=? op "--")
+          (set! mode 'args)
+          (case mode
+            ((targets)
+             (loki-options-targets-set! options (append (loki-options-targets options) (list op))))
+            ((args)
+             (loki-options-args-set! options (append (loki-options-args options) (list op))))))
+          options))
     (default-options)))
 
 (define (run-loki-cli arguments)
-      (let ((options (parse-options arguments)))
-        (if (null? options)
-          (error "target required"))
-        (for-each
-          (lambda (target)
-            (debug "running" target)
-            (import-module (module-name (ex:expand-file (make-path target)))))
-          (loki-options-targets options))))
+  (let ((options (parse-options arguments)))
+    (if (null? options)
+      (error "target required"))
+    (with-loki-command-line (loki-options-args options) (lambda ()
+      (for-each
+        (lambda (target)
+          (import-module (module-name (ex:expand-file (make-path target)))))
+        (loki-options-targets options))))))
 
-(run-loki-cli (cdr (command-line)))
+(with-exception-handler
+  (lambda (error)
+    (if (runtime-exception? error)
+        (debug "runtime exception"
+               (runtime-exception-type error)
+               (runtime-exception-message error)
+               (runtime-exception-irritants error))
+        (debug error))
+    (raise error))
+  (lambda () (run-loki-cli (cdr (command-line)))))

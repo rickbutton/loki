@@ -18,7 +18,7 @@
         core::ref?
         core::ref-name
         core::apply
-        core::apply-anon
+        core::apply-prim
         core::atomic?
         compile-core-to-host-scheme
         core::serialize)
@@ -75,6 +75,10 @@
   core::constant?
   (value core::constant-value))
 
+; module ref
+; toplevel ref?
+; local ref
+; free ref
 (define-record-type <core::ref>
   (core::ref name)
   core::ref?
@@ -89,7 +93,7 @@
   core::apply?
   (proc core::apply-proc)
   (args core::apply-args))
-(define-syntax core::apply-anon
+(define-syntax core::apply-prim
   (syntax-rules ()
     ((_ id args ...)
       (core::apply (core::anon-ref id) (list args ...)))))

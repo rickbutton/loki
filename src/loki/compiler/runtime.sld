@@ -16,7 +16,12 @@
 (import (srfi 69))
 (import (srfi 151))
 (export runtime-run-program
-        runtime-add-primitive)
+        runtime-add-primitive
+        (rename exception? runtime-exception?)
+        (rename exception-type runtime-exception-type)
+        (rename exception-message runtime-exception-message)
+        (rename exception-irritants runtime-exception-irritants)
+        with-loki-command-line)
 (begin
 
 (define runtime-env #f)
@@ -226,7 +231,14 @@
 (define (loki-repr obj)
   (write-to-string obj))
 (define (loki-debug . obj)
-  (apply debug "DEBUG" obj))
+  (apply debug obj))
+
+(define *current-command-line* (make-parameter '()))
+(define (with-loki-command-line cmd thunk)
+  (parameterize ((*current-command-line* (cons "loki" cmd)))
+    (thunk)))
+(define (loki-command-line)
+  (list-copy (*current-command-line*)))
 
 ;; Register the required runtime primitives
 (runtime-add-primitive '%void (if #f #f))
@@ -321,7 +333,7 @@
 (runtime-add-primitive '%sqrt       sqrt)
 (runtime-add-primitive '%expt       expt)
 
-(runtime-add-primitive '%command-line          ''())
+(runtime-add-primitive '%command-line          loki-command-line)
 (runtime-add-primitive '%environment-variables ''())
 (runtime-add-primitive '%emergency-exit        exit) ; TODO - this sucks
 

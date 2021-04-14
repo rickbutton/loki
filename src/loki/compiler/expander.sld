@@ -266,7 +266,7 @@
 (define (syntax-reflect id)
   (let ((source (id-source id)))
     (set! *syntax-reflected* #t)
-    (core::apply-anon ex:syntax-rename
+    (core::apply-prim ex:syntax-rename
                       (core::constant (id-name id))
                       (core::constant (id-colors id))
                       (core::constant (cons (env-reflect *usage-env*)
@@ -871,10 +871,10 @@
                         (list (process-match temp pattern sk fk))))
         (match pattern
           ((% free=? ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
-          (()                 (core::if (core::apply-anon %null? input) sk fk))
+          (()                 (core::if (core::apply-prim %null? input) sk fk))
           ((? literal? id)
-            (core::if (core::if (core::apply-anon ex:identifier? input)
-                                (core::if (core::apply-anon ex:free-identifier=? input (syntax-reflect id))
+            (core::if (core::if (core::apply-prim ex:identifier? input)
+                                (core::if (core::apply-prim ex:free-identifier=? input (syntax-reflect id))
                                           (core::constant #t)
                                           (core::constant #f))
                                 (core::constant #f))
@@ -890,13 +890,13 @@
              (if (and (identifier? p)                               ; +++
                       (= (length refs) 1))                          ; +++
                  (let ((ref (car refs)))
-                   (core::if (core::apply-anon list? input)
+                   (core::if (core::apply-prim list? input)
                              (core::letrec (list (core::let-var ref input))
                                            (list sk))
                              fk))
                  (let ((columns (core::ref (generate-guid 'cols)))
                        (rest    (core::ref (generate-guid 'rest))))
-                   (core::apply-anon ex:map-while
+                   (core::apply-prim ex:map-while
                                 (core::lambda (list input)
                                               #f
                                               (list (process-match input
@@ -906,37 +906,37 @@
                                 input
                                 (core::lambda (list columns rest)
                                               #f
-                                              (list (core::if (core::apply-anon %null? rest)
-                                                              (core::apply-anon %apply
+                                              (list (core::if (core::apply-prim %null? rest)
+                                                              (core::apply-prim %apply
                                                                            (core::lambda refs #f (list sk))
-                                                                           (core::if (core::apply-anon %null? columns)
+                                                                           (core::if (core::apply-prim %null? columns)
                                                                                      (core::constant (map (lambda (i) '()) pvars))
-                                                                                     (core::apply-anon %apply
+                                                                                     (core::apply-prim %apply
                                                                                                        (core::anon-ref map)
                                                                                                        (core::anon-ref list)
                                                                                                        columns)))
                                                               fk))))))))
           ((p (% free=? ...) . tail)
            (let ((tail-length (core::constant (dotted-length tail))))
-             (core::if (core::apply-anon %gte (core::apply-anon ex:dotted-length input) tail-length)
-                       (process-match (core::apply-anon ex:dotted-butlast input tail-length)
+             (core::if (core::apply-prim %gte (core::apply-prim ex:dotted-length input) tail-length)
+                       (process-match (core::apply-prim ex:dotted-butlast input tail-length)
                                       `(,p ,(cadr pattern))
-                                      (process-match (core::apply-anon ex:dotted-last input tail-length)
+                                      (process-match (core::apply-prim ex:dotted-last input tail-length)
                                                      tail
                                                      sk
                                                      fk)
                                       fk)
                        fk)))
           ((p1 . p2)
-           (core::if (core::apply-anon %pair? input)
-                     (process-match (core::apply-anon %car input)
+           (core::if (core::apply-prim %pair? input)
+                     (process-match (core::apply-prim %car input)
                                     p1
-                                    (process-match (core::apply-anon %cdr input) p2 sk fk)
+                                    (process-match (core::apply-prim %cdr input) p2 sk fk)
                                     fk)
                     fk))
           (#(ps ___)
-           (core::if (core::apply-anon %vector? input)
-                     (process-match (core::apply-anon vector->list input)
+           (core::if (core::apply-prim %vector? input)
+                     (process-match (core::apply-prim vector->list input)
                                     ps
                                     sk
                                     fk)
@@ -945,8 +945,8 @@
            (syntax-violation 'syntax-case "Symbol object may not appear in pattern" pattern))
           (other
             #t
-           (core::if (core::apply-anon %equal?
-                                       (core::apply-anon ex:syntax->datum input)
+           (core::if (core::apply-prim %equal?
+                                       (core::apply-prim ex:syntax->datum input)
                                        (core::constant (syntax->datum other)))
                      sk
                      fk)))))
@@ -993,7 +993,7 @@
 
   (match clauses
     (()
-     (core::apply-anon ex:invalid-form input))
+     (core::apply-prim ex:invalid-form input))
     ((clause clauses ___)
      (let ((fail (core::ref (generate-guid 'fail))))
        (core::letrec (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
@@ -1058,7 +1058,7 @@
                                             (cons (core::lambda refs #f (list x))
                                                   refs))
                                (core::if (core::apply (core::anon-ref %number-eq)
-                                                      (map (lambda (ref) (core::apply-anon length ref)) refs))
+                                                      (map (lambda (ref) (core::apply-prim length ref)) refs))
                                          (core::apply (core::anon-ref map)
                                                       (cons (core::lambda refs #f (list x))
                                                             refs))
@@ -1069,7 +1069,7 @@
                                                             (core::apply (core::anon-ref list)
                                                                          refs)))))))
                   (gen (if (> (segment-depth template) 1)
-                           (core::apply-anon %apply (core::anon-ref append) gen)
+                           (core::apply-prim %apply (core::anon-ref append) gen)
                            gen)))
              (if (null? (segment-tail template))   ; +++
                  gen                               ; +++

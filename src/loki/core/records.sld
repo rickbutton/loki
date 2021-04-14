@@ -57,6 +57,10 @@
     (define (record-set! record index value)
       (vector-set! record (+ index 1) value))
 
+    ; default printer for root record type
+    (define (root-record-type-printer x writer port)
+      (writer "#<record>"))
+
     ; Definition of DEFINE-RECORD-TYPE
     
     (define-syntax define-record-type
@@ -108,7 +112,7 @@
     
     (define (record-type record)
       (record-ref record 0))
-    
+
     ;----------------
     ; Record types are themselves records, so we first define the type for
     ; them.  Except for problems with circularities, this could be defined as:
@@ -120,10 +124,11 @@
     ; As it is, we need to define everything by hand.
     
     (define :record-type 
-      (let ((:record-type (make-record 3)))
+      (let ((:record-type (make-record 4)))
         (record-set! :record-type 0 :record-type)	; Its type is itself.
         (record-set! :record-type 1 ':record-type)
         (record-set! :record-type 2 '(name field-tags printer))
+        (record-set! :record-type 3 root-record-type-printer)
         :record-type))
     
     ; Now that :record-type exists we can define a procedure for making more
@@ -138,7 +143,7 @@
         new))
     
     ; Accessors for record types.
-    
+
     (define (record-type-name record-type)
       (record-ref record-type 1))
     
