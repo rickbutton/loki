@@ -44,10 +44,36 @@
       %stderr %stdin %stdout %flush-output-port
       %peek-u8 %peek-char
       %read-bytevector! %read-bytevector %read-string %read-char
-      %read-line %read-u8 %write-bytevector %write-string %repr %debug
+      %read-line %read-u8 %write-bytevector %write-string
       %write-char %write-u8 %current-directory
       %hash-by-identity %current-jiffy %current-second %jiffies-per-second
-      %number->string %string->number))
+      %number->string %string->number
+
+      ex:identifier?
+      ex:bound-identifier=?
+      ex:free-identifier=?
+      ex:generate-temporaries
+      ex:datum->syntax
+      ex:syntax->datum
+      ex:syntax->source
+      ex:source-file
+      ex:source-line
+      ex:source-column
+      ex:environment
+      ex:eval
+      ex:load
+      ex:syntax-violation
+      ex:features
+
+      ex:invalid-form
+      ex:register-macro!
+      ex:syntax-rename
+      ex:map-while
+      ex:dotted-length
+      ex:dotted-butlast
+      ex:dotted-last
+      ex:free=?))
+
 
 (define (intrinsic? i)
   (member i compiler-intrinsics))

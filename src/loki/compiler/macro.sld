@@ -1,10 +1,12 @@
 (define-library (loki compiler macro)
 (import (scheme base))
+(import (loki util))
 (import (srfi 128))
 (import (srfi 146 hash))
 (export macro?
         macro-type
         macro-proc
+        macro-source
         make-expander
         make-transformer
         binding-name->macro
@@ -28,13 +30,14 @@
 ;; <type> ::= expander | transformer | variable-transformer
 
 (define-record-type <macro>
-  (make-macro type proc)
+  (make-macro type proc source)
   macro?
   (type macro-type)
-  (proc macro-proc))
+  (proc macro-proc)
+  (source macro-source))
 
-(define (make-expander proc)             (make-macro 'expander proc))
-(define (make-transformer proc)          (make-macro 'transformer proc))
+(define (make-expander proc source)             (make-macro 'expander proc source))
+(define (make-transformer proc source)          (make-macro 'transformer proc source))
 
 ;; Returns <macro>.
 (define (binding-name->macro binding-name t)

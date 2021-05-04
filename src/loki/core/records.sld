@@ -59,7 +59,7 @@
 
     ; default printer for root record type
     (define (root-record-type-printer x writer port)
-      (writer "#<record>"))
+      (writer "#<root>"))
 
     ; Definition of DEFINE-RECORD-TYPE
     

@@ -1,6 +1,6 @@
 (define-library (loki core let)
   (export let letrec letrec*)
-  (import (for (loki core primitives)        expand run)
+  (import (for (except (loki core primitives) _)        expand run)
           (for (loki core intrinsics)        expand run)
           (for (loki core syntax-rules)      expand run))
   (begin

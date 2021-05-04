@@ -15,6 +15,8 @@
 (import (loki compiler lang core))
 (import (srfi 69))
 (import (srfi 151))
+(cond-expand
+ (gauche (import (only (gauche base) report-error))))
 (export runtime-run-program
         runtime-add-primitive
         (rename exception? runtime-exception?)
@@ -35,9 +37,8 @@
     quote
     set!
     define
-    let
-
     letrec
+
     map
     list
     list?
@@ -47,15 +48,42 @@
     length
     ))))
 
+(define env (cond-expand (loki "loki") (else "base")))
+
+(define (error->string err)
+  (let ((out (open-output-string)))
+    (cond-expand
+      (loki
+        (if (exception? err)
+          (begin
+            (display (exception-type err) out)
+            (display ": " out)
+            (display (exception-message err) out)
+            (newline out)
+            (display (exception-irritants err) out)
+            (newline out))
+          (display err out)))
+      (else
+        (if (error-object? err)
+          (display (report-error err #f) out))))
+    (get-output-string out)))
+
 (define (runtime-run-program prog)
   (if (not runtime-env) (runtime-env-init!))
   (with-exception-handler
     (lambda (err)
-      (if current-exception-handler
-          (current-exception-handler err)
-          (begin
-            (display "ERROR: current-exception-handler is not setup, aborting\n")
-            (raise err))))
+      (let ((err (if (error-object? err)
+                     (make-exception 'eval-error
+                                     (error->string err)
+                                     (error-object-irritants err))
+                     (make-exception 'eval-error
+                                     "wrapped error"
+                                     (error->string err)))))
+        (if current-exception-handler
+            (current-exception-handler err)
+            (begin
+              (display "ERROR: current-exception-handler is not setup, aborting\n")
+              (raise err)))))
     (lambda ()
       (let ((host-scheme (compile-core-to-host-scheme prog)))
         (eval `(begin ,@host-scheme) runtime-env)))))
@@ -83,10 +111,15 @@
 ; root abort
 (define (abort obj)
   (display "ABORT!\n")
-  (display obj)
-  (display "\n")
-  ;(emit-traces)
-  (raise obj)
+  (if (exception? obj)
+    (begin
+      (display (exception-type obj))
+      (display ": ")
+      (display (exception-message obj))
+      (newline)
+      (display (exception-irritants obj))
+      (newline))
+    (display obj))
   (exit 1))
 
 (define max-traces (* 1024 10))
@@ -227,11 +260,6 @@
   (write-char char (loki-port-output port)))
 (define (loki-write-u8 u8 port)
   (write-u8 u8 (loki-port-output port)))
-
-(define (loki-repr obj)
-  (write-to-string obj))
-(define (loki-debug . obj)
-  (apply debug obj))
 
 (define *current-command-line* (make-parameter '()))
 (define (with-loki-command-line cmd thunk)
@@ -390,7 +418,5 @@
 (runtime-add-primitive '%hash-by-identity hash-by-identity)
 (runtime-add-primitive '%current-directory current-directory)
 (runtime-add-primitive '%trace trace)
-(runtime-add-primitive '%repr loki-repr)
-(runtime-add-primitive '%debug loki-debug)
 
 ))

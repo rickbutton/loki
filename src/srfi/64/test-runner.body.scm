@@ -25,7 +25,6 @@
 ;; CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 ;; SOFTWARE.
 
-
 ;;; The data type
 
 (define-record-type <test-runner>
@@ -110,7 +109,6 @@
     (%test-runner-log-port! runner #f)
     runner))
 
-
 ;;; State
 
 (define test-result-ref

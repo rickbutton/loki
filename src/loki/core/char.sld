@@ -34,7 +34,7 @@
       #t
       (if (eq? ch #\tab) #t (if (eq? ch #\newline)
                                 #t
-                                (if (eq? ch #\xC0) #f (eq? ch #\return))))))
+                                (if (eq? ch #\x0C) #t (eq? ch #\return))))))
 (define (char-upper-case? ch) (<= 65 (char->integer ch) 90))
 (define (char-lower-case? ch) (<= 97 (char->integer ch) 122))
 

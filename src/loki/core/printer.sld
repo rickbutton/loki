@@ -16,9 +16,11 @@
     (define (default-record-printer obj writer port)
       (let* ((type (record-type obj))
              (tags (record-type-field-tags type)))
+ 
+        (write-string "#" port)
         (writer (record-type-name type) port)
         (if (= (length tags) 0)
-          (write-string "#{}" port)
+          (write-string "{}" port)
           (begin
             (write-string "#{ " port)
             (for-each (lambda (tag)
@@ -29,10 +31,13 @@
             (write-char #\} port)))))
  
     (define (print-object obj writer port)
-      (if (record? obj)
-        (or (record-printer obj)
-            default-record-printer)
-        (write-string (%repr obj) port))))
+      (cond
+        ((record? obj) ((or (record-printer obj) default-record-printer) obj writer port))
+        ((error-object? obj)
+          (write-string "ERROR: " port)
+          (write-string (error-object-message obj) port)
+          (write-string "\n" port))
+        (else (write-string "#<unknown>" port)))))
   (else #f))
 
 (cond-expand

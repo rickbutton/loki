@@ -26,5 +26,5 @@
            (eq? (record-type value) type)))
     (define (slot-ref type value slot)
       (if (number? slot)
-        (record-ref type slot)
+        (record-ref value (+ slot 1))
         ((record-accessor type 'slot) value)))))))

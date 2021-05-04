@@ -15,8 +15,7 @@
         empty-binding-metadata
         dimension-attrs
         default-attrs
-        bound-identifier=?
-        serialize-binding)
+        bound-identifier=?)
 (begin
 
 ;;=========================================================================
@@ -59,12 +58,6 @@
 
 (define *binding-comparator* (make-comparator binding? binding=? #f hash-by-identity))
 (define (empty-binding-metadata) (hashmap *binding-comparator*))
-
-(define (serialize-binding binding)
-  `(binding ,(binding-type binding)
-            ,(binding-name binding)
-            ,(binding-levels binding)
-            ,(binding-module binding)))
 
 (define (empty-attrs) (hashmap (make-default-comparator)))
 (define (dimension-attrs dimension) (hashmap-set (empty-attrs) 'dimension dimension))

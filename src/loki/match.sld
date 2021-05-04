@@ -261,15 +261,17 @@
 ;; 2006/12/01 - non-linear patterns, shared variables in OR, get!/set!
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; force compile-time syntax errors with useful messages
 (define-library (loki match)
 (cond-expand
   (gauche (import (scheme base)))
-  (loki (import (for (scheme base) run expand (meta 2)))))
+  (loki (import (for (scheme base) run expand (meta 2)))
+        (import (for (loki util) run expand (meta 2)))
+        (import (for (loki syntax) run expand (meta 2)))))
 (import (loki core reflect))
 (export match)
 (begin
 
+;; force compile-time syntax errors with useful messages
 (define-syntax match-syntax-error
   (syntax-rules ()
     ((_) (match-syntax-error "invalid match-syntax-error usage"))))
@@ -1050,20 +1052,26 @@
 ;; This is portable but can be more efficient with non-portable
 ;; extensions.  This trick was originally discovered by Oleg Kiselyov.
 (define-syntax match-check-identifier
-  (syntax-rules ()
-    ;; fast-case failures, lists and vectors are not identifiers
-    ((_ (x . y) success-k failure-k) failure-k)
-    ((_ #(x ...) success-k failure-k) failure-k)
-    ;; x is an atom
-    ((_ x success-k failure-k)
-     (let-syntax
-         ((sym?
-           (syntax-rules ()
-             ;; if the symbol `abracadabra' matches x, then x is a
-             ;; symbol
-             ((sym? x sk fk) sk)
-             ;; otherwise x is a non-symbol datum
-             ((sym? y sk fk) fk))))
-       (sym? abracadabra success-k failure-k)))))
+  (cond-expand
+   (loki
+      (lambda (x) (syntax-case x ()
+        ((_ val sk fk)
+          (if (identifier? (syntax val)) (syntax sk) (syntax fk))))))
+    (else
+      (syntax-rules ()
+        ;; fast-case failures, lists and vectors are not identifiers
+        ((_ (x . y) success-k failure-k) failure-k)
+        ((_ #(x ...) success-k failure-k) failure-k)
+        ;; x is an atom
+        ((_ x success-k failure-k)
+         (let-syntax
+             ((sym?
+               (syntax-rules ()
+                 ;; if the symbol `abracadabra' matches x, then x is a
+                 ;; symbol
+                 ((sym? x sk fk) sk)
+                 ;; otherwise x is a non-symbol datum
+                 ((sym? y sk fk) fk))))
+           (sym? abracadabra success-k failure-k)))))))
 
 ))

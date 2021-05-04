@@ -54,8 +54,8 @@
 (define *phase*            0)
 ;; current color for painting identifiers upon renaming to be initialized
 (define *color*            #f)
-;; current module name as list of symbols or '() for toplevel
-(define *current-module*  '())
+;; current module name as list of symbols
+(define *current-module*  #f)
 ;; car of this records bindings already referenced in current body
 ;; for detecting when later definitions may violate lexical scope
 (define *used*             (list '()))
@@ -74,10 +74,6 @@
 ;; we can identify valid forward references inside
 ;; lambdas vs invalid forward references
 (define *lambda-color* #f)
-;; current color for naming toplevel bindings,
-;; so that we can give separate toplevel namespaces
-;; to different <environment> instances
-(define *toplevel-color* #f)
 ;; current binding metadata map
 ;; we need to track some information for use throughout
 ;; the expansion phase for bindings
@@ -142,8 +138,6 @@
   (generate-guid 'c))
 (define (generate-lambda-color)
   (generate-guid 'l))
-(define (generate-toplevel-color)
-  (generate-guid 't))
 
 ;;=========================================================================
 ;;
@@ -179,7 +173,7 @@
 ;; of generated internal definitions.
 
 (define (make-toplevel-name symbol)
-  (string->symbol (string-append (symbol->string *toplevel-color*) (symbol->string symbol))))
+  (string->symbol (string-append "~" (symbol->string symbol))))
 
 (define (make-toplevel-mapping type id attrs)
   (if (null? (id-colors id))
@@ -189,7 +183,7 @@
                                (make-toplevel-name (id-name id))
                                '(0)
                                attrs
-                               '()))
+                               #f))
       (make-local-mapping type id attrs)))
 
 (define (binding-metadata-set! binding metadata)
@@ -278,6 +272,7 @@
                       (core::constant (source-column source)))))
 
 (define (syntax-rename name colors transformer-envs transformer-phase source-module file line column)
+  ;(debug "syntax-rename" (cond-expand (loki "loki") (else "else")) name colors source-module file line column)
   (make-identifier name
                    (cons *color* colors)
                    transformer-envs
@@ -328,7 +323,7 @@
                    (list *color*)
                    (list (env-extend
                           (list (cons (cons symbol '())
-                                      (make-binding-meta type symbol '(0) (attrs-from-context) '())))
+                                      (make-binding-meta type symbol '(0) (attrs-from-context) #f)))
                           (make-null-env)))
                    *phase*
                    #f
@@ -336,6 +331,7 @@
                    
 ;; Calls a macro with a new color.
 (define (invoke-macro macro t)
+  ;(debug "invoke-macro" t (if (macro-source macro) (map core::serialize (macro-source macro))))
   (set! *color* (generate-color))
   ((macro-proc macro) t))
 
@@ -343,6 +339,7 @@
   (let* ((imports (datum->syntax toplevel-template '((import (loki core primitives)))))
          (expanded (expand t))
          (module (make-module `(macro ,(generate-guid 'm))
+                                  '()
                                   '()
                                   '()
                                   '()
@@ -359,12 +356,14 @@
 ;;=========================================================================
 
 (define (expand t)
+  ;(debug "expand" t)
   (fluid-let ((*trace* (cons t *trace*)))
     (let ((binding (operator-binding t)))
       (cond (binding (case (binding-type binding)
                        ((macro)
                         (let ((macro (binding-name->macro (binding-name binding) t)))
                           (let ((expanded-once (invoke-macro macro t)))
+                            ;(debug "expanded-once" expanded-once)
                             (case (macro-type macro)
                               ((expander) expanded-once)
                               (else
@@ -379,7 +378,8 @@
                         (syntax-violation 'expand "Pattern variable used outside syntax template" t)))))
             ((null? t)       (core::constant '()))
             ((list? t)       (core::apply (expand (car t)) (map expand (cdr t))))
-            ((identifier? t) (if *current-module*
+            ((identifier? t) 
+                             (if *current-module*
                                  (syntax-violation 'expand "Unbound identifier" t)
                                  (core::ref (make-toplevel-name (id-name t)))))
             ((pair? t)       (syntax-violation 'expand "Invalid procedure call syntax" t))
@@ -447,9 +447,6 @@
                (syntax-violation
                 'set! "Keyword being set! is not a variable transformer" exp)))))
          ((variable)
-          (or (eq? (binding-module binding) *current-module*)
-              (syntax-violation
-               'set! "Directly or indirectly imported variable cannot be assigned" exp))
           (binding-mutable-set! binding #t)
           (core::set! (binding->core::ref binding) (expand e)))
          ((pattern-variable)
@@ -693,7 +690,7 @@
                                          (make-wrap *usage-env* rhs id))
                                    forms)
                              syntax-defs
-                             (cons (binding id) bound-variables)))))
+                             (cons (cons id (binding id)) bound-variables)))))
                   ((define-syntax)
                    (call-with-values
                        (lambda () (parse-definition form #t))
@@ -703,11 +700,11 @@
                          (env-extend! (list mapping) common-env)
                          (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand-macro rhs))))
-                           (register-macro! (binding-name (cdr mapping)) (make-transformer (evaluate-macro rhs-expanded)))
+                           (register-macro! (binding-name (cdr mapping)) (make-transformer (evaluate-macro rhs-expanded) (module-forms rhs-expanded)))
                            (loop (cdr ws)
                                  forms
                                  ;FIXME
-                                 (cons (cons (binding-name (binding id)) rhs-expanded) syntax-defs)
+                                 (cons (list (binding-name (binding id)) rhs-expanded (module-forms rhs-expanded)) syntax-defs)
                                  bound-variables))))))
                   ((begin)
                    (or (list? form)
@@ -736,10 +733,11 @@
                                               ((letrec-syntax) extended-env))))
                                  (map expand-macro rhs)))
                               (macros (map evaluate-macro rhs-expanded)))
-                         (for-each (lambda (mapping macro)
-                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
+                         (for-each (lambda (mapping macro rhs)
+                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro (module-forms rhs))))
                                    usage-diff
-                                   macros)
+                                   macros
+                                   rhs-expanded)
                          (fluid-let ((*usage-env* extended-env))
                            (loop (cdr ws)
                                  (cons (list #f #f (expand-let `((,rename 'let) () ,@body))) forms)
@@ -755,7 +753,7 @@
 (define (emit-never-toplevel g) #f)
 (define (emit-always-toplevel g) #t)
 (define (bound-variables->emit-toplevel-if-bound? bound-variables)
-  (lambda (g) (any (lambda (n) (equal? (binding-name g) (binding-name n)))
+  (lambda (g) (any (lambda (n) (equal? (binding-name g) (binding-name (cdr n))))
                     bound-variables)))
 
 (define (emit-body body-forms is-toplevel?)
@@ -819,11 +817,6 @@
        (syntax-violation type "Expression may only occur at toplevel" form)))
 
 (define (check-valid-definition id common-env body-type form forms type)
-  (unless (eq? body-type 'toplevel)
-    (let ((dup (duplicate? id common-env)))
-      (if dup
-       (begin
-        (syntax-violation type "Redefinition of identifier in body" id)))))
   (check-used id body-type form))
 
 (define (check-expression-body body-type forms body-forms)
@@ -848,9 +841,7 @@
 ;;=========================================================================
 
 (define (expand-syntax-case exp)
-  (define (literal? x)
-    (and (identifier? x)
-         (not (free=? x '...))))
+  (define (literal? x) (identifier? x))
   (match exp
     ((- e ((? literal? literals) ___) clauses ___)
      (let ((input (core::ref (generate-guid 'input))))
@@ -880,6 +871,7 @@
                                 (core::constant #f))
                       sk
                       fk))
+          ((% free=? _) sk)
           ((? identifier? id) 
           (core::letrec (list (core::let-var (binding->core::ref (binding id)) input))
                         (list sk)))
@@ -959,8 +951,8 @@
                                        (pattern-vars p2 level)))
       (#(ps ___)               (pattern-vars ps level))
       ((% free=? ...)            '())
-      ((? literal? -)          '())
       ((% free=? _)            '())
+      ((? literal? -)          '())
       ((? identifier? id)      (list (cons id level)))
       (-                       '())))
 
@@ -993,7 +985,8 @@
 
   (match clauses
     (()
-     (core::apply-prim ex:invalid-form input))
+     (core::apply (core::anon-ref ex:syntax-violation)
+                  (list (core::constant 'syntax-case) (core::constant "Invalid syntax-case match") input)))
     ((clause clauses ___)
      (let ((fail (core::ref (generate-guid 'fail))))
        (core::letrec (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
@@ -1062,7 +1055,7 @@
                                          (core::apply (core::anon-ref map)
                                                       (cons (core::lambda refs #f (list x))
                                                             refs))
-                                         (core::apply (core::anon-ref syntax-violation)
+                                         (core::apply (core::anon-ref ex:syntax-violation)
                                                       (list (core::constant 'syntax)
                                                             (core::constant 
                                                               "Pattern variables denoting lists of unequal length preceding ellipses")
@@ -1196,12 +1189,18 @@
 ;;
 ;;==========================================================================
 
-(define (expand-module t)
+; force-exports? - force all defines (and define-syntaxes) at the
+;                  module's toplevel to be exported, useful for
+;                  generating an anonymous module for an eval'd define
+; TODO - prevent duplicate exports
+;        duplicate exports of the same name
+;        conflicting exports?
+(define (expand-module t force-exports?)
   (match t
     ((keyword name declarations ___)
      (let ((name (syntax->datum (scan-library-name name)))
            (module-type (syntax->datum (car t))))
-       (unless (memq module-type '(program define-library toplevel))
+       (unless (memq module-type '(program define-library))
          (syntax-violation 'module "invalid module type" (car t)))
        (call-with-values
            (lambda () (scan-declarations declarations))
@@ -1211,25 +1210,26 @@
                        (*syntax-reflected* #f))       ; +++ space
 
              (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
+             ; TODO - tree shake import names that aren't used, dumb to store
+             ;        all of that
              (env-import! keyword imports *usage-env*)
 
              (with-reified-env-table (lambda (reify-env-table)
                (scan-sequence module-type
-                              (case module-type
-                                ((toplevel) make-toplevel-mapping)
-                                (else     make-local-mapping))
+                              make-local-mapping
                               body-forms
                               (lambda (forms syntax-definitions bound-variables)
                                 (let* ((exports
+                                        (if force-exports?
+                                            (append exports (map (lambda (bvar) `(,(car bvar) ,(car bvar) 0)) bound-variables))
+                                            exports))
+                                       (exports
                                         (map (lambda (mapping)
                                                (cons (id-name (car mapping))
                                                      (let ((binding (binding (cadr mapping))))
                                                        (or binding
                                                            (syntax-violation
                                                             'module "Unbound export" (cadr mapping)))
-                                                       (if (binding-mutable? binding)
-                                                           (syntax-violation
-                                                            'module "Attempt to export mutable variable" (cadr mapping)))
                                                        binding)))
                                              exports))
                                         (module (make-module
@@ -1238,6 +1238,7 @@
                                                  (reify-env-table)
                                                  '())
                                                exports
+                                               imports
                                                imported-libraries
                                                (current-builds imported-libraries)
                                                syntax-definitions
@@ -1246,11 +1247,12 @@
                                     (register-module! module)
                                     module))))))))))))
 
+; imports = ((<name> <module-ref> <binding>) ...)
 (define (env-import! keyword imports env)
   (env-extend! (map (lambda (import)
                       (cons (cons (car import)
                                   (id-colors keyword))
-                            (cdr import)))
+                            (caddr import)))
                     imports)
                env))
 
@@ -1377,7 +1379,7 @@
 
 ;; Returns
 ;;    (values ((<module reference> <level> ...) ....)
-;;            ((<local name> . <binding>) ...))
+;;            ((<local name> <module reference> <binding>) ...))
 ;; with no repeats.
 
 (define (scan-imports specs imported-libraries imports)
@@ -1396,7 +1398,7 @@
 
 ;; Returns (values <module reference> | #f
 ;;                 (<level> ...)
-;;                 ((<local name> . <binding>) ...)
+;;                 ((<local name> <module reference> <binding>) ...)
 ;; where <level> ::= <integer>
 ;; #f is returned for module name in case of primitives.
 
@@ -1412,7 +1414,9 @@
           (for-each (lambda (name)
                       (or (assq name mappings)
                           (syntax-violation from
-                                            (string-append "Identifier not in set: "
+                                            (string-append "Identifier "
+                                                           (symbol->string name) 
+                                                           " not in set: "
                                                            (join (map car mappings) " "))
                                             name
                                             )))
@@ -1423,7 +1427,9 @@
            (values #f
                    levels
                    (map (lambda (mapping)
-                          (cons (car mapping) (make-binding-meta 'variable (cdr mapping) levels (attrs-from-context) '())))
+                          (list (car mapping)
+                                #f
+                                (make-binding-meta 'variable (cdr mapping) levels (attrs-from-context) *current-module*)))
                         (adjuster (map (lambda (name) (cons name name))
                                        (syntax->datum xs))))))
           (((% free=? only) set (? identifier? xs) ___)
@@ -1475,7 +1481,8 @@
                         (exports (module-exports module))
                         (imports
                          (map (lambda (mapping)
-                                (cons (car mapping)
+                                (list (car mapping)
+                                      (syntax->datum module-ref)
                                       (let ((binding (cdr (assq (cdr mapping) exports))))
                                         (make-binding (binding-type binding)
                                                       (binding-name binding)
@@ -1511,8 +1518,8 @@
                      levels*))
               levels)))
 
-;; Argument is of the form ((<local name> <binding>) ...)
-;; where combinations (<local name> (binding-name <binding>)) may be repeated.
+;; Argument is of the form ((<local name> <module-ref> <binding>) ...)
+;; where combinations (<local name> <module-ref> (binding-name <binding>)) may be repeated.
 ;; Return value is of the same format but with no repeats and
 ;; where union of (binding-levels <binding>)s has been taken for any original repeats.
 ;; An error is signaled if same <local name> occurs with <binding>s
@@ -1523,26 +1530,36 @@
     (let loop ((imports imports))
       (if (null? imports)
           seen
-          (let* ((mapping (car imports))
-                 (probe (assq (car mapping) seen)))
+          (let* ((import (car imports))
+                 (local-name (car import))
+                 (module-ref (cadr import))
+                 (binding (caddr import))
+                 (probe (assq local-name seen)))
             (if probe
                 (begin
-                  (or (eq? (binding-name (cdr mapping))
-                           (binding-name (cdr probe)))
+                  (or (eq? (binding-name binding)
+                           (binding-name (caddr probe)))
                       (syntax-violation
                        'import
                        (string-append "Different bindings for identifier imported from libraries ("
-                                      (join (binding-module (cdr mapping)) " ")
+                                      (join (binding-module binding) " ")
                                       ") and ("
-                                      (join (binding-module (cdr probe)) " ") ")")
-                       (car mapping)))
-                  (set-cdr! probe
-                            (make-binding (binding-type (cdr probe))
-                                          (binding-name (cdr probe))
-                                          (unionv (binding-levels (cdr probe))
-                                                  (binding-levels (cdr mapping)))
-                                          (binding-module (cdr probe)))))
-                (set! seen (cons mapping seen)))
+                                      (join (binding-module (caddr probe)) " ") ")")
+                       local-name))
+                  ; (<local-name> . (<module-ref> . (<binding> . ())))
+                  ;  car
+                  ;  set-car!
+                  ;                  cdar
+                  ;                  (set-car! (cdr list))
+                  ;                                  cddar
+                  ;                                  (set-car! (cddr list))
+                  (set-car! (cddr probe)
+                            (make-binding (binding-type (caddr probe))
+                                          (binding-name (caddr probe))
+                                          (unionv (binding-levels (caddr probe))
+                                                  (binding-levels binding))
+                                          (binding-module (caddr probe)))))
+                (set! seen (cons import seen)))
             (loop (cdr imports)))))))
 
 (define (module-name-part? p)
@@ -1587,20 +1604,22 @@
                     (datum->syntax eval-template spec))
                   import-specs) '() '())))
       (lambda (imported-libraries imports)
-        (make-environment import-specs (generate-toplevel-color))))))
+        (make-environment imports)))))
 
 (define (loki-eval exp env)
   (with-toplevel-parameters
     (lambda ()
       (let* ((exp (datum->syntax eval-template exp))
-             (import-specs (environment-import-specs env))
-             (toplevel-color (environment-toplevel-color env))
-             (imports (map (lambda (spec) (datum->syntax toplevel-template `(import ,spec)))
-                           import-specs))
-             (syn (generate-anonymous-module #t imports (list exp))))
-        (fluid-let ((*toplevel-color* toplevel-color))
-          (let ((module (expand-module syn)))
-            (import-module (module-name module))))))))
+             (import-specs (environment->import-specs env))
+             (syn (normalize-forms import-specs (list exp)))
+             (module (expand-module syn #t))
+             (imports (module-imports module))
+             (exports (module-exports module)))
+        (imports->environment! env imports)
+        (for-each (lambda (export)
+          (environment-name-set! env (car export) (binding-module (cdr export))))
+          exports)
+        (import-module (module-name module))))))
 
 ;; Puts parameters to a consistent state for the toplevel
 ;; Old state is restored afterwards so that things will be
@@ -1609,7 +1628,7 @@
 (define with-toplevel-parameters
   (lambda (thunk)
     (fluid-let ((*trace*              '())
-                (*current-module*    '())
+                (*current-module*    #f)
                 (*phase*              0)
                 (*used*               (list '()))
                 (*color*              (generate-color))
@@ -1617,7 +1636,6 @@
                 (*syntax-reflected*   #f)
                 (*sequence-counter*   0)
                 (*lambda-color*       (generate-lambda-color))
-                (*toplevel-color*     (generate-toplevel-color))
                 (*binding-metadata*     (empty-binding-metadata)))
       (thunk))))
 
@@ -1639,17 +1657,17 @@
 ;; definitions and expressions.
 
 (define (expand-file path)
+  (debug "expand-file" (path->string path))
   (with-toplevel-parameters
     (lambda ()
-      (read-module-path path (lambda (content) (expand-module (normalize-forms content)))))))
+      (read-module-path path (lambda (content) (expand-module (normalize-forms '() content) #f))))))
 
-(define (generate-anonymous-module toplevel? imports body)
-  (let ((keyword (if toplevel? 'toplevel 'program)))
-    `(,(datum->syntax toplevel-template keyword) (,(datum->syntax toplevel-template (generate-guid keyword)))
-      ,@imports
-      (,(datum->syntax toplevel-template 'begin) ,@body))))
+(define (generate-anonymous-module imports body)
+  `(,(datum->syntax toplevel-template 'program) (,(datum->syntax toplevel-template (generate-guid 'program)))
+    ,@imports
+    (,(datum->syntax toplevel-template 'begin) ,@body)))
 
-(define (normalize-forms exps)
+(define (normalize-forms initial-imports exps)
   (let ((exps (source->syntax toplevel-template exps)))
     (match exps
       ((((% free=? define-library) . rest))
@@ -1660,11 +1678,11 @@
        (let loop ((imports '())
                   (exps exps))
          (if (null? exps)
-           (generate-anonymous-module #f (reverse imports) exps)
+           (generate-anonymous-module (append initial-imports (reverse imports)) exps)
            (match (car exps)
              (((% free=? import) . _)
               (loop (cons (car exps) imports) (cdr exps)))
-             (else (generate-anonymous-module #f (reverse imports) exps)))))))))
+             (else (generate-anonymous-module (append initial-imports (reverse imports)) exps)))))))))
 
 ;;==========================================================================
 ;;
@@ -1712,7 +1730,7 @@
 
 (define (make-module-language)
   (map (lambda (name)
-         (cons name (make-binding 'macro name '(0) '())))
+         (list name '(loki core module-primitives) (make-binding 'macro name '(0) '(loki core module-primitives))))
        module-language-names))
 
 ;;===================================================================
@@ -1739,7 +1757,7 @@
           (include-ci    . ,expand-include-ci)
           (define        . ,invalid-form)
           (define-syntax . ,invalid-form)
-          (_             . ,invalid-form)
+          (_             . ,(lambda (x) (syntax-violation 'primitive "Invalid use of primitive macro" x)))
           (...           . ,invalid-form))))
    (make-module
     '(loki core primitive-macros)
@@ -1747,15 +1765,17 @@
     '()
     ;; exports
     (map (lambda (mapping)
-           (cons (car mapping) (make-binding 'macro (car mapping) '(0) '())))
+           (cons (car mapping) (make-binding 'macro (car mapping) '(0) '(loki core primitive-macros))))
          primitive-macro-mapping)
+    ;; imports
+    '()
     ;; imported-libraries
     '()
     ;; builds
     '()
     ;; syntax-defs
     (map (lambda (mapping)
-           (cons (car mapping) (make-expander (cdr mapping))))
+           (list (car mapping) (make-expander (cdr mapping) #f) #f))
          primitive-macro-mapping)
     ;; forms
     '()
@@ -1775,8 +1795,10 @@
    '()
    ;; exports
    (map (lambda (intrinsic)
-          (cons intrinsic (make-binding 'variable intrinsic '(0) '())))
+          (cons intrinsic (make-binding 'variable intrinsic '(0) '(loki core intrinsics))))
         compiler-intrinsics)
+   ;; imports
+   '()
    ;; imported-libraries
    '()
    ;; builds
@@ -1797,9 +1819,9 @@
 ;; Import only the minimal module language into the toplevel:
 
 (env-import! toplevel-template (make-module-language) *toplevel-env*)
-(register-macro! 'define-library (make-expander invalid-form))
-(register-macro! 'program (make-expander invalid-form))
-(register-macro! 'import  (make-expander invalid-form))
+(register-macro! 'define-library (make-expander invalid-form #f))
+(register-macro! 'program (make-expander invalid-form #f))
+(register-macro! 'import  (make-expander invalid-form #f))
 
 ;; Register the expander's primitive API surface with the runtime
 (runtime-add-primitive 'ex:identifier? identifier?)

@@ -1,15 +1,18 @@
 (define-library (loki compiler environment)
 (import (scheme base))
+(import (scheme cxr))
 (import (srfi 128))
 (import (srfi 146 hash))
 (import (loki core syntax))
 (import (loki compiler util))
+(import (loki compiler binding))
 (export with-reified-env-table
         load-reified-env-table
+        environment->import-specs
         make-environment
+        imports->environment!
         environment?
-        environment-import-specs
-        environment-toplevel-color
+        environment-name-set!
         make-unit-env
         make-null-env
         env-extend
@@ -32,11 +35,41 @@
 (define (load-reified-env-table envs)
   (set! *env-table* (append (uncompress envs) *env-table*)))
 
+(define environment-template
+  (make-identifier 'environment-template
+                   '()
+                   '()
+                   0
+                   '()
+                   (make-source "<environment>" 1 0)))
+
+(define (imports->environment-scope imports)
+  (let ((alist (map (lambda (import) (cons (car import) (cadr import))) imports)))
+    (alist->hashmap (make-default-comparator) alist)))
+(define (imports->environment-scope-update! environment imports)
+  (let ((alist (map (lambda (import) (cons (car import) (cadr import))) imports)))
+    (alist->hashmap! (environment-scope environment) alist)))
+
+(define (environment->import-specs environment)
+  (hashmap-map->list
+    (lambda (name module-ref)
+      (if module-ref
+          (datum->syntax environment-template `(import (only ,module-ref ,name)))
+          (datum->syntax environment-template `(import (only (loki core primitives) ,name)))))
+    (environment-scope environment)))
+
 (define-record-type <environment>
-  (make-environment import-specs toplevel-color)
+  (make-environment-record scope)
   environment?
-  (import-specs environment-import-specs)
-  (toplevel-color environment-toplevel-color))
+  (scope environment-scope environment-scope-set!))
+
+(define (make-environment imports) (make-environment-record (imports->environment-scope imports)))
+(define (imports->environment! environment imports)
+  (environment-scope-set! environment (imports->environment-scope imports)))
+(define (environment-name-set! environment name module-ref)
+  (environment-scope-set! environment (hashmap-set! (environment-scope environment) name module-ref))
+  environment)
+
 
 ;;=========================================================================
 ;;

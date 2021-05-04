@@ -20,7 +20,7 @@
       (repl))))
                 
 (define (handle-error e)
-  (%abort e)
+  (display e) (newline)
   (newline)
   (repl))
 

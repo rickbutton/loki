@@ -1,5 +1,6 @@
 (define-library (loki compiler loader)
 (import (scheme base))
+(import (scheme cxr))
 (import (scheme file))
 (import (scheme write))
 (import (loki match))
@@ -19,6 +20,7 @@
         module-envs
         module-exports
         module-imports
+        module-imported-libraries
         module-builds
         module-syntax-defs
         module-forms
@@ -37,8 +39,6 @@
         current-builds
         import-libraries-for-expand
         evaluate-macro
-        serialize-module
-        deserialize-module
         read-module-path
         read-relative-include
         module-name->path)
@@ -47,13 +47,14 @@
 (define *module-dirs* '("src"))
 
 (define-record-type <module>
-    (make-module-record name envs exports imports builds syntax-defs forms build visited? invoked?)
+    (make-module-record name envs exports imports imported-libraries builds syntax-defs forms build visited? invoked?)
     module?
     ; (symbol ...)
     (name        module-name)
     (envs        module-envs)
     (exports     module-exports)
     (imports     module-imports)
+    (imported-libraries module-imported-libraries)
     ; (build-id ...)
     (builds      module-builds)
     (syntax-defs module-syntax-defs)
@@ -63,28 +64,8 @@
     (build       module-build)
     (visited?    module-visited? module-visited?-set!)
     (invoked?    module-invoked? module-invoked?-set!))
-(define (make-module name envs exports imports builds syntax-defs forms build)
-  (make-module-record name envs exports imports builds syntax-defs forms build #f #f))
-
-(define (serialize-module module)
-  `(module ,(module-name module)
-           ,(module-envs module)
-           ,(map serialize-mapping (module-exports module))
-           ,(module-imports module)
-           ,(module-builds module)
-           ,(module-syntax-defs module)
-           ,(map core::serialize (module-forms module))
-           ,(module-build module)))
-(define (serialize-mapping mapping)
-  (cons (car mapping)
-        (serialize-binding (cdr mapping))))
-
-(define (deserialize-module input)
-  (match input
-    (('module name envs exports imports builds syntax-defs forms build)
-     (make-module name envs exports imports builds syntax-defs forms build))
-    (_
-     (error "incorrect format for serialized module" input))))
+(define (make-module name envs exports imports imported-libraries builds syntax-defs forms build)
+  (make-module-record name envs exports imports imported-libraries builds syntax-defs forms build #f #f))
 
 (define (resolve-include-path id path)
   (let* ((source (id-source id))
@@ -109,17 +90,9 @@
 (define (read-relative-include id fn fold-case?)
   (read-file (resolve-include-path id fn) fold-case?))
 
-(define (cache-module-output fn output)
-  (let* ((so (path-with-suffix (wrap-path fn) "so"))
-         (port (open-output-file (path->string so))))
-    (pretty (serialize-module output) port)
-    (close-port port)))
-
 (define (read-module-path fn thunk)
   (let* ((content (read-file fn #f))
-         (output (thunk content)))
-    (cache-module-output fn output)
-    output))
+         (output (thunk content))) output))
 
 (define (module-name-part->string p)
   (if (symbol? p) (symbol->string p)
@@ -144,7 +117,7 @@
               (display (module-build module)) (newline)
             (error 
              "Import failed: client was expanded against a different build of this module" name)))
-        (import-libraries-for (module-imports module) 
+        (import-libraries-for (module-imported-libraries module) 
                           (module-builds module)
                           phase
                           importer 
@@ -179,7 +152,7 @@
 
 (define (import-module name)
     (let ((module (lookup-module name)))
-      (import-libraries-for-run (module-imports module) (module-builds module) 0)
+      (import-libraries-for-run (module-imported-libraries module) (module-builds module) 0)
       (import-module* (module-name module) (module-build module) 0 importer 'run)))
 
 (define table '())
@@ -218,10 +191,10 @@
 ;; Register macros in module
 (define (visit-module! module)
   (for-all (lambda (def)
-             (let ((name (car def)) (macro (cdr def)))
+             (let ((name (car def)) (macro (cadr def)) (source (caddr def)))
                 (if (macro? macro)
                   (register-macro! name macro)
-                  (register-macro! name (make-transformer (evaluate-macro macro))))))
+                  (register-macro! name (make-transformer (evaluate-macro macro) source)))))
            (module-syntax-defs module)))
 
 (define (import-libraries-for-expand imports builds phase)
@@ -258,6 +231,8 @@
   ;; envs
   '()
   ;; exports
+  '()
+  ;; imports
   '()
   ;; imported-libraries
   '()
