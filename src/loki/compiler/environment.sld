@@ -1,6 +1,7 @@
 (define-library (loki compiler environment)
 (import (scheme base))
 (import (scheme cxr))
+(import (only (srfi 69) hash-by-identity))
 (import (srfi 128))
 (import (srfi 146 hash))
 (import (loki core syntax))
@@ -24,16 +25,37 @@
 (begin
 
 ;; maps <symbolic key> of reflected environment to actual <environment>
-(define *env-table*        '())
+(define *identity-comparator* (make-comparator #t eq? #f hash-by-identity))
+(define *env-to-key* (hashmap *identity-comparator*))
+(define *key-to-env* (hashmap *identity-comparator*))
+
+(define (env-table-get key) (hashmap-ref/default *key-to-env* key #f))
+(define (env-table-set! env)
+  (or (hashmap-ref/default *env-to-key* env #f)
+      (let ((key (generate-guid 'env)))
+        (set! *env-to-key* (hashmap-set *env-to-key* env key))
+        (set! *key-to-env* (hashmap-set *key-to-env* key env))
+        key)))
+(define (env-table-load! key-to-env)
+  (hashmap-for-each
+    (lambda (key env)
+      (set! *env-to-key* (hashmap-set *env-to-key* env key))
+      (set! *key-to-env* (hashmap-set *key-to-env* key env)))
+    key-to-env))
+; TODO, compress this data
+(define (env-table-reify key-to-env)
+  (hashmap-difference *key-to-env* key-to-env))
+
 
 (define (with-reified-env-table thunk)
-  (let ((table *env-table*))
+  (let ((env-to-key *env-to-key*)
+        (key-to-env *key-to-env*))
     (define (reify-env-table)
-      (compress (drop-tail *env-table* table)))
+      (env-table-reify key-to-env))
     (thunk reify-env-table)))
 
-(define (load-reified-env-table envs)
-  (set! *env-table* (append (uncompress envs) *env-table*)))
+(define (load-reified-env-table key-to-env)
+  (if key-to-env (env-table-load! key-to-env)))
 
 (define environment-template
   (make-identifier 'environment-template
@@ -137,21 +159,12 @@
 ;; Returns a single-symbol <key> representing an
 ;; environment that can be included in object code.
 (define (env-reflect env)
-  (cond ((and (not (null? *env-table*))      ; +++
-              (eq? env (cdar *env-table*)))  ; +++
-         (caar *env-table*))                 ; +++
-        (else
-         (let ((key (generate-guid 'env)))
-           (set! *env-table*
-                 (cons (cons key env)
-                       *env-table*))
-           key))))
-
+  (env-table-set! env))
 
 ;; The inverse of the above.
 (define (env-reify key-or-env)
   (if (symbol? key-or-env)
-      (cdr (assq key-or-env *env-table*))
+      (env-table-get key-or-env)
       key-or-env))
 
 ; TODO - make compress, uncompress work for fancier frames

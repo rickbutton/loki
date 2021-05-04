@@ -339,7 +339,7 @@
   (let* ((imports (datum->syntax toplevel-template '((import (loki core primitives)))))
          (expanded (expand t))
          (module (make-module `(macro ,(generate-guid 'm))
-                                  '()
+                                  #f 
                                   '()
                                   '()
                                   '()
@@ -1236,7 +1236,7 @@
                                                name
                                                (if *syntax-reflected*
                                                  (reify-env-table)
-                                                 '())
+                                                 #f)
                                                exports
                                                imports
                                                imported-libraries
@@ -1762,7 +1762,7 @@
    (make-module
     '(loki core primitive-macros)
     ;; envs
-    '()
+    #f
     ;; exports
     (map (lambda (mapping)
            (cons (car mapping) (make-binding 'macro (car mapping) '(0) '(loki core primitive-macros))))
@@ -1792,7 +1792,7 @@
   (make-module
    '(loki core intrinsics)
    ;; envs
-   '()
+   #f 
    ;; exports
    (map (lambda (intrinsic)
           (cons intrinsic (make-binding 'variable intrinsic '(0) '(loki core intrinsics))))

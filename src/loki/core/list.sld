@@ -9,6 +9,7 @@
                                   (%pair? pair?)
                                   (%null? null?)
                                   (%list? list?)
+                                  (%length length)
                                   (%car   car)
                                   (%cdr   cdr)
                                   (%set-car! set-car!)
@@ -70,13 +71,6 @@
   (define (for1 f ls) (if (pair? ls) (begin (f (car ls)) (for1 f (cdr ls)))))
   (if (null? lol) (for1 f ls) (begin (apply map f ls lol) (if #f #f))))
 
-(define (length-helper ls c)
-  (if (null? ls)
-      c
-      (if (pair? ls)
-        (length-helper (cdr ls) (%add 1 c))
-        (error "length: not a list" ls))))
-(define (length ls) (length-helper ls 0))
 (define (list . args) args)
 
 (define (list-tail ls k)

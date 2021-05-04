@@ -17,7 +17,7 @@
       %nan? %floor %ceiling %truncate
       %remainder %quotient
       %round %sqrt %expt
-      %cons %pair? %null? %list? %car %cdr
+      %cons %pair? %null? %list? %length %car %cdr
       %set-car! %set-cdr!
       %vector? %vector-set! %vector-ref
       %vector-length %make-vector

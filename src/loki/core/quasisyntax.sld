@@ -49,13 +49,22 @@
           (for (loki core let)         run expand) 
           (for (loki core derived)     run expand)
           (for (loki core with-syntax) run expand)
-          (for (loki core number)      run expand) 
-          (for (loki core vector)      run expand) 
           (for (loki core intrinsics)  run expand))
   (begin
-  
+
   (define-syntax quasisyntax
     (lambda (e)
+     ; FIXME - this is a hack
+     ; vector.sld defines vector->list, but we need
+     ; to define quasisyntax early in the bootstrap
+     ; this will probably move to an intrinsic anyway
+     (define (vector->list vec . o)
+      (let ((start (if (%pair? o) (%car o) 0))
+            (end (if (and (%pair? o) (%pair? (%cdr o))) (%car (%cdr o)) (%vector-length vec))))
+       (let lp ((i (%sub end 1)) (res '()))
+        (if (%lt i start) res (lp (%sub i 1) (%cons (%vector-ref vec i) res))))))
+
+
       
       ;; Expand returns a list of the form
       ;;    [template[t/e, ...] (replacement ...)]
@@ -73,31 +82,31 @@
         (syntax-case x (quasisyntax unsyntax unsyntax-splicing)
           ((quasisyntax e)
            (with-syntax (((k _)     x) ;; original identifier must be copied
-                         ((e* reps) (expand (syntax e) (+ level 1))))
+                         ((e* reps) (expand (syntax e) (%add level 1))))
              (syntax ((k e*) reps))))                                  
           ((unsyntax e)
-           (= level 0)
+           (%number-eq level 0)
            (with-syntax (((t) (generate-temporaries '(t))))
              (syntax (t ((t e))))))
           (((unsyntax e ...) . r)
-           (= level 0)
+           (%number-eq level 0)
            (with-syntax (((r* (rep ...)) (expand (syntax r) (syntax->datum 0)))
                          ((t ...)        (generate-temporaries (syntax (e ...)))))
              (syntax ((t ... . r*)
                       ((t e) ... rep ...)))))
           (((unsyntax-splicing e ...) . r)
-           (= level 0)
+           (%number-eq level 0)
            (with-syntax (((r* (rep ...)) (expand (syntax r) 0))
                          ((t ...)        (generate-temporaries (syntax (e ...)))))
              (with-syntax ((((t ...) ...) (syntax ((t (... ...)) ...))))
                (syntax ((t ... ... . r*)
                         (((t ...) e) ... rep ...))))))
           ((k . r)
-           (and (> level 0)
+           (and (%gt level 0)
                 (identifier? (syntax k))
                 (or (free-identifier=? (syntax k) (syntax unsyntax))
                     (free-identifier=? (syntax k) (syntax unsyntax-splicing))))
-           (with-syntax (((r* reps) (expand (syntax r) (- level 1))))
+           (with-syntax (((r* reps) (expand (syntax r) (%sub level 1))))
              (syntax ((k . r*) reps))))
           ((h . t)
            (with-syntax (((h* (rep1 ...)) (expand (syntax h) level))

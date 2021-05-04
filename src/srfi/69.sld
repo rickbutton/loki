@@ -57,7 +57,7 @@
     	  (else 1))))))
 
 (define (symbol-hash s . maybe-bound)
- (apply string-hash (symbol->string s) maybe-bound))
+ (apply hash-by-identity s maybe-bound))
 
 (define (vector-hash v bound)
   (let ((hashvalue 571)

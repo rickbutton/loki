@@ -178,7 +178,7 @@
 (define (symbol<? a b) (string<? (symbol->string a) (symbol->string b)))
 
 (define (symbol-hash obj)
-  (string-hash (symbol->string obj)))
+  (%hash-by-identity obj))
 
 ;;; Wrapped equality predicates
 ;;; These comparators don't have ordering functions.

@@ -15,6 +15,7 @@
 (import (loki compiler lang core))
 (import (loki util))
 (import (srfi 1))
+(import (srfi 69))
 (export make-module
         module-name
         module-envs
@@ -106,9 +107,30 @@
       (or (find (lambda (path) (file-exists? (path->string path))) options)
           (syntax-violation #f (string-append "File not found for module: " (write-to-string name)) name)))))
 
-(define imported '())
+
+(define *phase-table* (make-hash-table))
+(define (make-module-instance-table) (make-hash-table))
+
+(define (phase-table-set! name phase-data)
+  (unless (hash-table-exists? *phase-table* name)
+    (hash-table-set! *phase-table* name (make-module-instance-table)))
+  (hash-table-set! (hash-table-ref *phase-table* name) phase-data #t))
+(define (phase-table-get name phase-data)
+  (and (hash-table-exists? *phase-table* name)
+       (hash-table-exists? (hash-table-ref *phase-table* name) phase-data)))
+(define (phase-table-delete! name phase-data)
+  (if (hash-table-exists? *phase-table* name)
+      (begin
+        (hash-table-delete! (hash-table-ref *phase-table* name) phase-data)
+        (if (= (hash-table-size *phase-table*) 0)
+            (hash-table-delete! *phase-table* name)))
+      #f))
+(define (phase-table-clear! name)
+  (hash-table-delete! *phase-table* name))
+
 (define (import-module* name build phase importer run-or-expand)
-  (if (not (member (cons name (cons phase run-or-expand)) imported))
+  (let ((phase-data (cons phase run-or-expand)))
+    (if (not (phase-table-get name phase-data))
       (let ((module (lookup-module name)))
         (or (not build)
             (eq? build (module-build module))
@@ -122,11 +144,11 @@
                           phase
                           importer 
                           run-or-expand)
-        (let ((result (importer module phase imported)))
-          (set! imported (cons (cons name (cons phase run-or-expand)) imported))
-          result))))
+        (let ((result (importer module phase)))
+          (phase-table-set! name phase-data)
+          result)))))
 
-(define (importer module phase imported)
+(define (importer module phase)
   (if (and (= phase 0)
     (not (module-invoked? module)))
     (let ((result (invoke-module! module)))
@@ -155,14 +177,11 @@
       (import-libraries-for-run (module-imported-libraries module) (module-builds module) 0)
       (import-module* (module-name module) (module-build module) 0 importer 'run)))
 
-(define table '())
+(define *module-table* (make-hash-table))
 (define register-module! 
     (lambda (module)
-      (set! table (cons module table))
-      (set! imported (filter (lambda (entry)
-                                  (not (equal? (module-name module) 
-                                               (car entry))))
-                                imported))))
+      (hash-table-set! *module-table* (module-name module) module)
+      (phase-table-clear! (module-name module))))
 
 (define invoke-module!
     (lambda (module)
@@ -175,12 +194,8 @@
             module
             (error "module lookup failed, module not loaded" name)))))
 
-(define lookup-module/false
-    (lambda (name)
-      (let ((module (find (lambda (l) (equal? name (module-name l))) table)))
-        (if module
-            module
-            #f))))
+(define (lookup-module/false name)
+  (hash-table-ref/default *module-table* name #f))
 
 
 (define (current-builds imported-libraries)
@@ -202,7 +217,7 @@
    imports
    builds
    phase
-   (lambda (module phase imported)
+   (lambda (module phase)
      (if (and (>= phase 0)
               (not (module-visited? module)))
          (begin
@@ -229,7 +244,7 @@
  (make-module
   '(loki core primitive-macros)
   ;; envs
-  '()
+  #f
   ;; exports
   '()
   ;; imports

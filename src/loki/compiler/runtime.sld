@@ -291,6 +291,7 @@
 (runtime-add-primitive '%pair?     pair?)
 (runtime-add-primitive '%null?     null?)
 (runtime-add-primitive '%list?     list?)
+(runtime-add-primitive '%length    length)
 (runtime-add-primitive '%car       car)
 (runtime-add-primitive '%cdr       cdr)
 (runtime-add-primitive '%set-car!  set-car!)
