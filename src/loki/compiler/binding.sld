@@ -5,6 +5,8 @@
 (import (srfi 146 hash))
 (import (loki core syntax))
 (import (loki compiler util))
+(import (loki match))
+(import (loki util))
 (export make-binding
         binding?
         binding-type
@@ -15,7 +17,9 @@
         empty-binding-metadata
         dimension-attrs
         default-attrs
-        bound-identifier=?)
+        bound-identifier=?
+        serialize-binding
+        deserialize-binding)
 (begin
 
 ;;=========================================================================
@@ -44,6 +48,16 @@
   (name binding-name)
   (levels binding-levels)
   (module binding-module))
+
+(define (serialize-binding b)
+  `(,(binding-type b)
+    ,(binding-name b)
+    ,(binding-levels b)
+    ,(binding-module b)))
+(define (deserialize-binding b)
+  (match b
+    ((type name levels module)
+     (make-binding type name levels module))))
 
 (define-syntax record-property-equal?
   (syntax-rules ()

@@ -21,7 +21,8 @@
         core::apply-prim
         core::atomic?
         compile-core-to-host-scheme
-        core::serialize)
+        core::serialize
+        core::deserialize)
 (begin
 
 ; core language!
@@ -143,5 +144,26 @@
   (map compile-term terms))
 
 (define core::serialize compile-term)
+
+(define (core::deserialize term)
+  (match term
+    (('letrec vars body ...)
+      (core::letrec (map (lambda (v) (core::let-var (core::deserialize (car v)) (core::deserialize (cadr v)))) vars)
+                    (map core::deserialize body)))
+    (('if exp1 exp2 exp3)
+     (core::if (core::deserialize exp1) (core::deserialize exp2) (core::deserialize exp3)))
+    (('lambda formals body ...)
+      (let-values (((formals rest) (match formals
+                                          (formal (values '() formal))
+                                          ((formals ...) (values formals #f))
+                                          ((formals . rest) (values formals rest)))))
+        (core::lambda (map core::ref formals) (if rest (core::ref rest) #f) (map core::deserialize body))))
+    (('set! name value) (core::set! (core::ref name) (core::deserialize value)))
+    (('define name value) (core::define-global! (core::ref name) (core::deserialize value)))
+    (('quote value) (core::constant value))
+    ((? symbol? name) (core::ref name))
+    ((proc args ...)
+      (core::apply (core::deserialize proc) (map core::deserialize args)))))
+
 
 ))

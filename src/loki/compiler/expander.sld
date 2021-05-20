@@ -15,6 +15,7 @@
 (import (scheme base))
 (import (scheme write))
 (import (scheme cxr))
+(import (scheme file))
 (import (scheme process-context))
 (import (scheme case-lambda))
 (import (srfi 1))
@@ -22,6 +23,7 @@
 (import (srfi 146 hash))
 (import (loki util))
 (import (loki path))
+(import (loki fs))
 (import (loki compiler lang core))
 
 (import (loki core reader))
@@ -36,6 +38,7 @@
 (import (loki compiler match))
 (import (loki compiler util))
 (import (loki compiler features))
+(import (loki compiler gensym))
 
 (export expand-file)
 (begin
@@ -74,6 +77,8 @@
 ;; we can identify valid forward references inside
 ;; lambdas vs invalid forward references
 (define *lambda-color* #f)
+;; current id generator for context
+(define *gen-id* (lambda (id) (error "no *gen-id* set" id)))
 ;; current binding metadata map
 ;; we need to track some information for use throughout
 ;; the expansion phase for bindings
@@ -138,6 +143,7 @@
   (generate-guid 'c))
 (define (generate-lambda-color)
   (generate-guid 'l))
+
 
 ;;=========================================================================
 ;;
@@ -272,7 +278,6 @@
                       (core::constant (source-column source)))))
 
 (define (syntax-rename name colors transformer-envs transformer-phase source-module file line column)
-  ;(debug "syntax-rename" (cond-expand (loki "loki") (else "else")) name colors source-module file line column)
   (make-identifier name
                    (cons *color* colors)
                    transformer-envs
@@ -331,7 +336,6 @@
                    
 ;; Calls a macro with a new color.
 (define (invoke-macro macro t)
-  ;(debug "invoke-macro" t (if (macro-source macro) (map core::serialize (macro-source macro))))
   (set! *color* (generate-color))
   ((macro-proc macro) t))
 
@@ -356,14 +360,12 @@
 ;;=========================================================================
 
 (define (expand t)
-  ;(debug "expand" t)
   (fluid-let ((*trace* (cons t *trace*)))
     (let ((binding (operator-binding t)))
       (cond (binding (case (binding-type binding)
                        ((macro)
                         (let ((macro (binding-name->macro (binding-name binding) t)))
                           (let ((expanded-once (invoke-macro macro t)))
-                            ;(debug "expanded-once" expanded-once)
                             (case (macro-type macro)
                               ((expander) expanded-once)
                               (else
@@ -665,7 +667,8 @@
            bound-variables))
        (else
         (fluid-let ((*usage-env* (wrap-env (car ws)))
-                    (*sequence-counter* (+ *sequence-counter* 1)))
+                    (*sequence-counter* (+ *sequence-counter* 1))
+                    (*gen-id*           (make-gensym)))
           (call-with-values
               (lambda () (head-expand (wrap-exp (car ws))))
             (lambda (form operator-binding)
@@ -700,11 +703,11 @@
                          (env-extend! (list mapping) common-env)
                          (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
                                       (expand-macro rhs))))
-                           (register-macro! (binding-name (cdr mapping)) (make-transformer (evaluate-macro rhs-expanded) (module-forms rhs-expanded)))
+                           (register-macro! (binding-name (cdr mapping)) (make-transformer (evaluate-macro rhs-expanded)))
                            (loop (cdr ws)
                                  forms
                                  ;FIXME
-                                 (cons (list (binding-name (binding id)) rhs-expanded (module-forms rhs-expanded)) syntax-defs)
+                                 (cons (cons (binding-name (binding id)) rhs-expanded) syntax-defs)
                                  bound-variables))))))
                   ((begin)
                    (or (list? form)
@@ -734,7 +737,7 @@
                                  (map expand-macro rhs)))
                               (macros (map evaluate-macro rhs-expanded)))
                          (for-each (lambda (mapping macro rhs)
-                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro (module-forms rhs))))
+                                     (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                    usage-diff
                                    macros
                                    rhs-expanded)
@@ -1244,7 +1247,6 @@
                                                syntax-definitions
                                                (emit-body forms (bound-variables->emit-toplevel-if-bound? bound-variables))
                                                (generate-guid 'build))))
-                                    (register-module! module)
                                     module))))))))))))
 
 ; imports = ((<name> <module-ref> <binding>) ...)
@@ -1619,6 +1621,7 @@
         (for-each (lambda (export)
           (environment-name-set! env (car export) (binding-module (cdr export))))
           exports)
+        (register-module! module)
         (import-module (module-name module))))))
 
 ;; Puts parameters to a consistent state for the toplevel
@@ -1647,7 +1650,6 @@
 
 (define (loki-load file)
   (let ((module (expand-file (wrap-path file))))
-    (register-module! module)
     (import-module (module-name module))))
 
 ;; This may be used as a front end for the compiler.
@@ -1657,10 +1659,31 @@
 ;; definitions and expressions.
 
 (define (expand-file path)
-  (debug "expand-file" (path->string path))
-  (with-toplevel-parameters
-    (lambda ()
-      (read-module-path path (lambda (content) (expand-module (normalize-forms '() content) #f))))))
+  (try-load-module-from-cache path (lambda ()
+    (with-toplevel-parameters
+      (lambda () (read-module-path path (lambda (content) (expand-module (normalize-forms '() content) #f))))))))
+
+(define (try-load-module-from-cache path thunk)
+  (let ((path-string (path->string path))
+        (cache-path (path->string (path-with-suffix path "so"))))
+    (unless (file-exists? path-string)
+      (error "file not found" path-string))
+    (if (and (file-exists? cache-path)
+             (>= (file-mtime cache-path)
+                (file-mtime path-string)))
+      (let* ((module (deserialize-module (syntax->datum (car (read-file cache-path #f)))))
+             (imported-libraries (module-imported-libraries module)))
+        (for-each (lambda (imported-library) (load-module (car imported-library)))
+                  imported-libraries)
+        (register-module! module)
+        (debug "deserialized module from" cache-path)
+        module)
+      (let* ((module (thunk))
+             (serialized (serialize-module module)))
+        (register-module! module)
+        (debug "caching module to" cache-path)
+        (with-output-to-file cache-path (lambda () (write serialized)))
+        module))))
 
 (define (generate-anonymous-module imports body)
   `(,(datum->syntax toplevel-template 'program) (,(datum->syntax toplevel-template (generate-guid 'program)))
@@ -1775,7 +1798,7 @@
     '()
     ;; syntax-defs
     (map (lambda (mapping)
-           (list (car mapping) (make-expander (cdr mapping) #f) #f))
+           (cons (car mapping) (make-expander (cdr mapping))))
          primitive-macro-mapping)
     ;; forms
     '()
@@ -1819,9 +1842,9 @@
 ;; Import only the minimal module language into the toplevel:
 
 (env-import! toplevel-template (make-module-language) *toplevel-env*)
-(register-macro! 'define-library (make-expander invalid-form #f))
-(register-macro! 'program (make-expander invalid-form #f))
-(register-macro! 'import  (make-expander invalid-form #f))
+(register-macro! 'define-library (make-expander invalid-form))
+(register-macro! 'program (make-expander invalid-form))
+(register-macro! 'import  (make-expander invalid-form))
 
 ;; Register the expander's primitive API surface with the runtime
 (runtime-add-primitive 'ex:identifier? identifier?)

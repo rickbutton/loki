@@ -35,7 +35,7 @@
         ((record? obj) ((or (record-printer obj) default-record-printer) obj writer port))
         ((error-object? obj)
           (write-string "ERROR: " port)
-          (write-string (error-object-message obj) port)
+          (writer (error-object-message obj) port)
           (write-string "\n" port))
         (else (write-string "#<unknown>" port)))))
   (else #f))

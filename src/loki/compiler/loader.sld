@@ -41,8 +41,11 @@
         import-libraries-for-expand
         evaluate-macro
         read-module-path
+        read-file
         read-relative-include
-        module-name->path)
+        module-name->path
+        serialize-module
+        deserialize-module)
 (begin
 
 (define *module-dirs* '("src"))
@@ -54,6 +57,7 @@
     (name        module-name)
     (envs        module-envs)
     (exports     module-exports)
+    ; ((name module binding) ...)
     (imports     module-imports)
     (imported-libraries module-imported-libraries)
     ; (build-id ...)
@@ -67,6 +71,51 @@
     (invoked?    module-invoked? module-invoked?-set!))
 (define (make-module name envs exports imports imported-libraries builds syntax-defs forms build)
   (make-module-record name envs exports imports imported-libraries builds syntax-defs forms build #f #f))
+
+(define (serialize-export e) (cons (car e) (serialize-binding (cdr e))))
+(define (deserialize-export e) (cons (car e) (deserialize-binding (cdr e))))
+(define (serialize-import e)
+  (match e
+    ((name module-ref binding)
+     `(,name ,module-ref ,(serialize-binding binding)))))
+(define (deserialize-import e)
+  (match e
+    ((name module-ref binding)
+     `(,name ,module-ref ,(deserialize-binding binding)))))
+(define (serialize-syntax-def e)
+  (cons (car e) (serialize-module (cdr e))))
+(define (deserialize-syntax-def e)
+  (cons (car e) (deserialize-module (cdr e))))
+(define (serialize-module m)
+  `(module ,(module-name m)
+           ,(serialize-reified-env-table (module-envs m))
+           ,(map serialize-export (module-exports m))
+           ,(map serialize-import (module-imports m))
+           ,(module-imported-libraries m)
+           ,(module-builds m)
+           ,(map serialize-syntax-def (module-syntax-defs m))
+           ,(map core::serialize (module-forms m))
+           ,(module-build m)))
+(define (deserialize-module m)
+  (match m
+    (('module name
+              env-table
+              exports
+              imports
+              imported-libraries
+              builds
+              syntax-defs
+              forms
+              build)
+     (make-module name
+                  (deserialize-reified-env-table env-table)
+                  (map deserialize-export exports)
+                  (map deserialize-import imports)
+                  imported-libraries
+                  builds
+                  (map deserialize-syntax-def syntax-defs)
+                  (map core::deserialize forms)
+                  build))))
 
 (define (resolve-include-path id path)
   (let* ((source (id-source id))
@@ -206,10 +255,10 @@
 ;; Register macros in module
 (define (visit-module! module)
   (for-all (lambda (def)
-             (let ((name (car def)) (macro (cadr def)) (source (caddr def)))
+             (let ((name (car def)) (macro (cdr def)))
                 (if (macro? macro)
                   (register-macro! name macro)
-                  (register-macro! name (make-transformer (evaluate-macro macro) source)))))
+                  (register-macro! name (make-transformer (evaluate-macro macro))))))
            (module-syntax-defs module)))
 
 (define (import-libraries-for-expand imports builds phase)

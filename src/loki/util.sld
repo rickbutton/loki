@@ -62,19 +62,11 @@
       (else (display v out)))
     (newline out)))
 
-(cond-expand
-(gauche
-  (define (debug . args)
-    (for-all (lambda (a)
-      (pprint a)
-      (display " ")) args)
-    (display "\n\n")))
-(else
-  (define (debug . args)
-    (for-all (lambda (a)
-       (display a)
-       (display " ")) args)
-    (display "\n\n"))))
+(define (debug . args)
+  (for-all (lambda (a)
+     (display a)
+     (display " ")) args)
+  (display "\n\n"))
 
 (define (make-anon-id prefix)
     (let ((count 0))

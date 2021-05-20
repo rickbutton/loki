@@ -120,6 +120,7 @@
       (display (exception-irritants obj))
       (newline))
     (display obj))
+  (error obj)
   (exit 1))
 
 (define max-traces (* 1024 10))
@@ -418,6 +419,7 @@
 (runtime-add-primitive '%call/cc call/cc)
 (runtime-add-primitive '%hash-by-identity hash-by-identity)
 (runtime-add-primitive '%current-directory current-directory)
+(runtime-add-primitive '%file-mtime file-mtime)
 (runtime-add-primitive '%trace trace)
 
 ))

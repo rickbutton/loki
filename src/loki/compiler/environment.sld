@@ -1,12 +1,14 @@
 (define-library (loki compiler environment)
 (import (scheme base))
 (import (scheme cxr))
+(import (srfi 1))
 (import (only (srfi 69) hash-by-identity))
 (import (srfi 128))
 (import (srfi 146 hash))
 (import (loki core syntax))
 (import (loki compiler util))
 (import (loki compiler binding))
+(import (loki util))
 (export with-reified-env-table
         load-reified-env-table
         environment->import-specs
@@ -21,7 +23,9 @@
         duplicate?
         env-lookup
         env-reflect
-        binding-lookup)
+        binding-lookup
+        serialize-reified-env-table
+        deserialize-reified-env-table)
 (begin
 
 ;; maps <symbolic key> of reflected environment to actual <environment>
@@ -53,9 +57,33 @@
     (define (reify-env-table)
       (env-table-reify key-to-env))
     (thunk reify-env-table)))
-
+
 (define (load-reified-env-table key-to-env)
   (if key-to-env (env-table-load! key-to-env)))
+
+(define (serialize-frame frame)
+  (hashmap-map->list (lambda (name binding) (cons name (serialize-binding binding)))
+                     frame))
+(define (deserialize-frame frame)
+  (fold (lambda (entry frame)
+    (hashmap-set frame (car entry) (deserialize-binding (cdr entry))))
+    (make-null-frame)
+    frame))
+(define (serialize-env env)
+  (map serialize-frame env))
+(define (deserialize-env env) (map deserialize-frame env))
+(define (serialize-reified-env-table key-to-env)
+  (if key-to-env
+      (hashmap-map->list (lambda (name env) (cons name (map serialize-env env)))
+                         key-to-env)
+      #f))
+(define (deserialize-reified-env-table key-to-env)
+  (if key-to-env
+      (fold (lambda (entry key-to-env) (hashmap-set key-to-env (car entry) (map deserialize-env (cdr entry))))
+                  (hashmap *identity-comparator*)
+                  key-to-env)
+      #f))
+
 
 (define environment-template
   (make-identifier 'environment-template

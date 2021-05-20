@@ -6,7 +6,6 @@
 (export macro?
         macro-type
         macro-proc
-        macro-source
         make-expander
         make-transformer
         binding-name->macro
@@ -30,14 +29,13 @@
 ;; <type> ::= expander | transformer | variable-transformer
 
 (define-record-type <macro>
-  (make-macro type proc source)
+  (make-macro type proc)
   macro?
   (type macro-type)
-  (proc macro-proc)
-  (source macro-source))
+  (proc macro-proc))
 
-(define (make-expander proc source)             (make-macro 'expander proc source))
-(define (make-transformer proc source)          (make-macro 'transformer proc source))
+(define (make-expander proc)             (make-macro 'expander proc))
+(define (make-transformer proc)          (make-macro 'transformer proc))
 
 ;; Returns <macro>.
 (define (binding-name->macro binding-name t)

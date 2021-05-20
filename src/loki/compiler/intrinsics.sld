@@ -45,7 +45,7 @@
       %peek-u8 %peek-char
       %read-bytevector! %read-bytevector %read-string %read-char
       %read-line %read-u8 %write-bytevector %write-string
-      %write-char %write-u8 %current-directory
+      %write-char %write-u8 %current-directory %file-mtime
       %hash-by-identity %current-jiffy %current-second %jiffies-per-second
       %number->string %string->number
 
