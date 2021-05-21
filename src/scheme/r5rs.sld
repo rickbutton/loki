@@ -61,7 +61,7 @@
                         define define-syntax let-syntax letrec-syntax
                         include include-ci
                         _ ... syntax syntax-case))
-         (error "null-environment: invalid version" version)))
+       (error "null-environment: invalid version" version)))
    (define (scheme-report-environment version)
      (cond
       ((= version 5) (environment '(scheme r5rs)))

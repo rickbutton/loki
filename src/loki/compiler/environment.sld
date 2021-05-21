@@ -37,14 +37,14 @@
    (define (env-table-set! env)
      (or (hashmap-ref/default *env-to-key* env #f)
          (let ((key (generate-guid 'env)))
-              (set! *env-to-key* (hashmap-set *env-to-key* env key))
-              (set! *key-to-env* (hashmap-set *key-to-env* key env))
-              key)))
+           (set! *env-to-key* (hashmap-set *env-to-key* env key))
+           (set! *key-to-env* (hashmap-set *key-to-env* key env))
+           key)))
    (define (env-table-load! key-to-env)
      (hashmap-for-each
       (lambda (key env)
-              (set! *env-to-key* (hashmap-set *env-to-key* env key))
-              (set! *key-to-env* (hashmap-set *key-to-env* key env)))
+        (set! *env-to-key* (hashmap-set *env-to-key* env key))
+        (set! *key-to-env* (hashmap-set *key-to-env* key env)))
       key-to-env))
    ; TODO, compress this data
    (define (env-table-reify key-to-env)
@@ -54,9 +54,9 @@
    (define (with-reified-env-table thunk)
      (let ((env-to-key *env-to-key*)
            (key-to-env *key-to-env*))
-          (define (reify-env-table)
-            (env-table-reify key-to-env))
-          (thunk reify-env-table)))
+       (define (reify-env-table)
+         (env-table-reify key-to-env))
+       (thunk reify-env-table)))
    
    (define (load-reified-env-table key-to-env)
      (if key-to-env (env-table-load! key-to-env)))
@@ -66,7 +66,7 @@
                         frame))
    (define (deserialize-frame frame)
      (fold (lambda (entry frame)
-                   (hashmap-set frame (car entry) (deserialize-binding (cdr entry))))
+             (hashmap-set frame (car entry) (deserialize-binding (cdr entry))))
            (make-null-frame)
            frame))
    (define (serialize-env env)
@@ -76,13 +76,13 @@
      (if key-to-env
          (hashmap-map->list (lambda (name env) (cons name (map serialize-env env)))
                             key-to-env)
-         #f))
+       #f))
    (define (deserialize-reified-env-table key-to-env)
      (if key-to-env
          (fold (lambda (entry key-to-env) (hashmap-set key-to-env (car entry) (map deserialize-env (cdr entry))))
                (hashmap *identity-comparator*)
                key-to-env)
-         #f))
+       #f))
    
    
    (define environment-template
@@ -95,17 +95,17 @@
    
    (define (imports->environment-scope imports)
      (let ((alist (map (lambda (import) (cons (car import) (cadr import))) imports)))
-          (alist->hashmap (make-default-comparator) alist)))
+       (alist->hashmap (make-default-comparator) alist)))
    (define (imports->environment-scope-update! environment imports)
      (let ((alist (map (lambda (import) (cons (car import) (cadr import))) imports)))
-          (alist->hashmap! (environment-scope environment) alist)))
+       (alist->hashmap! (environment-scope environment) alist)))
    
    (define (environment->import-specs environment)
      (hashmap-map->list
       (lambda (name module-ref)
-              (if module-ref
-                  (datum->syntax environment-template `(import (only ,module-ref ,name)))
-                  (datum->syntax environment-template `(import (only (loki core primitives) ,name)))))
+        (if module-ref
+            (datum->syntax environment-template `(import (only ,module-ref ,name)))
+          (datum->syntax environment-template `(import (only (loki core primitives) ,name)))))
       (environment-scope environment)))
    
    (define-record-type <environment>
@@ -146,13 +146,13 @@
    ;; Destructively extends the leftmost frame in env.
    (define (env-extend! mappings env)
      (let ((frame (car env)))
-          (mappings->frame! frame mappings)))
+       (mappings->frame! frame mappings)))
    
    ;; Is id already bound in leftmost frame?
    (define (duplicate? id env)
      (let ((frame (car env)))
-          (frame-lookup (cons (id-name id) (id-colors id))
-                        frame)))
+       (frame-lookup (cons (id-name id) (id-colors id))
+                     frame)))
    
    (define (frame-lookup key frame)
      (hashmap-ref (car frame) key (lambda () #f) (lambda (value) (cons key value))))
@@ -161,10 +161,10 @@
      (and (pair? env)
           (or (let* ((frame (car env))
                      (probe (frame-lookup key frame)))
-                    (and probe
-                         (or (cdr probe)
-                             (syntax-violation
-                              #f "Out of context reference to identifier" (car key)))))
+                (and probe
+                     (or (cdr probe)
+                         (syntax-violation
+                          #f "Out of context reference to identifier" (car key)))))
               (env-lookup key (cdr env)))))
    
    ;; Looks up binding first in provided environment and
@@ -174,14 +174,14 @@
    
    (define (binding-lookup id env)
      (let ((name (id-name id)))
-          (let loop ((env    env)
-                     (envs   (id-transformer-envs id))
-                     (colors (id-colors id)))
-               (or (env-lookup (cons name colors) env)
-                   (and (pair? envs)
-                        (loop (env-reify (car envs))
-                              (cdr envs)
-                              (cdr colors)))))))
+       (let loop ((env    env)
+                  (envs   (id-transformer-envs id))
+                  (colors (id-colors id)))
+         (or (env-lookup (cons name colors) env)
+             (and (pair? envs)
+                  (loop (env-reify (car envs))
+                        (cdr envs)
+                        (cdr colors)))))))
    
    
    ;; Returns a single-symbol <key> representing an
@@ -193,7 +193,7 @@
    (define (env-reify key-or-env)
      (if (symbol? key-or-env)
          (env-table-get key-or-env)
-         key-or-env))
+       key-or-env))
    
    ; TODO - make compress, uncompress work for fancier frames
    (define (compress env-table)
@@ -201,43 +201,43 @@
      #;(let ((frame-table '())
      (count 0))
    (for-each (lambda (entry)
-                     (for-each (lambda (frame)
-                                       (if (not (assq frame frame-table))
-                                           (begin
-                                            (set! frame-table (cons (cons frame count) frame-table))
-                                            (set! count (+ 1 count)))))
-                               (cdr entry)))
+               (for-each (lambda (frame)
+                           (if (not (assq frame frame-table))
+                               (begin
+                                (set! frame-table (cons (cons frame count) frame-table))
+                                (set! count (+ 1 count)))))
+                         (cdr entry)))
              env-table)
    (cons (map (lambda (env-entry)
-                      (cons (car env-entry)
-                            (map (lambda (frame)
-                                         (cdr (assq frame frame-table)))
-                                 (cdr env-entry))))
+                (cons (car env-entry)
+                      (map (lambda (frame)
+                             (cdr (assq frame frame-table)))
+                           (cdr env-entry))))
               env-table)
          (map (lambda (frame-entry)
-                      (cons (cdr frame-entry)
-                            (list (map (lambda (mapping)
-                                               (cons (car mapping)
-                                                     (let ((binding (cdr mapping)))
-                                                          (case (binding-type binding)
-                                                                ;; Pattern variable bindings can never be
-                                                                ;; used in client, so don't waste space.
-                                                                ;; Should really do the same with all local
-                                                                ;; bindings, but there are usually much less
-                                                                ;; of them, so don't bother for now.
-                                                                ((pattern-variable) #f) ; +++
-                                                                (else binding)))))
-                                       (caar frame-entry)))))
+                (cons (cdr frame-entry)
+                      (list (map (lambda (mapping)
+                                   (cons (car mapping)
+                                         (let ((binding (cdr mapping)))
+                                           (case (binding-type binding)
+                                             ;; Pattern variable bindings can never be
+                                             ;; used in client, so don't waste space.
+                                             ;; Should really do the same with all local
+                                             ;; bindings, but there are usually much less
+                                             ;; of them, so don't bother for now.
+                                             ((pattern-variable) #f) ; +++
+                                             (else binding)))))
+                                 (caar frame-entry)))))
               frame-table))))
 
 (define (uncompress compressed-env-table)
   compressed-env-table
   #;(if (null? compressed-env-table) '()
   (map (lambda (env-entry)
-               (cons (car env-entry)
-                     (map (lambda (frame-abbrev)
-                                  (cdr (assv frame-abbrev (cdr compressed-env-table))))
-                          (cdr env-entry))))
+         (cons (car env-entry)
+               (map (lambda (frame-abbrev)
+                      (cdr (assv frame-abbrev (cdr compressed-env-table))))
+                    (cdr env-entry))))
        (car compressed-env-table))))
 
 

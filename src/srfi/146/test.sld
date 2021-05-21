@@ -175,15 +175,15 @@
                                      4 "four"
                                      2 "two"
                                      5 "five")))
-                       (define (f/ignore insert ignore)
-                         (ignore "failure ignored"))
-                       (define (s/update key val update remove)
-                         (update key
-                                 (string-append val " [seen]")
-                                 "success updated"))
-                       (let*-values (((m2 v2) (mapping-search m1 2 f/ignore s/update))
-                                     ((m3 v3) (mapping-search m2 42 f/ignore s/update)))
-                                    (list v2 v3 (mapping->alist m3))))))
+                    (define (f/ignore insert ignore)
+                      (ignore "failure ignored"))
+                    (define (s/update key val update remove)
+                      (update key
+                              (string-append val " [seen]")
+                              "success updated"))
+                    (let*-values (((m2 v2) (mapping-search m1 2 f/ignore s/update))
+                                  ((m3 v3) (mapping-search m2 42 f/ignore s/update)))
+                                 (list v2 v3 (mapping->alist m3))))))
      
      (test-group "The whole mapping"
                  (define mapping0 (mapping comparator))
@@ -201,8 +201,8 @@
                              (list 'b 2)
                              (receive result
                                       (mapping-find (lambda (key value)
-                                                            (and (eq? key 'b)
-                                                                 (= value 2)))
+                                                      (and (eq? key 'b)
+                                                           (= value 2)))
                                                     mapping1
                                                     (lambda () (error "should not have been called")))
                                       result))
@@ -211,36 +211,36 @@
                              (list 42)
                              (receive result
                                       (mapping-find (lambda (key value)
-                                                            (eq? key 'd))
+                                                      (eq? key 'd))
                                                     mapping1
                                                     (lambda ()
-                                                            42))
+                                                      42))
                                       result))
                  
                  (test-equal "mapping-count"
                              2
                              (mapping-count (lambda (key value)
-                                                    (>= value 2))
+                                              (>= value 2))
                                             mapping1))
                  
                  (test-assert "mapping-any?: found"
                               (mapping-any? (lambda (key value)
-                                                    (= value 3))
+                                              (= value 3))
                                             mapping1))
                  
                  (test-assert "mapping-any?: not found"
                               (not (mapping-any? (lambda (key value)
-                                                         (= value 4))
+                                                   (= value 4))
                                                  mapping1)))
                  
                  (test-assert "mapping-every?: true"
                               (mapping-every? (lambda (key value)
-                                                      (<= value 3))
+                                                (<= value 3))
                                               mapping1))
                  
                  (test-assert "mapping-every?: false"
                               (not (mapping-every? (lambda (key value)
-                                                           (<= value 2))
+                                                     (<= value 2))
                                                    mapping1)))
                  
                  (test-equal "mapping-keys"
@@ -260,8 +260,8 @@
      (test-group "Mapping and folding"
                  (define mapping1 (mapping comparator 'a 1 'b 2 'c 3))
                  (define mapping2 (mapping-map (lambda (key value)
-                                                       (values (symbol->string key)
-                                                               (* 10 value)))
+                                                 (values (symbol->string key)
+                                                         (* 10 value)))
                                                comparator
                                                mapping1))
                  
@@ -272,41 +272,41 @@
                  (test-equal "mapping-for-each"
                              6
                              (let ((counter 0))
-                                  (mapping-for-each (lambda (key value)
-                                                            (set! counter (+ counter value)))
-                                                    mapping1)
-                                  counter))
+                               (mapping-for-each (lambda (key value)
+                                                   (set! counter (+ counter value)))
+                                                 mapping1)
+                               counter))
                  
                  (test-equal "mapping-fold"
                              6
                              (mapping-fold (lambda (key value acc)
-                                                   (+ value acc))
+                                             (+ value acc))
                                            0
                                            mapping1))
                  
                  (test-equal "mapping-map->list"
                              (+ (* 1 1) (* 2 2) (* 3 3))
                              (fold + 0 (mapping-map->list (lambda (key value)
-                                                                  (* value value))
+                                                            (* value value))
                                                           mapping1)))
                  
                  (test-equal "mapping-filter"
                              2
                              (mapping-size (mapping-filter (lambda (key value)
-                                                                   (<= value 2))
+                                                             (<= value 2))
                                                            mapping1)))
                  
                  (test-equal "mapping-remove"
                              1
                              (mapping-size (mapping-remove (lambda (key value)
-                                                                   (<= value 2))
+                                                             (<= value 2))
                                                            mapping1)))
                  
                  (test-equal "mapping-partition"
                              (list 1 2)
                              (receive result
                                       (mapping-partition (lambda (key value)
-                                                                 (eq? 'b key))
+                                                           (eq? 'b key))
                                                          mapping1)
                                       (map mapping-size result)))
                  
@@ -451,13 +451,13 @@
                              (test-equal "mapping-key-predecessor"
                                          '(c d d d)
                                          (map (lambda (mapping)
-                                                      (mapping-key-predecessor mapping 'e (lambda () #f)))
+                                                (mapping-key-predecessor mapping 'e (lambda () #f)))
                                               (list mapping1 mapping2 mapping3 mapping4)))
                              
                              (test-equal "mapping-key-successor"
                                          '(#f #f e e)
                                          (map (lambda (mapping)
-                                                      (mapping-key-successor mapping 'd (lambda () #f)))
+                                                (mapping-key-successor mapping 'd (lambda () #f)))
                                               (list mapping1 mapping2 mapping3 mapping4)))
                              
                              (test-equal "mapping-range=: contained"
@@ -498,14 +498,14 @@
                                          '((1 . 1) (2 . 4) (3 . 9))
                                          (mapping->alist
                                           (mapping-map/monotone (lambda (key value)
-                                                                        (values value (* value value)))
+                                                                  (values value (* value value)))
                                                                 comparator
                                                                 mapping1)))
                              
                              (test-equal "mapping-fold/reverse"
                                          '(1 2 3)
                                          (mapping-fold/reverse (lambda (key value acc)
-                                                                       (cons value acc))
+                                                                 (cons value acc))
                                                                '() mapping1)))
                  
                  (test-group "Comparators"

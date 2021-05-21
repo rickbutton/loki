@@ -48,7 +48,7 @@
           (= x x)
           (if (or (> x 1) (< x -1))
               (not (= x (/ x 2)))
-              (<= -1 x 1))))
+            (<= -1 x 1))))
    
    (define (exact-integer? x) (and (integer? x) (exact? x)))
    
@@ -59,20 +59,20 @@
      (define (max2 hi ls)
        (if (null? ls)
            hi
-           (max2 (if (> (car ls) hi)
-                     (car ls)
-                     hi)
-                 (cdr ls))))
+         (max2 (if (> (car ls) hi)
+                   (car ls)
+                 hi)
+               (cdr ls))))
      (max2 x rest))
    
    (define (min x . rest)
      (define (min2 lo ls)
        (if (null? ls)
            lo
-           (min2 (if (< (car ls) lo)
-                     (car ls)
-                     lo)
-                 (cdr ls))))
+         (min2 (if (< (car ls) lo)
+                   (car ls)
+                 lo)
+               (cdr ls))))
      (min2 x rest))
    
    (define-missing rationalize
@@ -94,20 +94,20 @@
    
    (define (modulo a b)
      (let ((res (remainder a b)))
-          (if (< b 0)
-              (if (<= res 0) res (+ res b))
-              (if (>= res 0) res (+ res b)))))
+       (if (< b 0)
+           (if (<= res 0) res (+ res b))
+         (if (>= res 0) res (+ res b)))))
    
    (define (gcd2 a b)
      (if (= b 0)
          (abs a)
-         (gcd b (remainder a b))))
+       (gcd b (remainder a b))))
    
    (define (gcd . args)
      (if (null? args)
          0
-         (let lp ((x (car args)) (ls (cdr args)))
-              (if (null? ls) x (lp (gcd2 x (car ls)) (cdr ls))))))
+       (let lp ((x (car args)) (ls (cdr args)))
+         (if (null? ls) x (lp (gcd2 x (car ls)) (cdr ls))))))
    
    (define (lcm2 a b)
      (abs (quotient (* a b) (gcd a b))))
@@ -115,8 +115,8 @@
    (define (lcm . args)
      (if (null? args)
          1
-         (let lp ((x (car args)) (ls (cdr args)))
-              (if (null? ls) x (lp (lcm2 x (car ls)) (cdr ls))))))
+       (let lp ((x (car args)) (ls (cdr args)))
+         (if (null? ls) x (lp (lcm2 x (car ls)) (cdr ls))))))
    
    (define truncate-quotient quotient)
    (define truncate-remainder remainder)
@@ -125,9 +125,9 @@
    
    (define (floor-quotient n m)
      (let ((res (floor (/ n m))))
-          (if (and (exact? n) (exact? m))
-              (exact res)
-              res)))
+       (if (and (exact? n) (exact? m))
+           (exact res)
+         res)))
    (define (floor-remainder n m)
      (- n (* m (floor-quotient n m))))
    (define (floor/ n m)

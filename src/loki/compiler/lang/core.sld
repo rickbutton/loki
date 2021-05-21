@@ -126,7 +126,7 @@
      (invoked?    core::module-invoked? core::module-invoked?-set!))
    (define (core::module name envs exports imports imported-libraries builds syntax-defs forms build)
      (make-core::module name envs exports imports imported-libraries builds syntax-defs forms build #f #f))
-
+   
    (define (core::atomic? term)
      (or (is-a? term <core::constant>)
          (is-a? term <core::ref>)
@@ -141,7 +141,7 @@
             (($ <core::lambda> formals rest body)
              (let ((formals (map core::ref-name formals))
                    (rest (if rest (core::ref-name rest) #f)))
-                  `(lambda ,(if rest (if (pair? formals) (apply cons* (append formals (list rest))) rest) formals) ,@(map core::serialize body))))
+               `(lambda ,(if rest (if (pair? formals) (apply cons* (append formals (list rest))) rest) formals) ,@(map core::serialize body))))
             (($ <core::set!> name value) `(set! ,(core::ref-name name) ,(core::serialize value)))
             (($ <core::define-global!> name value) `(define ,(core::ref-name name) ,(core::serialize value)))
             (($ <core::constant> value) `(quote ,value))
@@ -163,7 +163,7 @@
                                                  (formal (values '() formal))
                                                  ((formals ...) (values formals #f))
                                                  ((formals . rest) (values formals rest)))))
-                         (core::lambda (map core::ref formals) (if rest (core::ref rest) #f) (map core::deserialize body))))
+               (core::lambda (map core::ref formals) (if rest (core::ref rest) #f) (map core::deserialize body))))
             (('set! name value) (core::set! (core::ref name) (core::deserialize value)))
             (('define name value) (core::define-global! (core::ref name) (core::deserialize value)))
             (('quote value) (core::constant value))

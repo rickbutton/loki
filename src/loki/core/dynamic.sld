@@ -25,9 +25,9 @@
        (make-parameter init (lambda (x) x)))
       ((init converter)
        (let ((value (converter init)))
-            (case-lambda
-             (() value)
-             ((val) (set! value (converter val)) value))))))
+         (case-lambda
+          (() value)
+          ((val) (set! value (converter val)) value))))))
    
    (define-syntax parameterize
      (syntax-rules ()
@@ -36,11 +36,11 @@
                                   ()
                                   body)
                     (let ((p param) ...)
-                         (let ((old (p)) ...)
-                              (dynamic-wind
-                               (lambda () (p value) ...)
-                               (lambda () . body)
-                               (lambda () (p old) ...)))))
+                      (let ((old (p)) ...)
+                        (dynamic-wind
+                         (lambda () (p value) ...)
+                         (lambda () . body)
+                         (lambda () (p old) ...)))))
                    ((parameterize ("step")
                                   args
                                   ((param value) . rest)
@@ -61,25 +61,25 @@
                    ((guard (var clause ...) e1 e2 ...)
                     ((call/cc
                       (lambda (guard-k)
-                              (with-exception-handler
-                               (lambda (condition)
-                                       ((call/cc
-                                         (lambda (handler-k)
-                                                 (guard-k
-                                                  (lambda ()
-                                                          (let ((var condition))
-                                                               (guard-aux
-                                                                (handler-k
-                                                                 (lambda ()
-                                                                         (raise-continuable condition)))
-                                                                clause ...))))))))
+                        (with-exception-handler
+                         (lambda (condition)
+                           ((call/cc
+                             (lambda (handler-k)
+                               (guard-k
+                                (lambda ()
+                                  (let ((var condition))
+                                    (guard-aux
+                                     (handler-k
+                                      (lambda ()
+                                        (raise-continuable condition)))
+                                     clause ...))))))))
+                         (lambda ()
+                           (call-with-values
+                            (lambda () e1 e2 ...)
+                            (lambda args
+                              (guard-k
                                (lambda ()
-                                       (call-with-values
-                                        (lambda () e1 e2 ...)
-                                        (lambda args
-                                                (guard-k
-                                                 (lambda ()
-                                                         (apply values args)))))))))))))
+                                 (apply values args)))))))))))))
    
    (define-syntax guard-aux
      (syntax-rules (else =>)
@@ -87,32 +87,32 @@
                     (begin result1 result2 ...))
                    ((guard-aux reraise (test => result))
                     (let ((temp test))
-                         (if temp
-                             (result temp)
-                             reraise)))
+                      (if temp
+                          (result temp)
+                        reraise)))
                    ((guard-aux reraise (test => result)
                                clause1 clause2 ...)
                     (let ((temp test))
-                         (if temp
-                             (result temp)
-                             (guard-aux reraise clause1 clause2 ...))))
+                      (if temp
+                          (result temp)
+                        (guard-aux reraise clause1 clause2 ...))))
                    ((guard-aux reraise (test))
                     (or test reraise))
                    ((guard-aux reraise (test) clause1 clause2 ...)
                     (let ((temp test))
-                         (if temp
-                             temp
-                             (guard-aux reraise clause1 clause2 ...))))
+                      (if temp
+                          temp
+                        (guard-aux reraise clause1 clause2 ...))))
                    ((guard-aux reraise (test result1 result2 ...))
                     (if test
                         (begin result1 result2 ...)
-                        reraise))
+                      reraise))
                    ((guard-aux reraise
                                (test result1 result2 ...)
                                clause1 clause2 ...)
                     (if test
                         (begin result1 result2 ...)
-                        (guard-aux reraise clause1 clause2 ...)))))
+                      (guard-aux reraise clause1 clause2 ...)))))
    
    
    (define-record-type <point>
@@ -131,20 +131,20 @@
    
    (define %dk
      (let ((dk root-point))
-          (lambda o (if (pair? o) (set! dk (car o)) dk))))
+       (lambda o (if (pair? o) (set! dk (car o)) dk))))
    
    
    (define (dynamic-wind in body out)
      (in)
      (let ((here (%dk)))
-          (%dk (%make-point (+ (%point-depth here) 1)
-                            in
-                            out
-                            here))
-          (let ((res (body)))
-               (%dk here)
-               (out)
-               res)))
+       (%dk (%make-point (+ (%point-depth here) 1)
+                         in
+                         out
+                         here))
+       (let ((res (body)))
+         (%dk here)
+         (out)
+         res)))
    
    (define (travel-to-point! here target)
      (cond
@@ -159,35 +159,35 @@
    
    (define (continuation->procedure cont point)
      (lambda res
-             (travel-to-point! (%dk) point)
-             (%dk point)
-             (call-with-values (lambda () (apply values res)) cont)))
+       (travel-to-point! (%dk) point)
+       (%dk point)
+       (call-with-values (lambda () (apply values res)) cont)))
    
    (define (call/cc proc)
      (%call/cc
       (lambda (cont)
-              (proc (continuation->procedure cont (%dk))))))
+        (proc (continuation->procedure cont (%dk))))))
    
    (define (%with-exception-handler handler thunk)
      (let ((old (current-exception-handler)))
-          (dynamic-wind
-           (lambda () (current-exception-handler-set! handler))
-           thunk
-           (lambda () (current-exception-handler-set! old)))))
+       (dynamic-wind
+        (lambda () (current-exception-handler-set! handler))
+        thunk
+        (lambda () (current-exception-handler-set! old)))))
    
    (define (with-exception-handler handler thunk)
      (letrec ((orig-handler (current-exception-handler))
               (self (lambda (exn)
-                            (%with-exception-handler orig-handler
-                                                     (lambda ()
-                                                             (cond
-                                                              ((and (exception? exn)
-                                                                    (eq? 'continuable (exception-type exn)))
-                                                               (handler (exception-irritants exn)))
-                                                              (else
-                                                               (handler exn)
-                                                               (error "exception handler returned"))))))))
-             (%with-exception-handler self thunk)))
+                      (%with-exception-handler orig-handler
+                                               (lambda ()
+                                                 (cond
+                                                  ((and (exception? exn)
+                                                        (eq? 'continuable (exception-type exn)))
+                                                   (handler (exception-irritants exn)))
+                                                  (else
+                                                   (handler exn)
+                                                   (error "exception handler returned"))))))))
+       (%with-exception-handler self thunk)))
    
    (%dk root-point)
    

@@ -7,12 +7,12 @@
    
    (define-syntax syntax-rules
      (lambda (x)
-             (syntax-case x ()
-                          ((_ (k ...) (pattern template) ...)
-                           (syntax (lambda (x)
-                                           (syntax-case x (k ...)
-                                                        (pattern (syntax template))
-                                                        ...)))))))
+       (syntax-case x ()
+                    ((_ (k ...) (pattern template) ...)
+                     (syntax (lambda (x)
+                               (syntax-case x (k ...)
+                                            (pattern (syntax template))
+                                            ...)))))))
    
    ))
 

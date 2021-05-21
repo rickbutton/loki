@@ -48,8 +48,8 @@
    
    (define (make-record size)
      (let ((new (make-vector (+ size 1))))
-          (vector-set! new 0 record-marker)
-          new))
+       (vector-set! new 0 record-marker)
+       new))
    
    (define (record-ref record index)
      (vector-ref record (+ index 1)))
@@ -125,22 +125,22 @@
    
    (define :record-type
      (let ((:record-type (make-record 4)))
-          (record-set! :record-type 0 :record-type)	; Its type is itself.
-          (record-set! :record-type 1 ':record-type)
-          (record-set! :record-type 2 '(name field-tags printer))
-          (record-set! :record-type 3 root-record-type-printer)
-          :record-type))
+       (record-set! :record-type 0 :record-type)	; Its type is itself.
+       (record-set! :record-type 1 ':record-type)
+       (record-set! :record-type 2 '(name field-tags printer))
+       (record-set! :record-type 3 root-record-type-printer)
+       :record-type))
    
    ; Now that :record-type exists we can define a procedure for making more
    ; record types.
    
    (define (make-record-type name field-tags printer)
      (let ((new (make-record 4)))
-          (record-set! new 0 :record-type)
-          (record-set! new 1 name)
-          (record-set! new 2 field-tags)
-          (record-set! new 3 printer)
-          new))
+       (record-set! new 0 :record-type)
+       (record-set! new 1 name)
+       (record-set! new 2 field-tags)
+       (record-set! new 3 printer)
+       new))
    
    ; Accessors for record types.
    
@@ -164,12 +164,12 @@
    
    (define (field-index type tag)
      (let loop ((i 1) (tags (record-type-field-tags type)))
-          (cond ((null? tags)
-                 (error "record type has no such field" type tag))
-                ((eq? tag (car tags))
-                 i)
-                (else
-                 (loop (+ i 1) (cdr tags))))))
+       (cond ((null? tags)
+              (error "record type has no such field" type tag))
+             ((eq? tag (car tags))
+              i)
+             (else
+              (loop (+ i 1) (cdr tags))))))
    
    ;----------------
    ; Now we are ready to define RECORD-CONSTRUCTOR and the rest of the
@@ -179,42 +179,42 @@
      (let ((size (length (record-type-field-tags type)))
            (arg-count (length tags))
            (indexes (map (lambda (tag)
-                                 (field-index type tag))
+                           (field-index type tag))
                          tags)))
-          (lambda args
-                  (if (= (length args)
-                         arg-count)
-                      (let ((new (make-record (+ size 1))))
-                           (record-set! new 0 type)
-                           (for-each (lambda (arg i)
-                                             (record-set! new i arg))
-                                     args
-                                     indexes)
-                           new)
-                      (error "wrong number of arguments to constructor" type args)))))
+       (lambda args
+         (if (= (length args)
+                arg-count)
+             (let ((new (make-record (+ size 1))))
+               (record-set! new 0 type)
+               (for-each (lambda (arg i)
+                           (record-set! new i arg))
+                         args
+                         indexes)
+               new)
+           (error "wrong number of arguments to constructor" type args)))))
    
    (define (record-predicate type)
      (lambda (thing)
-             (and (record? thing)
-                  (eq? (record-type thing)
-                       type))))
+       (and (record? thing)
+            (eq? (record-type thing)
+                 type))))
    
    (define (record-accessor type tag)
      (let ((index (field-index type tag)))
-          (lambda (thing)
-                  (if (and (record? thing)
-                           (eq? (record-type thing)
-                                type))
-                      (record-ref thing index)
-                      (error "accessor applied to bad value" type tag thing)))))
+       (lambda (thing)
+         (if (and (record? thing)
+                  (eq? (record-type thing)
+                       type))
+             (record-ref thing index)
+           (error "accessor applied to bad value" type tag thing)))))
    
    (define (record-modifier type tag)
      (let ((index (field-index type tag)))
-          (lambda (thing value)
-                  (if (and (record? thing)
-                           (eq? (record-type thing)
-                                type))
-                      (record-set! thing index value)
-                      (error "modifier applied to bad value" type tag thing)))))
+       (lambda (thing value)
+         (if (and (record? thing)
+                  (eq? (record-type thing)
+                       type))
+             (record-set! thing index value)
+           (error "modifier applied to bad value" type tag thing)))))
    ))
 

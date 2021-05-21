@@ -81,11 +81,11 @@
                                            (= 0 (test-runner-fail-count runner))))))))))
    (define-syntax test
      (lambda (x)
-             (syntax-case x ()
-                          ((test name expected expr)
-                           (quasisyntax (test-equal name expected expr)))
-                          ((test expected expr)
-                           (let ((out (open-output-string)))
-                                (write (syntax->datum (syntax expected)) out)
-                                (quasisyntax (test-equal (unsyntax (get-output-string out)) expected expr)))))))))
+       (syntax-case x ()
+                    ((test name expected expr)
+                     (quasisyntax (test-equal name expected expr)))
+                    ((test expected expr)
+                     (let ((out (open-output-string)))
+                       (write (syntax->datum (syntax expected)) out)
+                       (quasisyntax (test-equal (unsyntax (get-output-string out)) expected expr)))))))))
 

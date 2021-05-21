@@ -41,25 +41,25 @@
    
    (define (string-split str ch)
      (let ((len (string-length str)))
-          (letrec
+       (letrec
            ((split
              (lambda (a b)
-                     (cond
-                      ((>= b len) (if (= a b) '() (cons (substring str a b) '())))
-                      ((char=? ch (string-ref str b)) (if (= a b)
-                                                          (split (+ 1 a) (+ 1 b))
-                                                          (cons (substring str a b) (split b b))))
-                      (else (split a (+ 1 b)))))))
-           (split 0 0))))
+               (cond
+                ((>= b len) (if (= a b) '() (cons (substring str a b) '())))
+                ((char=? ch (string-ref str b)) (if (= a b)
+                                                    (split (+ 1 a) (+ 1 b))
+                                                  (cons (substring str a b) (split b b))))
+                (else (split a (+ 1 b)))))))
+         (split 0 0))))
    
    (define (string-join strings delimiter)
      (if (null? strings)
          ""
-         (let loop ((strings (cdr strings)) (so-far (car strings)))
-              (if (null? strings)
-                  so-far
-                  (loop (cdr strings)
-                        (string-append so-far delimiter (car strings)))))))
+       (let loop ((strings (cdr strings)) (so-far (car strings)))
+         (if (null? strings)
+             so-far
+           (loop (cdr strings)
+                 (string-append so-far delimiter (car strings)))))))
    
    
    (define-record-type <posix-path>
@@ -78,20 +78,20 @@
    (define (starts-with? string prefix)
      (if (< (string-length string) (string-length prefix))
          #f
-         (equal? prefix (substring string 0 (string-length prefix)))))
+       (equal? prefix (substring string 0 (string-length prefix)))))
    
    (define (make-posix-path string)
      (let ((strlen (string-length string)))
-          (if (zero? strlen)
-              (make-posix-path-record "" '())
-              (let ((root (if (equal? (string-ref string 0) #\/)
-                              (if (and (> strlen 1)
-                                       (equal? (string-ref string 1) #\/))
-                                  "//"
-                                  "/")
-                              ""))
-                    (parts (string-split string #\/)))
-                   (make-posix-path-record root parts)))))
+       (if (zero? strlen)
+           (make-posix-path-record "" '())
+         (let ((root (if (equal? (string-ref string 0) #\/)
+                         (if (and (> strlen 1)
+                                  (equal? (string-ref string 1) #\/))
+                             "//"
+                           "/")
+                       ""))
+               (parts (string-split string #\/)))
+           (make-posix-path-record root parts)))))
    
    (define (make-windows-path string)
      (error "make-windows-path: windows paths not implemented" string))
@@ -157,56 +157,56 @@
      (cond
       ((posix-path? path)
        (let ((parts (posix-path-parts path)))
-            (if (null? parts)
-                path
-                (make-posix-path-record (path-root path) (drop-last parts)))))
+         (if (null? parts)
+             path
+           (make-posix-path-record (path-root path) (drop-last parts)))))
       ((windows-path? path)
        (let ((parts (windows-path-parts path)))
-            (if (null? parts)
-                path
-                (make-windows-path-record (path-drive path) (path-root path) (drop-last parts)))))
+         (if (null? parts)
+             path
+           (make-windows-path-record (path-drive path) (path-root path) (drop-last parts)))))
       (else (error "path-parent: not a path" path))))
    
    (define (path-filename path)
      (unless (path? path) (error "path-filename: not a path" path))
      (let ((parts (path-parts path)))
-          (if (null? (cdr parts))
-              ""
-              (last (cdr parts)))))
+       (if (null? (cdr parts))
+           ""
+         (last (cdr parts)))))
    
    (define (path-suffix path)
      (unless (path? path) (error "path-suffix: not a path" path))
      (let ((filename (path-filename path)))
-          (if (equal? filename "")
-              ""
-              (let ((parts (string-split filename #\.)))
-                   (if (null? (cdr parts))
-                       ""
-                       (last parts))))))
+       (if (equal? filename "")
+           ""
+         (let ((parts (string-split filename #\.)))
+           (if (null? (cdr parts))
+               ""
+             (last parts))))))
    
    (define (path-suffixes path)
      (unless (path? path) (error "path-suffixes: not a path" path))
      (let ((filename (path-filename path)))
-          (if (equal? filename "")
-              '()
-              (let ((parts (string-split filename #\.)))
-                   (cdr parts)))))
+       (if (equal? filename "")
+           '()
+         (let ((parts (string-split filename #\.)))
+           (cdr parts)))))
    
    (define (path-stem path)
      (unless (path? path) (error "path-stem: not a path" path))
      (let ((filename (path-filename path)))
-          (if (equal? filename "")
-              ""
-              (let ((parts (string-split filename #\.)))
-                   (if (null? parts)
-                       ""
-                       (car parts))))))
+       (if (equal? filename "")
+           ""
+         (let ((parts (string-split filename #\.)))
+           (if (null? parts)
+               ""
+             (car parts))))))
    
    (define (path->string* path sep)
      (let ((parts (path-parts path)))
-          (if (> (string-length (car parts)) 0)
-              (string-join parts sep)
-              (string-join (cdr parts) sep))))
+       (if (> (string-length (car parts)) 0)
+           (string-join parts sep)
+         (string-join (cdr parts) sep))))
    
    (define *posix-sep* "/")
    (define *windows-sep* "\\")
@@ -234,20 +234,20 @@
             (path2-drive (path-drive path2))
             (path2-root (path-root path2))
             (path2-components (path-components path2)))
-           (if (> (string-length path2-drive) 0)
-               path2
-               (if (> (string-length path2-root) 0)
-                   (make-path-from-parts (path-drive path)
-                                         path2-root
-                                         path2-components)
-                   (make-path-from-parts  (path-drive path)
-                                         (path-root path)
-                                         (append (path-components path) path2-components))))))
+       (if (> (string-length path2-drive) 0)
+           path2
+         (if (> (string-length path2-root) 0)
+             (make-path-from-parts (path-drive path)
+                                   path2-root
+                                   path2-components)
+           (make-path-from-parts  (path-drive path)
+                                 (path-root path)
+                                 (append (path-components path) path2-components))))))
    
    (define (path-join path path-or-string . paths-or-strings)
      (if (null? paths-or-strings)
          (path-join2 path path-or-string)
-         (apply path-join (path-join2 path path-or-string) paths-or-strings)))
+       (apply path-join (path-join2 path path-or-string) paths-or-strings)))
    
    (define (path->file-uri path) (error "path->file-uri: not implemented"))
    (define (path-match path string) (error "path-match: not implemented"))
@@ -256,17 +256,17 @@
    (define (path-with-name path name)
      (unless (path? path) (error "path-with-name: not a path" path))
      (let ((filename (path-filename path)))
-          (if (eq? filename "") (error "path-with-name: path does not have a name" path))
-          (path-join (path-parent path) name)))
+       (if (eq? filename "") (error "path-with-name: path does not have a name" path))
+       (path-join (path-parent path) name)))
    
    (define (path-with-suffix path suffix)
      (unless (path? path) (error "path-with-suffix: not a path" path))
      (let ((stem (path-stem path))
            (suffixes (path-suffixes path)))
-          (if (eq? stem "") (error "path-with-suffix: path does not have a name" path))
-          (if (null? suffixes)
-              (path-with-name path (string-join (list stem suffix) "."))
-              (path-with-name path (string-join (append (cons stem (drop-right suffixes 1)) (list suffix)) ".")))))
+       (if (eq? stem "") (error "path-with-suffix: path does not have a name" path))
+       (if (null? suffixes)
+           (path-with-name path (string-join (list stem suffix) "."))
+         (path-with-name path (string-join (append (cons stem (drop-right suffixes 1)) (list suffix)) ".")))))
    
    (define (current-working-path)
      (make-path (current-directory)))

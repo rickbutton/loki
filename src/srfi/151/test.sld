@@ -335,16 +335,16 @@
                              (test-equal "test-112" '(#t #f #t #f #t #t #t) (bitwise-fold cons '() #b1010111))
                              (test-equal "test-113" 5
                                          (let ((count 0))
-                                              (bitwise-for-each (lambda (b) (if b (set! count (+ count 1))))
-                                                                #b1010111)
-                                              count))
+                                           (bitwise-for-each (lambda (b) (if b (set! count (+ count 1))))
+                                                             #b1010111)
+                                           count))
                              (test-equal "test-114" #b101010101
                                          (bitwise-unfold (lambda (i) (= i 10)) even? (lambda (i) (+ i 1)) 0))
                              (let ((g (make-bitwise-generator #b110)))
-                                  (test-equal "test-244a" #f (g))
-                                  (test-equal "test-244b" #t (g))
-                                  (test-equal "test-244c" #t (g))
-                                  (test-equal "test-244d" #f (g)))
+                               (test-equal "test-244a" #f (g))
+                               (test-equal "test-244b" #t (g))
+                               (test-equal "test-244c" #t (g))
+                               (test-equal "test-244d" #f (g)))
                              )
                  )
      

@@ -44,7 +44,7 @@
                    ;; Handle special-case with no optargs.
                    ((_ name () rest (taken ...) () body)
                     (lambda (taken ... . rest)
-                            . body))
+                      . body))
                    ;; Add clause where no optargs are provided.
                    ((_ name () rest (taken ...) ((opt def) ...) body)
                     (opt/make-clauses
@@ -81,13 +81,13 @@
                     (define check-arg
                       (if (debug-mode)
                           (lambda (pred val proc)
-                                  (if (pred val)
-                                      val
-                                      (error "Type assertion failed:"
-                                             `(value ,val)
-                                             `(expected-type ,pred)
-                                             `(callee ,proc))))
-                          (lambda (pred val proc)
-                                  val))))))
+                            (if (pred val)
+                                val
+                              (error "Type assertion failed:"
+                                     `(value ,val)
+                                     `(expected-type ,pred)
+                                     `(callee ,proc))))
+                        (lambda (pred val proc)
+                          val))))))
    
    ))

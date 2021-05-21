@@ -23,7 +23,7 @@
                     (call-with-values
                      (lambda () ?e0)
                      (lambda ?args
-                             (let-values "bind" ?bindings ?tmps ?body))))
+                       (let-values "bind" ?bindings ?tmps ?body))))
                    
                    ((let-values "mktmp" (?a . ?b) ?e0 (?arg ...) ?bindings (?tmp ...) ?body)
                     (let-values "mktmp" ?b ?e0 (?arg ... x) ?bindings (?tmp ... (?a x)) ?body))
@@ -32,7 +32,7 @@
                     (call-with-values
                      (lambda () ?e0)
                      (lambda (?arg ... . x)
-                             (let-values "bind" ?bindings (?tmp ... (?a x)) ?body))))))
+                       (let-values "bind" ?bindings (?tmp ... (?a x)) ?body))))))
    
    (define-syntax let*-values
      (syntax-rules ()
@@ -41,7 +41,7 @@
                    
                    ((let*-values (?binding0 ?binding1 ...) ?body0 ?body1 ...)
                     (let-values (?binding0)
-                                (let*-values (?binding1 ...) ?body0 ?body1 ...)))))
+                      (let*-values (?binding1 ...) ?body0 ?body1 ...)))))
    
    
    (define-syntax define-values
@@ -59,12 +59,12 @@
                                          list))
                      (define var1
                        (let ((v (cadr var0)))
-                            (set-cdr! var0 (cddr var0))
-                            v)) ...
+                         (set-cdr! var0 (cddr var0))
+                         v)) ...
                      (define varn
                        (let ((v (cadr var0)))
-                            (set! var0 (car var0))
-                            v))))
+                         (set! var0 (car var0))
+                         v))))
                    ((define-values (var0 var1 ... . varn) expr)
                     (begin
                      (define var0
@@ -72,12 +72,12 @@
                                          list))
                      (define var1
                        (let ((v (cadr var0)))
-                            (set-cdr! var0 (cddr var0))
-                            v)) ...
+                         (set-cdr! var0 (cddr var0))
+                         v)) ...
                      (define varn
                        (let ((v (cdr var0)))
-                            (set! var0 (car var0))
-                            v))))
+                         (set! var0 (car var0))
+                         v))))
                    ((define-values var expr)
                     (define var
                       (call-with-values (lambda () expr)

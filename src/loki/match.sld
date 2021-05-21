@@ -307,13 +307,13 @@
                     (match-syntax-error "no match clauses"))
                    ((match (app ...) (pat . body) ...)
                     (let ((v (app ...)))
-                         (match-next v ((app ...) (set! (app ...))) (pat . body) ...)))
+                      (match-next v ((app ...) (set! (app ...))) (pat . body) ...)))
                    ((match #(vec ...) (pat . body) ...)
                     (let ((v #(vec ...)))
-                         (match-next v (v (set! v)) (pat . body) ...)))
+                      (match-next v (v (set! v)) (pat . body) ...)))
                    ((match atom (pat . body) ...)
                     (let ((v atom))
-                         (match-next v (atom (set! atom)) (pat . body) ...)))
+                      (match-next v (atom (set! atom)) (pat . body) ...)))
                    ))
    
    ;; MATCH-NEXT passes each clause to MATCH-ONE in turn with its failure
@@ -329,8 +329,8 @@
                    ;; named failure continuation
                    ((match-next v g+s (pat (=> failure) . body) . rest)
                     (let ((failure (lambda () (match-next v g+s . rest))))
-                         ;; match-one analyzes the pattern for us
-                         (match-one v pat g+s (match-drop-ids (begin . body)) (failure) ())))
+                      ;; match-one analyzes the pattern for us
+                      (match-one v pat g+s (match-drop-ids (begin . body)) (failure) ())))
                    ;; anonymous failure continuation, give it a dummy name
                    ((match-next v g+s (pat . body) . rest)
                     (match-next v g+s (pat (=> failure) . body) . rest))))
@@ -400,8 +400,8 @@
                    ((match-two v (p) g+s sk fk i)
                     (if (and (pair? v) (null? (cdr v)))
                         (let ((w (car v)))
-                             (match-one w p ((car v) (set-car! v)) sk fk i))
-                        fk))
+                          (match-one w p ((car v) (set-car! v)) sk fk i))
+                      fk))
                    ((match-two v (p *** q) g+s sk fk i)
                     (match-extract-vars p (match-gen-search v p q g+s sk fk i) i ()))
                    ((match-two v (p *** . q) g+s sk fk i)
@@ -409,7 +409,7 @@
                    ((match-two v (p ..1) g+s sk fk i)
                     (if (pair? v)
                         (match-one v (p ___) g+s sk fk i)
-                        fk))
+                      fk))
                    ((match-two v (p ..= n . r) g+s sk fk i)
                     (match-extract-vars
                      p
@@ -421,27 +421,27 @@
                    ((match-two v ($ rec p ...) g+s sk fk i)
                     (if (is-a? v rec)
                         (match-record-refs v rec 0 (p ...) g+s sk fk i)
-                        fk))
+                      fk))
                    ((match-two v (struct rec p ...) g+s sk fk i)
                     (if (is-a? v rec)
                         (match-record-refs v rec 0 (p ...) g+s sk fk i)
-                        fk))
+                      fk))
                    ((match-two v (@ rec p ...) g+s sk fk i)
                     (if (is-a? v rec)
                         (match-record-named-refs v rec (p ...) g+s sk fk i)
-                        fk))
+                      fk))
                    ((match-two v (object rec p ...) g+s sk fk i)
                     (if (is-a? v rec)
                         (match-record-named-refs v rec (p ...) g+s sk fk i)
-                        fk))
+                      fk))
                    ((match-two v (p . q) g+s sk fk i)
                     (if (pair? v)
                         (let ((w (car v)) (x (cdr v)))
-                             (match-one w p ((car v) (set-car! v))
-                                        (match-one x q ((cdr v) (set-cdr! v)) sk fk)
-                                        fk
-                                        i))
-                        fk))
+                          (match-one w p ((car v) (set-car! v))
+                                     (match-one x q ((cdr v) (set-cdr! v)) sk fk)
+                                     fk
+                                     i))
+                      fk))
                    ((match-two v #(p ...) g+s . x)
                     (match-vector v 0 () (p ...) . x))
                    ((match-two v _ g+s (sk ...) fk i) (sk ... i))
@@ -487,16 +487,16 @@
                    ((_ v (p . q) g+s sk fk i . depth)
                     (if (pair? v)
                         (let ((w (car v)) (x (cdr v)))
-                             (match-quasiquote
-                              w p g+s
-                              (match-quasiquote-step x q g+s sk fk depth)
-                              fk i . depth))
-                        fk))
+                          (match-quasiquote
+                           w p g+s
+                           (match-quasiquote-step x q g+s sk fk depth)
+                           fk i . depth))
+                      fk))
                    ((_ v #(elt ...) g+s sk fk i . depth)
                     (if (vector? v)
                         (let ((ls (vector->list v)))
-                             (match-quasiquote ls (elt ...) g+s sk fk i . depth))
-                        fk))
+                          (match-quasiquote ls (elt ...) g+s sk fk i . depth))
+                      fk))
                    ((_ v x g+s sk fk i . depth)
                     (match-one v 'x g+s sk fk i))))
    
@@ -533,7 +533,7 @@
      (syntax-rules ()
                    ((_ v p g+s (sk ...) fk (i ...) ((id id-ls) ...))
                     (let ((sk2 (lambda (id ...) (sk ... (i ... id ...)))))
-                         (match-gen-or-step v p g+s (match-drop-ids (sk2 id ...)) fk (i ...))))))
+                      (match-gen-or-step v p g+s (match-drop-ids (sk2 id ...)) fk (i ...))))))
    
    (define-syntax match-gen-or-step
      (syntax-rules ()
@@ -546,7 +546,7 @@
                    ((_ v (p . q) g+s sk fk i)
                     ;; match one and try the remaining on failure
                     (let ((fk2 (lambda () (match-gen-or-step v q g+s sk fk i))))
-                         (match-one v p g+s sk (fk2) i)))
+                      (match-one v p g+s sk (fk2) i)))
                    ))
    
    ;; We match a pattern (p ...) by matching the pattern p in a loop on
@@ -566,21 +566,21 @@
                     (match-check-identifier p
                                             ;; simplest case equivalent to (p ...), just bind the list
                                             (let ((p v))
-                                                 (if (list? p)
-                                                     (sk ... i)
-                                                     fk))
+                                              (if (list? p)
+                                                  (sk ... i)
+                                                fk))
                                             ;; simple case, match all elements of the list
                                             (let loop ((ls v) (id-ls '()) ...)
-                                                 (cond
-                                                  ((null? ls)
-                                                   (let ((id (reverse id-ls)) ...) (sk ... i)))
-                                                  ((pair? ls)
-                                                   (let ((w (car ls)))
-                                                        (match-one w p ((car ls) (set-car! ls))
-                                                                   (match-drop-ids (loop (cdr ls) (cons id id-ls) ...))
-                                                                   fk i)))
-                                                  (else
-                                                   fk)))))
+                                              (cond
+                                               ((null? ls)
+                                                (let ((id (reverse id-ls)) ...) (sk ... i)))
+                                               ((pair? ls)
+                                                (let ((w (car ls)))
+                                                  (match-one w p ((car ls) (set-car! ls))
+                                                             (match-drop-ids (loop (cdr ls) (cons id id-ls) ...))
+                                                             fk i)))
+                                               (else
+                                                fk)))))
                    ((_ v p r g+s (sk ...) fk i ((id id-ls) ...))
                     ;; general case, trailing patterns to match, keep track of the
                     ;; remaining list length so we don't need any backtracking
@@ -589,22 +589,22 @@
                      (let* ((tail-len (length 'r))
                             (ls v)
                             (len (and (list? ls) (length ls))))
-                           (if (or (not len) (< len tail-len))
-                               fk
-                               (let loop ((ls ls) (n len) (id-ls '()) ...)
-                                    (cond
-                                     ((= n tail-len)
-                                      (let ((id (reverse id-ls)) ...)
-                                           (match-one ls r (#f #f) (sk ...) fk i)))
-                                     ((pair? ls)
-                                      (let ((w (car ls)))
-                                           (match-one w p ((car ls) (set-car! ls))
-                                                      (match-drop-ids
-                                                       (loop (cdr ls) (- n 1) (cons id id-ls) ...))
-                                                      fk
-                                                      i)))
-                                     (else
-                                      fk)))))))))
+                       (if (or (not len) (< len tail-len))
+                           fk
+                         (let loop ((ls ls) (n len) (id-ls '()) ...)
+                           (cond
+                            ((= n tail-len)
+                             (let ((id (reverse id-ls)) ...)
+                               (match-one ls r (#f #f) (sk ...) fk i)))
+                            ((pair? ls)
+                             (let ((w (car ls)))
+                               (match-one w p ((car ls) (set-car! ls))
+                                          (match-drop-ids
+                                           (loop (cdr ls) (- n 1) (cons id id-ls) ...))
+                                          fk
+                                          i)))
+                            (else
+                             fk)))))))))
    
    ;; Variant of the above where the rest pattern is in a quasiquote.
    
@@ -616,22 +616,22 @@
                      (let* ((tail-len (length 'r))
                             (ls v)
                             (len (and (list? ls) (length ls))))
-                           (if (or (not len) (< len tail-len))
-                               fk
-                               (let loop ((ls ls) (n len) (id-ls '()) ...)
-                                    (cond
-                                     ((= n tail-len)
-                                      (let ((id (reverse id-ls)) ...)
-                                           (match-quasiquote ls r g+s (sk ...) fk i)))
-                                     ((pair? ls)
-                                      (let ((w (car ls)))
-                                           (match-one w p ((car ls) (set-car! ls))
-                                                      (match-drop-ids
-                                                       (loop (cdr ls) (- n 1) (cons id id-ls) ...))
-                                                      fk
-                                                      i)))
-                                     (else
-                                      fk)))))))))
+                       (if (or (not len) (< len tail-len))
+                           fk
+                         (let loop ((ls ls) (n len) (id-ls '()) ...)
+                           (cond
+                            ((= n tail-len)
+                             (let ((id (reverse id-ls)) ...)
+                               (match-quasiquote ls r g+s (sk ...) fk i)))
+                            ((pair? ls)
+                             (let ((w (car ls)))
+                               (match-one w p ((car ls) (set-car! ls))
+                                          (match-drop-ids
+                                           (loop (cdr ls) (- n 1) (cons id id-ls) ...))
+                                          fk
+                                          i)))
+                            (else
+                             fk)))))))))
    
    ;; Variant of above which takes an n/m range for the number of
    ;; repetitions.  At least n elements much match, and up to m elements
@@ -649,22 +649,22 @@
                             (tail-len (length 'r))
                             (ls v)
                             (len (and (list? ls) (- (length ls) tail-len))))
-                           (if (and len (<= lo len hi))
-                               (let loop ((ls ls) (j 0) (id-ls '()) ...)
-                                    (cond
-                                     ((= j len)
-                                      (let ((id (reverse id-ls)) ...)
-                                           (match-one ls r (#f #f) (sk ...) fk i)))
-                                     ((pair? ls)
-                                      (let ((w (car ls)))
-                                           (match-one w p ((car ls) (set-car! ls))
-                                                      (match-drop-ids
-                                                       (loop (cdr ls) (+ j 1) (cons id id-ls) ...))
-                                                      fk
-                                                      i)))
-                                     (else
-                                      fk)))
-                               fk))))))
+                       (if (and len (<= lo len hi))
+                           (let loop ((ls ls) (j 0) (id-ls '()) ...)
+                             (cond
+                              ((= j len)
+                               (let ((id (reverse id-ls)) ...)
+                                 (match-one ls r (#f #f) (sk ...) fk i)))
+                              ((pair? ls)
+                               (let ((w (car ls)))
+                                 (match-one w p ((car ls) (set-car! ls))
+                                            (match-drop-ids
+                                             (loop (cdr ls) (+ j 1) (cons id id-ls) ...))
+                                            fk
+                                            i)))
+                              (else
+                               fk)))
+                         fk))))))
    
    ;; This is just a safety check.  Although unlike syntax-rules we allow
    ;; trailing patterns after an ellipsis, we explicitly disable multiple
@@ -704,32 +704,32 @@
      (syntax-rules ()
                    ((match-gen-search v p q g+s sk fk i ((id id-ls) ...))
                     (letrec ((try (lambda (w fail id-ls ...)
-                                          (match-one w q g+s
-                                                     (match-tuck-ids
-                                                      (let ((id (reverse id-ls)) ...)
-                                                           sk))
-                                                     (next w fail id-ls ...) i)))
+                                    (match-one w q g+s
+                                               (match-tuck-ids
+                                                (let ((id (reverse id-ls)) ...)
+                                                  sk))
+                                               (next w fail id-ls ...) i)))
                              (next (lambda (w fail id-ls ...)
-                                           (if (not (pair? w))
-                                               (fail)
-                                               (let ((u (car w)))
-                                                    (match-one
-                                                     u p ((car w) (set-car! w))
-                                                     (match-drop-ids
-                                                      ;; accumulate the head variables from
-                                                      ;; the p pattern, and loop over the tail
-                                                      (let ((id-ls (cons id id-ls)) ...)
-                                                           (let lp ((ls (cdr w)))
-                                                                (if (pair? ls)
-                                                                    (try (car ls)
-                                                                         (lambda () (lp (cdr ls)))
-                                                                         id-ls ...)
-                                                                    (fail)))))
-                                                     (fail) i))))))
-                            ;; the initial id-ls binding here is a dummy to get the right
-                            ;; number of '()s
-                            (let ((id-ls '()) ...)
-                                 (try v (lambda () fk) id-ls ...))))))
+                                     (if (not (pair? w))
+                                         (fail)
+                                       (let ((u (car w)))
+                                         (match-one
+                                          u p ((car w) (set-car! w))
+                                          (match-drop-ids
+                                           ;; accumulate the head variables from
+                                           ;; the p pattern, and loop over the tail
+                                           (let ((id-ls (cons id id-ls)) ...)
+                                             (let lp ((ls (cdr w)))
+                                               (if (pair? ls)
+                                                   (try (car ls)
+                                                        (lambda () (lp (cdr ls)))
+                                                        id-ls ...)
+                                                 (fail)))))
+                                          (fail) i))))))
+                      ;; the initial id-ls binding here is a dummy to get the right
+                      ;; number of '()s
+                      (let ((id-ls '()) ...)
+                        (try v (lambda () fk) id-ls ...))))))
    
    ;; Vector patterns are just more of the same, with the slight
    ;; exception that we pass around the current vector index being
@@ -753,10 +753,10 @@
                    ((_ v n ((pat index) ...) () sk fk i)
                     (if (vector? v)
                         (let ((len (vector-length v)))
-                             (if (= len n)
-                                 (match-vector-step v ((pat index) ...) sk fk i)
-                                 fk))
-                        fk))
+                          (if (= len n)
+                              (match-vector-step v ((pat index) ...) sk fk i)
+                            fk))
+                      fk))
                    ((_ v n (pats ...) (p . q) . x)
                     (match-vector v (+ n 1) (pats ... (p n)) q . x))))
    
@@ -765,9 +765,9 @@
                    ((_ v () (sk ...) fk i) (sk ... i))
                    ((_ v ((pat index) . rest) sk fk i)
                     (let ((w (vector-ref v index)))
-                         (match-one w pat ((vector-ref v index) (vector-set! v index))
-                                    (match-vector-step v rest sk fk)
-                                    fk i)))))
+                      (match-one w pat ((vector-ref v index) (vector-set! v index))
+                                 (match-vector-step v rest sk fk)
+                                 fk i)))))
    
    ;; With a vector ellipsis pattern we first check to see if the vector
    ;; length is at least the required length.
@@ -777,12 +777,12 @@
                    ((_ v n ((pat index) ...) p sk fk i)
                     (if (vector? v)
                         (let ((len (vector-length v)))
-                             (if (>= len n)
-                                 (match-vector-step v ((pat index) ...)
-                                                    (match-vector-tail v p n len sk fk)
-                                                    fk i)
-                                 fk))
-                        fk))))
+                          (if (>= len n)
+                              (match-vector-step v ((pat index) ...)
+                                                 (match-vector-tail v p n len sk fk)
+                                                 fk i)
+                            fk))
+                      fk))))
    
    (define-syntax match-vector-tail
      (syntax-rules ()
@@ -793,19 +793,19 @@
      (syntax-rules ()
                    ((_ v p n len (sk ...) fk i ((id id-ls) ...))
                     (let loop ((j n) (id-ls '()) ...)
-                         (if (>= j len)
-                             (let ((id (reverse id-ls)) ...) (sk ... i))
-                             (let ((w (vector-ref v j)))
-                                  (match-one w p ((vector-ref v j) (vector-set! v j))
-                                             (match-drop-ids (loop (+ j 1) (cons id id-ls) ...))
-                                             fk i)))))))
+                      (if (>= j len)
+                          (let ((id (reverse id-ls)) ...) (sk ... i))
+                        (let ((w (vector-ref v j)))
+                          (match-one w p ((vector-ref v j) (vector-set! v j))
+                                     (match-drop-ids (loop (+ j 1) (cons id id-ls) ...))
+                                     fk i)))))))
    
    (define-syntax match-record-refs
      (syntax-rules ()
                    ((_ v rec n (p . q) g+s sk fk i)
                     (let ((w (slot-ref rec v n)))
-                         (match-one w p ((slot-ref rec v n) (slot-set! rec v n))
-                                    (match-record-refs v rec (+ n 1) q g+s sk fk) fk i)))
+                      (match-one w p ((slot-ref rec v n) (slot-set! rec v n))
+                                 (match-record-refs v rec (+ n 1) q g+s sk fk) fk i)))
                    ((_ v rec n () g+s (sk ...) fk i)
                     (sk ... i))))
    
@@ -813,8 +813,8 @@
      (syntax-rules ()
                    ((_ v rec ((f p) . q) g+s sk fk i)
                     (let ((w (slot-ref rec v 'f)))
-                         (match-one w p ((slot-ref rec v 'f) (slot-set! rec v 'f))
-                                    (match-record-named-refs v rec q g+s sk fk) fk i)))
+                      (match-one w p ((slot-ref rec v 'f) (slot-set! rec v 'f))
+                                 (match-record-named-refs v rec q g+s sk fk) fk i)))
                    ((_ v rec () g+s (sk ...) fk i)
                     (sk ... i))))
    
@@ -966,8 +966,8 @@
                     (let ((var expr) ...) . body))
                    ((_ let ((var expr) ...) ((pat tmp) ...) () . body)
                     (let ((var expr) ...)
-                         (match-let* ((pat tmp) ...)
-                                     . body)))
+                      (match-let* ((pat tmp) ...)
+                                  . body)))
                    ((_ let (v ...) (p ...) (((a . b) expr) . rest) . body)
                     (match-let/helper
                      let (v ... (tmp expr)) (p ... ((a . b) tmp)) rest . body))
@@ -981,8 +981,8 @@
      (syntax-rules ()
                    ((_ loop ((pat expr var) ...) () . body)
                     (let loop ((var expr) ...)
-                         (match-let ((pat var) ...)
-                                    . body)))
+                      (match-let ((pat var) ...)
+                                 . body)))
                    ((_ loop (v ...) ((pat expr) . rest) . body)
                     (match-named-let loop (v ... (pat expr tmp)) rest . body))))
    

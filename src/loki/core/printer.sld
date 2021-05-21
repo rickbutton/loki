@@ -16,19 +16,19 @@
      (define (default-record-printer obj writer port)
        (let* ((type (record-type obj))
               (tags (record-type-field-tags type)))
-             
-             (write-string "#" port)
-             (writer (record-type-name type) port)
-             (if (= (length tags) 0)
-                 (write-string "{}" port)
-                 (begin
-                  (write-string "#{ " port)
-                  (for-each (lambda (tag)
-                                    (writer tag port)
-                                    (write-string ": " port)
-                                    (writer ((record-accessor type tag) obj) port)
-                                    (write-char #\space port)) tags)
-                  (write-char #\} port)))))
+         
+         (write-string "#" port)
+         (writer (record-type-name type) port)
+         (if (= (length tags) 0)
+             (write-string "{}" port)
+           (begin
+            (write-string "#{ " port)
+            (for-each (lambda (tag)
+                        (writer tag port)
+                        (write-string ": " port)
+                        (writer ((record-accessor type tag) obj) port)
+                        (write-char #\space port)) tags)
+            (write-char #\} port)))))
      
      (define (print-object obj writer port)
        (cond
@@ -51,9 +51,9 @@
                       (define-method write-object ((self type) port)
                         (define (writer x . o)
                           (let ((write? (if (pair? o) (car o) #f)))
-                               (if write?
-                                   (write x port)
-                                   (display x port))))
+                            (if write?
+                                (write x port)
+                              (display x port))))
                         (printer self writer port)))))))
    
    ))

@@ -182,8 +182,8 @@
                              (list 'b 2)
                              (receive result
                                       (hashmap-find (lambda (key value)
-                                                            (and (eq? key 'b)
-                                                                 (= value 2)))
+                                                      (and (eq? key 'b)
+                                                           (= value 2)))
                                                     hashmap1
                                                     (lambda () (error "should not have been called")))
                                       result))
@@ -192,36 +192,36 @@
                              (list 42)
                              (receive result
                                       (hashmap-find (lambda (key value)
-                                                            (eq? key 'd))
+                                                      (eq? key 'd))
                                                     hashmap1
                                                     (lambda ()
-                                                            42))
+                                                      42))
                                       result))
                  
                  (test-equal "hashmap-count"
                              2
                              (hashmap-count (lambda (key value)
-                                                    (>= value 2))
+                                              (>= value 2))
                                             hashmap1))
                  
                  (test-assert "hashmap-any?: found"
                               (hashmap-any? (lambda (key value)
-                                                    (= value 3))
+                                              (= value 3))
                                             hashmap1))
                  
                  (test-assert "hashmap-any?: not found"
                               (not (hashmap-any? (lambda (key value)
-                                                         (= value 4))
+                                                   (= value 4))
                                                  hashmap1)))
                  
                  (test-assert "hashmap-every?: true"
                               (hashmap-every? (lambda (key value)
-                                                      (<= value 3))
+                                                (<= value 3))
                                               hashmap1))
                  
                  (test-assert "hashmap-every?: false"
                               (not (hashmap-every? (lambda (key value)
-                                                           (<= value 2))
+                                                     (<= value 2))
                                                    hashmap1)))
                  
                  (test-equal "hashmap-keys"
@@ -241,8 +241,8 @@
      (test-group "Hashmap and folding"
                  (define hashmap1 (hashmap comparator 'a 1 'b 2 'c 3))
                  (define hashmap2 (hashmap-map (lambda (key value)
-                                                       (values (symbol->string key)
-                                                               (* 10 value)))
+                                                 (values (symbol->string key)
+                                                         (* 10 value)))
                                                comparator
                                                hashmap1))
                  
@@ -253,41 +253,41 @@
                  (test-equal "hashmap-for-each"
                              6
                              (let ((counter 0))
-                                  (hashmap-for-each (lambda (key value)
-                                                            (set! counter (+ counter value)))
-                                                    hashmap1)
-                                  counter))
+                               (hashmap-for-each (lambda (key value)
+                                                   (set! counter (+ counter value)))
+                                                 hashmap1)
+                               counter))
                  
                  (test-equal "hashmap-fold"
                              6
                              (hashmap-fold (lambda (key value acc)
-                                                   (+ value acc))
+                                             (+ value acc))
                                            0
                                            hashmap1))
                  
                  (test-equal "hashmap-map->list"
                              (+ (* 1 1) (* 2 2) (* 3 3))
                              (fold + 0 (hashmap-map->list (lambda (key value)
-                                                                  (* value value))
+                                                            (* value value))
                                                           hashmap1)))
                  
                  (test-equal "hashmap-filter"
                              2
                              (hashmap-size (hashmap-filter (lambda (key value)
-                                                                   (<= value 2))
+                                                             (<= value 2))
                                                            hashmap1)))
                  
                  (test-equal "hashmap-remove"
                              1
                              (hashmap-size (hashmap-remove (lambda (key value)
-                                                                   (<= value 2))
+                                                             (<= value 2))
                                                            hashmap1)))
                  
                  (test-equal "hashmap-partition"
                              (list 1 2)
                              (receive result
                                       (hashmap-partition (lambda (key value)
-                                                                 (eq? 'b key))
+                                                           (eq? 'b key))
                                                          hashmap1)
                                       (map hashmap-size result)))
                  

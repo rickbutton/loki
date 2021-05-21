@@ -11,9 +11,9 @@
    (define (call-with-output-string proc)
      (let* ((out (open-output-string))
             (res (proc out)))
-           (let ((str (get-output-string out)))
-                (close-output-port out)
-                str)))
+       (let ((str (get-output-string out)))
+         (close-output-port out)
+         str)))
    
    
    (define-tests run-tests "(srfi 95)"
@@ -64,8 +64,8 @@
            '((chibi) (scheme r5rs) (scheme write))
            (sort '((chibi) (scheme r5rs) (scheme write))
                  (lambda (a b)
-                         (string<? (call-with-output-string (lambda (out) (write a out)))
-                                   (call-with-output-string (lambda (out) (write b out)))))))
+                   (string<? (call-with-output-string (lambda (out) (write a out)))
+                             (call-with-output-string (lambda (out) (write b out)))))))
      
      (test "sort numeric inexact vector <" '#(1.1 2.2 3.3 4.4 5.5 6.6 7.7 8.8 9.9)
            (sort '#(7.7 5.5 2.2 8.8 1.1 6.6 4.4 9.9 3.3) <))

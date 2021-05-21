@@ -37,7 +37,7 @@
                    ;; Reduce clauses down to one regardless of body.
                    ((_ ((var expr) rest . rest*) . body)
                     (let ((var expr))
-                         (and var (and-let* (rest . rest*) . body))))
+                      (and var (and-let* (rest . rest*) . body))))
                    ((_ ((expr) rest . rest*) . body)
                     (and expr (and-let* (rest . rest*) . body)))
                    ((_ (var rest . rest*) . body)
@@ -58,7 +58,7 @@
                    ;; Handle 1-clause cases with a body.
                    ((_ ((var expr)) . body)
                     (let ((var expr))
-                         (and var (begin . body))))
+                      (and var (begin . body))))
                    ((_ ((expr)) . body)
                     (and expr (begin . body)))
                    ((_ (var) . body)

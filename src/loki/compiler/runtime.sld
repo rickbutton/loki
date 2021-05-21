@@ -52,41 +52,41 @@
    
    (define (error->string err)
      (let ((out (open-output-string)))
-          (cond-expand
-           (loki
-            (if (exception? err)
-                (begin
-                 (display (exception-type err) out)
-                 (display ": " out)
-                 (display (exception-message err) out)
-                 (newline out)
-                 (display (exception-irritants err) out)
-                 (newline out))
-                (display err out)))
-           (else
-            (if (error-object? err)
-                (display (report-error err #f) out))))
-          (get-output-string out)))
+       (cond-expand
+        (loki
+         (if (exception? err)
+             (begin
+              (display (exception-type err) out)
+              (display ": " out)
+              (display (exception-message err) out)
+              (newline out)
+              (display (exception-irritants err) out)
+              (newline out))
+           (display err out)))
+        (else
+         (if (error-object? err)
+             (display (report-error err #f) out))))
+       (get-output-string out)))
    
    (define (runtime-run-module module)
      (if (not runtime-env) (runtime-env-init!))
      (with-exception-handler
       (lambda (err)
-              (let ((err (if (error-object? err)
-                             (make-exception 'eval-error
-                                             (error->string err)
-                                             (error-object-irritants err))
-                             (make-exception 'eval-error
-                                             "wrapped error"
-                                             (error->string err)))))
-                   (if current-exception-handler
-                       (current-exception-handler err)
-                       (begin
-                        (display "ERROR: current-exception-handler is not setup, aborting\n")
-                        (raise err)))))
+        (let ((err (if (error-object? err)
+                       (make-exception 'eval-error
+                                       (error->string err)
+                                       (error-object-irritants err))
+                     (make-exception 'eval-error
+                                     "wrapped error"
+                                     (error->string err)))))
+          (if current-exception-handler
+              (current-exception-handler err)
+            (begin
+             (display "ERROR: current-exception-handler is not setup, aborting\n")
+             (raise err)))))
       (lambda ()
-              (let ((host-scheme (core::module->scheme module)))
-                   (eval `(begin ,@host-scheme) runtime-env)))))
+        (let ((host-scheme (core::module->scheme module)))
+          (eval `(begin ,@host-scheme) runtime-env)))))
    
    (define (runtime-add-primitive name value)
      (if (not runtime-env) (runtime-env-init!))
@@ -119,7 +119,7 @@
           (newline)
           (display (exception-irritants obj))
           (newline))
-         (display obj))
+       (display obj))
      (error obj)
      (exit 1))
    
@@ -130,7 +130,7 @@
      (vector-set! traces next-trace-slot src)
      (if (= next-trace-slot (- max-traces 1))
          (set! next-trace-slot 0)
-         (set! next-trace-slot (+ next-trace-slot 1)))
+       (set! next-trace-slot (+ next-trace-slot 1)))
      k)
    (define (emit-traces)
      (do ((i next-trace-slot (+ i 1)))
@@ -149,10 +149,10 @@
           ((string-ci<? a b) -1)
           ((string-ci>? a b) 1)
           (else 0))
-         (cond
-          ((string<? a b) -1)
-          ((string>? a b) 1)
-          (else 0))))
+       (cond
+        ((string<? a b) -1)
+        ((string>? a b) 1)
+        (else 0))))
    
    (define-record-type <loki-port>
      (make-loki-port input output type)
@@ -169,16 +169,16 @@
    (define (loki-wrap-eof obj)
      (if (eof-object? obj)
          %loki-eof-object
-         obj))
+       obj))
    
    (define (loki-port-ready? port)
      (unless (loki-port-input port)
-             (raise "loki-port-ready?: not an input port"))
+       (raise "loki-port-ready?: not an input port"))
      (let ((type (loki-port-type port)))
-          (cond
-           ((eq? type 'textual) (char-ready? (loki-port-input port)))
-           ((eq? type 'binary) (u8-ready? (loki-port-input port)))
-           (else (raise "loki-port-ready?: unknown type")))))
+       (cond
+        ((eq? type 'textual) (char-ready? (loki-port-input port)))
+        ((eq? type 'binary) (u8-ready? (loki-port-input port)))
+        (else (raise "loki-port-ready?: unknown type")))))
    
    (define (loki-input-port-open? port)
      (and (loki-port-input port)
@@ -228,16 +228,16 @@
    
    (define (loki-flush-output-port port)
      (unless (output-port? (loki-port-output port))
-             (raise "flush-output-port: not an output port"))
+       (raise "flush-output-port: not an output port"))
      (flush-output-port (loki-port-output port)))
    
    (define (loki-peek-u8 port)
      (unless (eq? (loki-port-type port) 'binary)
-             (raise "peek-u8: not a binary port"))
+       (raise "peek-u8: not a binary port"))
      (loki-wrap-eof (peek-u8 (loki-port-input port))))
    (define (loki-peek-char port)
      (unless (eq? (loki-port-type port) 'textual)
-             (raise "peek-char: not a textual port"))
+       (raise "peek-char: not a textual port"))
      (loki-wrap-eof (peek-char (loki-port-input port))))
    
    (define (loki-read-bytevector! bytevector port start end)

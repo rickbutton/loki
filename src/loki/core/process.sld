@@ -11,7 +11,7 @@
    (define (get-environment-variables) (list-copy %environment-variables))
    (define (get-environment-variable name)
      (let ((var (assoc name (get-environment-variables))))
-          (if var (cdr var) #f)))
+       (if var (cdr var) #f)))
    
    (define exit emergency-exit)
    ))

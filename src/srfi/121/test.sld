@@ -19,12 +19,12 @@
                              (define g
                                (make-coroutine-generator
                                 (lambda (yield) (let loop ((i 0))
-                                                     (when (< i 3) (yield i) (loop (+ i 1)))))))
+                                                  (when (< i 3) (yield i) (loop (+ i 1)))))))
                              (define (for-each-digit proc n)
                                (when (> n 0)
                                      (let-values (((div rem) (truncate/ n 10)))
-                                                 (proc rem)
-                                                 (for-each-digit proc div))))
+                                       (proc rem)
+                                       (for-each-digit proc div))))
                              
                              (test '() (generator->list (generator)))
                              (test '(1 2 3) (generator->list (generator 1 2 3)))
@@ -107,7 +107,7 @@
                              (test '#(1 2 3) (generator->vector (generator 1 2 3 4 5) 3))
                              (test "abc" (generator->string (generator #\a #\b #\c)))
                              (test '(e d c b a . z) (with-input-from-string "a b c d e"
-                                                                            (lambda () (generator-fold cons 'z read))))
+                                                      (lambda () (generator-fold cons 'z read))))
                              
                              (generator-for-each (lambda values (set! n (apply + values)))
                                                  (generator 1) (generator 2) (generator 3))

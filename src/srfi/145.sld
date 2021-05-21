@@ -9,6 +9,6 @@
      (syntax-rules ()
                    ((assume expression message ...)
                     (unless expression
-                            (error "invalid assumption" (quote expression) (list message ...))))
+                      (error "invalid assumption" (quote expression) (list message ...))))
                    ((assume . _)
                     (syntax-error "invalid assume syntax"))))))

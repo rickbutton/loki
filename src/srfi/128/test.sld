@@ -41,11 +41,11 @@
                  (define (vector-cdr vec)
                    (let* ((len (vector-length vec))
                           (result (make-vector (- len 1))))
-                         (let loop ((n 1))
-                              (cond
-                               ((= n len) result)
-                               (else (vector-set! result (- n 1) (vector-ref vec n))
-                                     (loop (+ n 1)))))))
+                     (let loop ((n 1))
+                       (cond
+                        ((= n len) result)
+                        (else (vector-set! result (- n 1) (vector-ref vec n))
+                              (loop (+ n 1)))))))
                  
                  
                  (define default-comparator (make-default-comparator))

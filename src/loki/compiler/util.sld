@@ -27,13 +27,13 @@
      (cond ((null? lst) (k '() '()))
            ((pair? lst)
             (let ((head (f (car lst))))
-                 (if head
-                     (map-while f
-                                (cdr lst)
-                                (lambda (answer rest)
-                                        (k (cons head answer)
-                                           rest)))
-                     (k '() lst))))
+              (if head
+                  (map-while f
+                             (cdr lst)
+                             (lambda (answer rest)
+                               (k (cons head answer)
+                                  rest)))
+                (k '() lst))))
            (else  (k '() lst))))
    
    (define (flatten l)
@@ -46,7 +46,7 @@
      (cond ((null? ls) #f)
            ((pair? ls) (if (proc (car ls))
                            ls
-                           (dotted-memp proc (cdr ls))))
+                         (dotted-memp proc (cdr ls))))
            (else (and (proc ls)
                       ls))))
    
@@ -66,29 +66,29 @@
    (define (dotted-butlast ls n)
      (let recurse ((ls ls)
                    (length-left (dotted-length ls)))
-          (cond ((< length-left n) (error "dotted-butlast: List too short" ls n))
-                ((= length-left n) '())
-                (else
-                 (cons (car ls)
-                       (recurse (cdr ls)
-                                (- length-left 1)))))))
+       (cond ((< length-left n) (error "dotted-butlast: List too short" ls n))
+             ((= length-left n) '())
+             (else
+              (cons (car ls)
+                    (recurse (cdr ls)
+                             (- length-left 1)))))))
    
    (define (dotted-last ls n)
      (let recurse ((ls ls)
                    (length-left (dotted-length ls)))
-          (cond ((< length-left n) (error "dotted-last: List too short" ls n))
-                ((= length-left n) ls)
-                (else
-                 (recurse (cdr ls)
-                          (- length-left 1))))))
+       (cond ((< length-left n) (error "dotted-last: List too short" ls n))
+             ((= length-left n) ls)
+             (else
+              (recurse (cdr ls)
+                       (- length-left 1))))))
    
    (define (check-set? ls = fail)
      (or (null? ls)
          (if (memp (lambda (x)
-                           (= x (car ls)))
+                     (= x (car ls)))
                    (cdr ls))
              (fail (car ls))
-             (check-set? (cdr ls) = fail))))
+           (check-set? (cdr ls) = fail))))
    
    (define (unionv . sets)
      (cond ((null? sets) '())
@@ -98,9 +98,9 @@
             (let ((rest (apply unionv
                                (cdr (car sets))
                                (cdr sets))))
-                 (if (memv (car (car sets)) rest)
-                     rest
-                     (cons (car (car sets)) rest))))))
+              (if (memv (car (car sets)) rest)
+                  rest
+                (cons (car (car sets)) rest))))))
    
    (define (drop-tail list tail)
      (cond ((null? list)    '())
@@ -119,12 +119,12 @@
               (error "join: Invalid argument." e))))
      (if (null? e)
          ""
-         (string-append
-          (tostring (car e))
-          (apply string-append
-                 (map (lambda (x)
-                              (string-append separator (tostring x)))
-                      (cdr e))))))
+       (string-append
+        (tostring (car e))
+        (apply string-append
+               (map (lambda (x)
+                      (string-append separator (tostring x)))
+                    (cdr e))))))
    
    (define (compose f g)
      (lambda (x) (f (g x))))
@@ -141,15 +141,15 @@
    (define generate-guid
      (let ((token (unique-token))
            (ticks 0))
-          (lambda (symbol)
-                  (set! ticks (+ ticks 1))
-                  (string->symbol
-                   (string-append guid-prefix
-                                  (symbol->string symbol)
-                                  "~"
-                                  token
-                                  "~"
-                                  (number->string ticks))))))
+       (lambda (symbol)
+         (set! ticks (+ ticks 1))
+         (string->symbol
+          (string-append guid-prefix
+                         (symbol->string symbol)
+                         "~"
+                         token
+                         "~"
+                         (number->string ticks))))))
    
    (define (check x p? from)
      (or (p? x)

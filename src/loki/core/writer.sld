@@ -34,20 +34,20 @@
                      (#\return     . #\r)))
    (define (write-escaped-string str port)
      (string-for-each (lambda (char)
-                              (let ((match (assv char escapes)))
-                                   (if match
-                                       (let ((mapped (cdr match)))
-                                            (write-char #\\ port)
-                                            (write-char mapped port))
-                                       (write-char char port)))) str))
+                        (let ((match (assv char escapes)))
+                          (if match
+                              (let ((mapped (cdr match)))
+                                (write-char #\\ port)
+                                (write-char mapped port))
+                            (write-char char port)))) str))
    
    (define (write-symbol obj port)
      (let* ((string (symbol->string obj))
             (any-special-char? (memq #f
                                      (map is-identifier-char? (string->list string)))))
-           (if any-special-char?
-               (write-escaped-string string port)
-               (write-string string port))))
+       (if any-special-char?
+           (write-escaped-string string port)
+         (write-string string port))))
    
    (define (write-pair obj in-maybe-list? port)
      (if in-maybe-list? (write-char #\( port))
@@ -107,27 +107,27 @@
                             (write-string ">" port))
                            ((vector? obj)
                             (let ((length (vector-length obj)))
-                                 (write-string "#(" port)
-                                 (do ((i 0 (+ i 1)))
-                                     ((>= i length))
-                                     (write-simple (vector-ref obj i) port)
-                                     (if (< i (- length 1)) (write-char #\space port)))
-                                 (write-char #\) port)))
+                              (write-string "#(" port)
+                              (do ((i 0 (+ i 1)))
+                                  ((>= i length))
+                                  (write-simple (vector-ref obj i) port)
+                                  (if (< i (- length 1)) (write-char #\space port)))
+                              (write-char #\) port)))
                            ((bytevector? obj)
                             (let ((length (bytevector-length obj)))
-                                 (write-string "#u8(" port)
-                                 (do ((i 0 (+ i 1)))
-                                     ((>= i length))
-                                     (write-string (number->string (bytevector-u8-ref obj i)) port)
-                                     (if (< i (- length 1)) (write-char #\space port)))
-                                 (write-char #\) port)))
+                              (write-string "#u8(" port)
+                              (do ((i 0 (+ i 1)))
+                                  ((>= i length))
+                                  (write-string (number->string (bytevector-u8-ref obj i)) port)
+                                  (if (< i (- length 1)) (write-char #\space port)))
+                              (write-char #\) port)))
                            (else
                             (letrec ((writer (case-lambda
                                               ((x) (writer x #f))
                                               ((x display?)
                                                (if display? (display x port)
-                                                   (write-simple x port))))))
-                                    (print-object obj writer port)))))))
+                                                 (write-simple x port))))))
+                              (print-object obj writer port)))))))
    
    
    ;;;; srfi-38.scm - reading and writing shared structures
@@ -137,86 +137,86 @@
    
    (define (extract-shared-objects x cyclic-only?)
      (let ((seen (make-hash-table eq?)))
-          ;; find shared references
-          (let find ((x x))
-               (cond ;; only interested in pairs and vectors
-                     ((or (pair? x) (vector? x))
-                      ;; increment the count
-                      (hash-table-update!/default seen x (lambda (n) (+ n 1)) 0)
-                      ;; walk if this is the first time
-                      (cond
-                       ((> (hash-table-ref seen x) 1) #f)
-                       ((pair? x)
-                        (find (car x))
-                        (find (cdr x)))
-                       ((vector? x)
-                        (do ((i 0 (+ i 1)))
-                            ((= i (vector-length x)))
-                            (find (vector-ref x i)))))
-                      ;; delete if this shouldn't count as a shared reference
-                      (if (and cyclic-only?
-                               (<= (hash-table-ref/default seen x 0) 1))
-                          (hash-table-delete! seen x)))))
-          ;; extract shared references
-          (let ((res (make-hash-table eq?)))
-               (hash-table-walk
-                seen
-                (lambda (k v) (if (> v 1) (hash-table-set! res k #t))))
-               res)))
+       ;; find shared references
+       (let find ((x x))
+         (cond ;; only interested in pairs and vectors
+               ((or (pair? x) (vector? x))
+                ;; increment the count
+                (hash-table-update!/default seen x (lambda (n) (+ n 1)) 0)
+                ;; walk if this is the first time
+                (cond
+                 ((> (hash-table-ref seen x) 1) #f)
+                 ((pair? x)
+                  (find (car x))
+                  (find (cdr x)))
+                 ((vector? x)
+                  (do ((i 0 (+ i 1)))
+                      ((= i (vector-length x)))
+                      (find (vector-ref x i)))))
+                ;; delete if this shouldn't count as a shared reference
+                (if (and cyclic-only?
+                         (<= (hash-table-ref/default seen x 0) 1))
+                    (hash-table-delete! seen x)))))
+       ;; extract shared references
+       (let ((res (make-hash-table eq?)))
+         (hash-table-walk
+          seen
+          (lambda (k v) (if (> v 1) (hash-table-set! res k #t))))
+         res)))
    
    (define (write-with-shared-structure x out cyclic-only?)
      (let ((shared (extract-shared-objects x cyclic-only?))
            (count 0))
-          (define (check-shared x prefix cont)
-            (let ((index (hash-table-ref/default shared x #f)))
-                 (cond ((integer? index)
-                        (display prefix out)
-                        (display "#" out)
-                        (write index out)
-                        (display "#" out))
-                       (else
-                        (cond (index
-                               (display prefix out)
-                               (display "#" out)
-                               (write count out)
-                               (display "=" out)
-                               (hash-table-set! shared x count)
-                               (set! count (+ count 1))))
-                        (cont x index)))))
-          (let wr ((x x))
-               (define (wr-one x shared?)
-                 (cond
-                  ((pair? x)
-                   (display "(" out)
-                   (wr (car x))
-                   (let lp ((ls (cdr x)))
-                        (check-shared
-                         ls
-                         " . "
-                         (lambda (ls shared?)
-                                 (cond ((null? ls))
-                                       ((pair? ls)
-                                        (cond
-                                         (shared?
-                                          (display "(" out)
-                                          (wr (car ls))
-                                          (check-shared
-                                           (cdr ls)
-                                           " . "
-                                           (lambda (ls shared?) (lp ls)))
-                                          (display ")" out))
-                                         (else
-                                          (display " " out)
-                                          (wr (car ls))
-                                          (lp (cdr ls)))))
-                                       (shared?  ;; shared dotted tail
-                                                (wr-one ls #f))
-                                       (else
-                                        (display " . " out)
-                                        (wr ls))))))
-                   (display ")" out))
-                  (else (write-simple x out))))
-               (check-shared x "" wr-one))))
+       (define (check-shared x prefix cont)
+         (let ((index (hash-table-ref/default shared x #f)))
+           (cond ((integer? index)
+                  (display prefix out)
+                  (display "#" out)
+                  (write index out)
+                  (display "#" out))
+                 (else
+                  (cond (index
+                         (display prefix out)
+                         (display "#" out)
+                         (write count out)
+                         (display "=" out)
+                         (hash-table-set! shared x count)
+                         (set! count (+ count 1))))
+                  (cont x index)))))
+       (let wr ((x x))
+         (define (wr-one x shared?)
+           (cond
+            ((pair? x)
+             (display "(" out)
+             (wr (car x))
+             (let lp ((ls (cdr x)))
+               (check-shared
+                ls
+                " . "
+                (lambda (ls shared?)
+                  (cond ((null? ls))
+                        ((pair? ls)
+                         (cond
+                          (shared?
+                           (display "(" out)
+                           (wr (car ls))
+                           (check-shared
+                            (cdr ls)
+                            " . "
+                            (lambda (ls shared?) (lp ls)))
+                           (display ")" out))
+                          (else
+                           (display " " out)
+                           (wr (car ls))
+                           (lp (cdr ls)))))
+                        (shared?  ;; shared dotted tail
+                                 (wr-one ls #f))
+                        (else
+                         (display " . " out)
+                         (wr ls))))))
+             (display ")" out))
+            (else (write-simple x out))))
+         (check-shared x "" wr-one))))
    
    (define write (case-lambda
                   ((obj)
@@ -232,8 +232,8 @@
    
    (define (display x . o)
      (let ((out (if (pair? o) (car o) (current-output-port))))
-          (cond ((char? x) (write-char x out))
-                ((string? x) (write-string x out))
-                (else (write x out)))))
+       (cond ((char? x) (write-char x out))
+             ((string? x) (write-string x out))
+             (else (write x out)))))
    
    ))

@@ -7,8 +7,8 @@
    
    (define-syntax syntax-error
      (lambda (x)
-             (syntax-case x ()
-                          ((_ . args)
-                           (apply error (syntax->datum (syntax args)))))))
+       (syntax-case x ()
+                    ((_ . args)
+                     (apply error (syntax->datum (syntax args)))))))
    
    ))

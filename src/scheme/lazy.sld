@@ -32,10 +32,10 @@
    (define (force promise)
      (if (promise-done? promise)
          (promise-value promise)
-         (let ((promise* ((promise-value promise))))
-              (if (not (promise-done? promise))
-                  (promise-update! promise* promise))
-              (force promise))))
+       (let ((promise* ((promise-value promise))))
+         (if (not (promise-done? promise))
+             (promise-update! promise* promise))
+         (force promise))))
    
    (define-syntax delay
      (syntax-rules ()
