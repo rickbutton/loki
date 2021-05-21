@@ -41,12 +41,12 @@
    (define (deserialize-export e) (cons (car e) (deserialize-binding (cdr e))))
    (define (serialize-import e)
      (match e
-            ((name module-ref binding)
-             `(,name ,module-ref ,(serialize-binding binding)))))
+       ((name module-ref binding)
+        `(,name ,module-ref ,(serialize-binding binding)))))
    (define (deserialize-import e)
      (match e
-            ((name module-ref binding)
-             `(,name ,module-ref ,(deserialize-binding binding)))))
+       ((name module-ref binding)
+        `(,name ,module-ref ,(deserialize-binding binding)))))
    (define (serialize-syntax-def e)
      (cons (car e) (serialize-module (cdr e))))
    (define (deserialize-syntax-def e)
@@ -63,24 +63,24 @@
        ,(core::module-build m)))
    (define (deserialize-module m)
      (match m
-            (('module name
-              env-table
-              exports
-              imports
-              imported-libraries
-              builds
-              syntax-defs
-              forms
-              build)
-             (core::module name
-                           (deserialize-reified-env-table env-table)
-                           (map deserialize-export exports)
-                           (map deserialize-import imports)
-                           imported-libraries
-                           builds
-                           (map deserialize-syntax-def syntax-defs)
-                           (map core::deserialize forms)
-                           build))))
+       (('module name
+         env-table
+         exports
+         imports
+         imported-libraries
+         builds
+         syntax-defs
+         forms
+         build)
+        (core::module name
+                      (deserialize-reified-env-table env-table)
+                      (map deserialize-export exports)
+                      (map deserialize-import imports)
+                      imported-libraries
+                      builds
+                      (map deserialize-syntax-def syntax-defs)
+                      (map core::deserialize forms)
+                      build))))
    
    (define (resolve-include-path id path)
      (let* ((source (id-source id))

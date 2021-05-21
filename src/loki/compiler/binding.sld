@@ -56,8 +56,8 @@
        ,(binding-module b)))
    (define (deserialize-binding b)
      (match b
-            ((type name levels module)
-             (make-binding type name levels module))))
+       ((type name levels module)
+        (make-binding type name levels module))))
    
    (define-syntax record-property-equal?
      (syntax-rules ()
