@@ -6,6 +6,7 @@
 (import (loki path))
 (import (loki compiler loader))
 (import (loki compiler runtime))
+(import (loki compiler lang core))
 (import (srfi 37))
 
 (define *version* "0.0.1")
@@ -55,7 +56,7 @@
     (with-loki-command-line (loki-options-args options) (lambda ()
       (for-each
         (lambda (target)
-          (import-module (module-name (ex:expand-file (make-path target)))))
+          (import-module (core::module-name (ex:expand-file (make-path target)))))
         (loki-options-targets options))))))
 
 (with-exception-handler

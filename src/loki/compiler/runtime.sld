@@ -17,7 +17,7 @@
   (import (srfi 151))
   (cond-expand
    (gauche (import (only (gauche base) report-error))))
-  (export runtime-run-program
+  (export runtime-run-module
           runtime-add-primitive
           (rename exception? runtime-exception?)
           (rename exception-type runtime-exception-type)
@@ -68,7 +68,7 @@
                 (display (report-error err #f) out))))
           (get-output-string out)))
    
-   (define (runtime-run-program prog)
+   (define (runtime-run-module module)
      (if (not runtime-env) (runtime-env-init!))
      (with-exception-handler
       (lambda (err)
@@ -85,7 +85,7 @@
                         (display "ERROR: current-exception-handler is not setup, aborting\n")
                         (raise err)))))
       (lambda ()
-              (let ((host-scheme (compile-core-to-host-scheme prog)))
+              (let ((host-scheme (core::module->scheme module)))
                    (eval `(begin ,@host-scheme) runtime-env)))))
    
    (define (runtime-add-primitive name value)

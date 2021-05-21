@@ -19,25 +19,25 @@
           core::ref-name
           core::apply
           core::apply-prim
+          core::module
+          core::module-name
+          core::module-envs
+          core::module-exports
+          core::module-imports
+          core::module-imported-libraries
+          core::module-builds
+          core::module-syntax-defs
+          core::module-forms
+          core::module-build
+          core::module-visited?
+          core::module-invoked?
+          core::module-visited?-set!
+          core::module-invoked?-set!
           core::atomic?
-          compile-core-to-host-scheme
+          core::module->scheme
           core::serialize
           core::deserialize)
   (begin
-   
-   ; core language!
-   
-   ;(define-core-type if test consequent alternate)
-   
-   ;(define-core-type let-var name value)
-   ;(define-core-type letrec names values body)
-   
-   ;(define-core-type lambda formals rest body)
-   ;(define-core-type set! name value)
-   ;(define-core-type define-global! name value)
-   ;(define-core-type atomic value)
-   ;(define-core-type ref name)
-   ;(define-core-type apply proc args)
    
    (define-record-type <core::let-var>
      (core::let-var name value)
@@ -106,44 +106,50 @@
      (body core::letrec-body))
    
    (define-record-type <core::module>
-     (make-core::module name type envs exports imports builds syntax-defs bound-vars forms build)
-     core::module?
-     (name          core::module-name)
-     (type          core::module-type)
-     (envs          core::module-envs)
-     (exports       core::module-exports)
-     (imports       core::module-imports)
-     (builds        core::module-builds)
-     (syntax-defs   core::module-syntax-defs)
-     (bound-vars    core::module-bound-vars)
-     (forms         core::module-forms)
-     (build         core::module-build))
-   
+     (make-core::module name envs exports imports imported-libraries builds syntax-defs forms build visited? invoked?)
+     module?
+     ; (symbol ...)
+     (name        core::module-name)
+     (envs        core::module-envs)
+     (exports     core::module-exports)
+     ; ((name module binding) ...)
+     (imports     core::module-imports)
+     (imported-libraries core::module-imported-libraries)
+     ; (build-id ...)
+     (builds      core::module-builds)
+     (syntax-defs core::module-syntax-defs)
+     ; (core ...)
+     (forms       core::module-forms)
+     ; build-id
+     (build       core::module-build)
+     (visited?    core::module-visited? core::module-visited?-set!)
+     (invoked?    core::module-invoked? core::module-invoked?-set!))
+   (define (core::module name envs exports imports imported-libraries builds syntax-defs forms build)
+     (make-core::module name envs exports imports imported-libraries builds syntax-defs forms build #f #f))
+
    (define (core::atomic? term)
      (or (is-a? term <core::constant>)
          (is-a? term <core::ref>)
          (is-a? term <core::lambda>)))
    
-   (define (compile-term term)
+   (define (core::serialize term)
      (match term
             (($ <core::letrec> vars body)
-             `(letrec ,(map (lambda (var) (list (core::ref-name (core::let-var-name var)) (compile-term (core::let-var-value var)))) vars)
-               ,@(map compile-term body)))
-            (($ <core::if> exp1 exp2 exp3) `(if ,(compile-term exp1) ,(compile-term exp2) ,(compile-term exp3)))
+             `(letrec ,(map (lambda (var) (list (core::ref-name (core::let-var-name var)) (core::serialize (core::let-var-value var)))) vars)
+               ,@(map core::serialize body)))
+            (($ <core::if> exp1 exp2 exp3) `(if ,(core::serialize exp1) ,(core::serialize exp2) ,(core::serialize exp3)))
             (($ <core::lambda> formals rest body)
              (let ((formals (map core::ref-name formals))
                    (rest (if rest (core::ref-name rest) #f)))
-                  `(lambda ,(if rest (if (pair? formals) (apply cons* (append formals (list rest))) rest) formals) ,@(map compile-term body))))
-            (($ <core::set!> name value) `(set! ,(core::ref-name name) ,(compile-term value)))
-            (($ <core::define-global!> name value) `(define ,(core::ref-name name) ,(compile-term value)))
+                  `(lambda ,(if rest (if (pair? formals) (apply cons* (append formals (list rest))) rest) formals) ,@(map core::serialize body))))
+            (($ <core::set!> name value) `(set! ,(core::ref-name name) ,(core::serialize value)))
+            (($ <core::define-global!> name value) `(define ,(core::ref-name name) ,(core::serialize value)))
             (($ <core::constant> value) `(quote ,value))
             (($ <core::ref> name) name)
-            (($ <core::apply> proc args) `(,(compile-term proc) ,@(map compile-term args)))))
+            (($ <core::apply> proc args) `(,(core::serialize proc) ,@(map core::serialize args)))))
    
-   (define (compile-core-to-host-scheme terms)
-     (map compile-term terms))
-   
-   (define core::serialize compile-term)
+   (define (core::module->scheme module)
+     (map core::serialize (core::module-forms module)))
    
    (define (core::deserialize term)
      (match term

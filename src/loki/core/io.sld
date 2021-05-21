@@ -68,7 +68,7 @@
    
    (define (char-ready? port) (to-bool (and (textual-port? port) (%port-ready? port))))
    (define (u8-ready? port) (to-bool (and (binary-port? port) (%port-ready? port))))
-   
+
    (define (close-port port)
      (close-input-port port)
      (close-output-port port))
@@ -93,23 +93,26 @@
    (define (newline . o)
      (write-char #\newline (if (pair? o) (car o) (current-output-port))))
    
-   (define current-error-port (make-parameter (%stderr)
-                                              (lambda (port)
-                                                      (if (output-port? port)
-                                                          port
-                                                          (raise "current-error-port: not an output port")))))
-   
-   (define current-input-port (make-parameter (%stdin)
-                                              (lambda (port)
-                                                      (if (input-port? port)
-                                                          port
-                                                          (raise "current-input-port: not an input port")))))
-   
-   (define current-output-port (make-parameter (%stdout)
-                                               (lambda (port)
-                                                       (if (output-port? port)
-                                                           port
-                                                           (raise "current-output-port: not an output port")))))
+   (define current-error-port
+     (make-parameter (%stderr)
+                     (lambda (port)
+                             (if (output-port? port)
+                                 port
+                                 (raise "current-error-port: not an output port")))))
+
+   (define current-input-port
+     (make-parameter (%stdin)
+                     (lambda (port)
+                             (if (input-port? port)
+                                 port
+                                 (raise "current-input-port: not an input port")))))
+
+   (define current-output-port
+     (make-parameter (%stdout)
+                     (lambda (port)
+                             (if (output-port? port)
+                                 port
+                                 (raise "current-output-port: not an output port")))))
    
    (define (with-input-from-file string thunk)
      (parameterize ((current-input-port (open-input-file string)))

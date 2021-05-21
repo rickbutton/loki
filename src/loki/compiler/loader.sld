@@ -16,20 +16,7 @@
   (import (loki util))
   (import (srfi 1))
   (import (srfi 69))
-  (export make-module
-          module-name
-          module-envs
-          module-exports
-          module-imports
-          module-imported-libraries
-          module-builds
-          module-syntax-defs
-          module-forms
-          module-build
-          module-visited?
-          module-invoked?
-          module-visited?-set!
-          module-invoked?-set!
+  (export 
           import-libraries-for
           import-libraries-for-run
           import-module
@@ -50,28 +37,6 @@
    
    (define *module-dirs* '("src"))
    
-   (define-record-type <module>
-     (make-module-record name envs exports imports imported-libraries builds syntax-defs forms build visited? invoked?)
-     module?
-     ; (symbol ...)
-     (name        module-name)
-     (envs        module-envs)
-     (exports     module-exports)
-     ; ((name module binding) ...)
-     (imports     module-imports)
-     (imported-libraries module-imported-libraries)
-     ; (build-id ...)
-     (builds      module-builds)
-     (syntax-defs module-syntax-defs)
-     ; (core ...)
-     (forms       module-forms)
-     ; build-id
-     (build       module-build)
-     (visited?    module-visited? module-visited?-set!)
-     (invoked?    module-invoked? module-invoked?-set!))
-   (define (make-module name envs exports imports imported-libraries builds syntax-defs forms build)
-     (make-module-record name envs exports imports imported-libraries builds syntax-defs forms build #f #f))
-   
    (define (serialize-export e) (cons (car e) (serialize-binding (cdr e))))
    (define (deserialize-export e) (cons (car e) (deserialize-binding (cdr e))))
    (define (serialize-import e)
@@ -87,15 +52,15 @@
    (define (deserialize-syntax-def e)
      (cons (car e) (deserialize-module (cdr e))))
    (define (serialize-module m)
-     `(module ,(module-name m)
-       ,(serialize-reified-env-table (module-envs m))
-       ,(map serialize-export (module-exports m))
-       ,(map serialize-import (module-imports m))
-       ,(module-imported-libraries m)
-       ,(module-builds m)
-       ,(map serialize-syntax-def (module-syntax-defs m))
-       ,(map core::serialize (module-forms m))
-       ,(module-build m)))
+     `(module ,(core::module-name m)
+       ,(serialize-reified-env-table (core::module-envs m))
+       ,(map serialize-export (core::module-exports m))
+       ,(map serialize-import (core::module-imports m))
+       ,(core::module-imported-libraries m)
+       ,(core::module-builds m)
+       ,(map serialize-syntax-def (core::module-syntax-defs m))
+       ,(map core::serialize (core::module-forms m))
+       ,(core::module-build m)))
    (define (deserialize-module m)
      (match m
             (('module name
@@ -107,7 +72,7 @@
               syntax-defs
               forms
               build)
-             (make-module name
+             (core::module name
                           (deserialize-reified-env-table env-table)
                           (map deserialize-export exports)
                           (map deserialize-import imports)
@@ -182,14 +147,14 @@
           (if (not (phase-table-get name phase-data))
               (let ((module (lookup-module name)))
                    (or (not build)
-                       (eq? build (module-build module))
+                       (eq? build (core::module-build module))
                        (let ()
                             (display build) (newline)
-                            (display (module-build module)) (newline)
+                            (display (core::module-build module)) (newline)
                             (error
                              "Import failed: client was expanded against a different build of this module" name)))
-                   (import-libraries-for (module-imported-libraries module)
-                                         (module-builds module)
+                   (import-libraries-for (core::module-imported-libraries module)
+                                         (core::module-builds module)
                                          phase
                                          importer
                                          run-or-expand)
@@ -199,9 +164,9 @@
    
    (define (importer module phase)
      (if (and (= phase 0)
-              (not (module-invoked? module)))
+              (not (core::module-invoked? module)))
          (let ((result (invoke-module! module)))
-              (module-invoked?-set! module #t)
+              (core::module-invoked?-set! module #t)
               result)))
    
    (define (import-libraries-for imports builds phase importer run-or-expand)
@@ -223,18 +188,18 @@
    
    (define (import-module name)
      (let ((module (lookup-module name)))
-          (import-libraries-for-run (module-imported-libraries module) (module-builds module) 0)
-          (import-module* (module-name module) (module-build module) 0 importer 'run)))
+          (import-libraries-for-run (core::module-imported-libraries module) (core::module-builds module) 0)
+          (import-module* (core::module-name module) (core::module-build module) 0 importer 'run)))
    
    (define *module-table* (make-hash-table))
    (define register-module!
      (lambda (module)
-             (hash-table-set! *module-table* (module-name module) module)
-             (phase-table-clear! (module-name module))))
+             (hash-table-set! *module-table* (core::module-name module) module)
+             (phase-table-clear! (core::module-name module))))
    
    (define invoke-module!
      (lambda (module)
-             (runtime-run-program (module-forms module))))
+             (runtime-run-module module)))
    
    (define lookup-module
      (lambda (name)
@@ -249,7 +214,7 @@
    
    (define (current-builds imported-libraries)
      (map (lambda (lib-entry)
-                  (module-build (lookup-module (car lib-entry))))
+                  (core::module-build (lookup-module (car lib-entry))))
           imported-libraries))
    
    ;; Register macros in module
@@ -259,7 +224,7 @@
                            (if (macro? macro)
                                (register-macro! name macro)
                                (register-macro! name (make-transformer (evaluate-macro macro))))))
-              (module-syntax-defs module)))
+              (core::module-syntax-defs module)))
    
    (define (import-libraries-for-expand imports builds phase)
      (import-libraries-for
@@ -268,29 +233,29 @@
       phase
       (lambda (module phase)
               (if (and (>= phase 0)
-                       (not (module-visited? module)))
+                       (not (core::module-visited? module)))
                   (begin
-                   (load-reified-env-table (module-envs module))
+                   (load-reified-env-table (core::module-envs module))
                    (visit-module! module)
-                   (module-visited?-set! module #t)))
+                   (core::module-visited?-set! module #t)))
               (if (and (>= phase 1)
-                       (not (module-invoked? module)))
+                       (not (core::module-invoked? module)))
                   (begin
                    (invoke-module! module)
-                   (module-invoked?-set! module #t))))
+                   (core::module-invoked?-set! module #t))))
       'expand))
    
    (define (evaluate-macro module)
      (register-module! module)
-     (module-visited?-set! module #f)
-     (module-invoked?-set! module #f)
-     (import-module (module-name module)))
+     (core::module-visited?-set! module #f)
+     (core::module-invoked?-set! module #f)
+     (import-module (core::module-name module)))
    
    ;; Only instantiate part of the bootstrap module
    ;; that would be needed for invocation at runtime.
    
    (register-module!
-    (make-module
+    (core::module
      '(loki core primitive-macros)
      ;; envs
      #f

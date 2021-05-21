@@ -342,7 +342,7 @@
     (define (expand-macro t)
       (let* ((imports (datum->syntax toplevel-template '((import (loki core primitives)))))
              (expanded (expand t))
-             (module (make-module `(macro ,(generate-guid 'm))
+             (module (core::module `(macro ,(generate-guid 'm))
                                   #f
                                   '()
                                   '()
@@ -1235,7 +1235,7 @@
                                                                                                                                    'module "Unbound export" (cadr mapping)))
                                                                                                                               binding)))
                                                                                                            exports))
-                                                                                                     (module (make-module
+                                                                                                     (module (core::module
                                                                                                               name
                                                                                                               (if *syntax-reflected*
                                                                                                                   (reify-env-table)
@@ -1480,7 +1480,7 @@
                             (let ((module-ref (module-ref import-set)))
                                  (if module-ref
                                      (let* ((module (load-module (syntax->datum module-ref)))
-                                            (exports (module-exports module))
+                                            (exports (core::module-exports module))
                                             (imports
                                              (map (lambda (mapping)
                                                           (list (car mapping)
@@ -1615,14 +1615,14 @@
                       (import-specs (environment->import-specs env))
                       (syn (normalize-forms import-specs (list exp)))
                       (module (expand-module syn #t))
-                      (imports (module-imports module))
-                      (exports (module-exports module)))
+                      (imports (core::module-imports module))
+                      (exports (core::module-exports module)))
                      (imports->environment! env imports)
                      (for-each (lambda (export)
                                        (environment-name-set! env (car export) (binding-module (cdr export))))
                                exports)
                      (register-module! module)
-                     (import-module (module-name module))))))
+                     (import-module (core::module-name module))))))
     
     ;; Puts parameters to a consistent state for the toplevel
     ;; Old state is restored afterwards so that things will be
@@ -1650,7 +1650,7 @@
     
     (define (loki-load file)
       (let ((module (expand-file (wrap-path file))))
-           (import-module (module-name module))))
+           (import-module (core::module-name module))))
     
     ;; This may be used as a front end for the compiler.
     ;; It expands a file consisting of a possibly empty sequence
@@ -1672,7 +1672,7 @@
                     (>= (file-mtime cache-path)
                         (file-mtime path-string)))
                (let* ((module (deserialize-module (syntax->datum (car (read-file cache-path #f)))))
-                      (imported-libraries (module-imported-libraries module)))
+                      (imported-libraries (core::module-imported-libraries module)))
                      (for-each (lambda (imported-library) (load-module (car imported-library)))
                                imported-libraries)
                      (register-module! module)
@@ -1782,7 +1782,7 @@
               (define-syntax . ,invalid-form)
               (_             . ,(lambda (x) (syntax-violation 'primitive "Invalid use of primitive macro" x)))
               (...           . ,invalid-form))))
-          (make-module
+          (core::module
            '(loki core primitive-macros)
            ;; envs
            #f
@@ -1812,7 +1812,7 @@
     ;;===================================================================
     
     (register-module!
-     (make-module
+     (core::module
       '(loki core intrinsics)
       ;; envs
       #f
