@@ -53,18 +53,18 @@
    vector-length vector-ref vector-set! vector? with-input-from-file
    with-output-to-file write write-char zero?)
   (begin
-    (define (null-environment version)
-      (if (or (= version 5)
-              (= version 7))
-        (environment '(only (loki core primitives) 
-          begin if lambda quote set! and or
-          define define-syntax let-syntax letrec-syntax
-          include include-ci
-          _ ... syntax syntax-case))
-        (error "null-environment: invalid version" version)))
-    (define (scheme-report-environment version)
-      (cond
-        ((= version 5) (environment '(scheme r5rs)))
-        ((= version 7) (environment '(scheme base)))
-        (else (error "scheme-report-environment: invalid version" version))))))
+   (define (null-environment version)
+     (if (or (= version 5)
+             (= version 7))
+         (environment '(only (loki core primitives)
+                        begin if lambda quote set! and or
+                        define define-syntax let-syntax letrec-syntax
+                        include include-ci
+                        _ ... syntax syntax-case))
+         (error "null-environment: invalid version" version)))
+   (define (scheme-report-environment version)
+     (cond
+      ((= version 5) (environment '(scheme r5rs)))
+      ((= version 7) (environment '(scheme base)))
+      (else (error "scheme-report-environment: invalid version" version))))))
 

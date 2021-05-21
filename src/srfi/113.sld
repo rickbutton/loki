@@ -6,7 +6,7 @@
   (import (except (srfi 69) string-hash string-ci-hash))
   (import (srfi 95))
   (import (srfi 128))
-
+  
   (export set set-unfold)
   (export set? set-contains? set-empty? set-disjoint?)
   (export set-member set-element-comparator)
@@ -42,8 +42,8 @@
           bag-unique-size bag-element-count bag-for-each-unique bag-fold-unique
           bag-increment! bag-decrement! bag->set set->bag set->bag!
           bag->alist alist->bag)
-
+  
   (include "113.body.scm")
   (begin
-    (type-printer-set! sob sob-print))
-)
+   (type-printer-set! sob sob-print))
+  )

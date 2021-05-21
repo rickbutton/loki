@@ -4,15 +4,15 @@
           (for (loki core with-syntax)       expand run)
           (for (loki core intrinsics)        expand))
   (begin
-
-    (define-syntax syntax-rules
-      (lambda (x)
-        (syntax-case x ()
-          ((_ (k ...) (pattern template) ...)
-           (syntax (lambda (x)
-                    (syntax-case x (k ...)
-                      (pattern (syntax template))
-                      ...)))))))
-  
-  ))
+   
+   (define-syntax syntax-rules
+     (lambda (x)
+             (syntax-case x ()
+                          ((_ (k ...) (pattern template) ...)
+                           (syntax (lambda (x)
+                                           (syntax-case x (k ...)
+                                                        (pattern (syntax template))
+                                                        ...)))))))
+   
+   ))
 

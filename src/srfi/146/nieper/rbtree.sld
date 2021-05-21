@@ -1,4 +1,4 @@
-;; Copyright (C) Marc Nieper-Wißkirchen (2016).  All Rights Reserved. 
+;; Copyright (C) Marc Nieper-Wißkirchen (2016).  All Rights Reserved.
 
 ;; Permission is hereby granted, free of charge, to any person
 ;; obtaining a copy of this software and associated documentation
@@ -22,12 +22,12 @@
 
 (define-library (srfi 146 nieper rbtree)
   (export make-tree tree-search tree-for-each tree-fold tree-fold/reverse tree-generator
-	  tree-key-predecessor tree-key-successor
-	  tree-map tree-catenate tree-split)
+          tree-key-predecessor tree-key-successor
+          tree-map tree-catenate tree-split)
   (import (scheme base)
-	  (scheme case-lambda)
-	  (srfi 2)
-	  (srfi 8)
-	  (srfi 121)
-	  (srfi 128))
+          (scheme case-lambda)
+          (srfi 2)
+          (srfi 8)
+          (srfi 121)
+          (srfi 128))
   (include "rbtree.scm"))

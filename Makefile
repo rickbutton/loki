@@ -29,3 +29,6 @@ http:
 clean: 
 	find . -name "*.so" -type f -delete
 	rm -f examples/*.wasm examples/*.wat
+
+format-all:
+	./scripts/format.sh

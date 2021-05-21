@@ -24,8 +24,8 @@
   (export receive)
   (import (scheme base))
   (begin
-    (define-syntax receive
-      (syntax-rules ()
-        ((receive formals expression body ...)
-         (call-with-values (lambda () expression)
-           (lambda formals body ...)))))))
+   (define-syntax receive
+     (syntax-rules ()
+                   ((receive formals expression body ...)
+                    (call-with-values (lambda () expression)
+                                      (lambda formals body ...)))))))

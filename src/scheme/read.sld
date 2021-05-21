@@ -5,9 +5,9 @@
   (import (loki core case-lambda))
   (export read)
   (begin
-    (define read
-      (case-lambda
-        (() (read-datum (make-reader (current-input-port) "<read>")))
-        ((port) (read-datum (make-reader port "<read>")))))))
+   (define read
+     (case-lambda
+      (() (read-datum (make-reader (current-input-port) "<read>")))
+      ((port) (read-datum (make-reader port "<read>")))))))
 
 

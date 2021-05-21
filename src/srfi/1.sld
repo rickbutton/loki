@@ -38,5 +38,5 @@
    (srfi 8)
    (srfi aux))
   (begin
-    (define-check-arg check-arg))
+   (define-check-arg check-arg))
   (include "1.body.scm"))
