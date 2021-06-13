@@ -31,7 +31,6 @@
    
    (import (loki compiler runtime))
    (import (loki compiler intrinsics))
-   (import (loki compiler loader))
    (import (loki compiler binding))
    (import (loki compiler environment))
    (import (loki compiler macro))
@@ -40,7 +39,7 @@
    (import (loki compiler features))
    (import (loki compiler gensym))
    
-   (export expand-file)
+   (export expand-module primitive-macro-mapping make-expander-environment)
    (begin
     
     ;;==========================================================================
@@ -59,6 +58,10 @@
     (define *color*            #f)
     ;; current module name as list of symbols
     (define *current-module*  #f)
+    (define *load-module*  (lambda x (error "no *load-module* set, can't load dependencies during expand")))
+    (define *load-macro*  (lambda x (error "no *load-macro* set, can't evalute macros")))
+    (define *import-for-expand* 
+      (lambda x (error "no *import-for-expand* set, can't evalute macros")))
     ;; car of this records bindings already referenced in current body
     ;; for detecting when later definitions may violate lexical scope
     (define *used*             (list '()))
@@ -527,7 +530,15 @@
       (unless (string? file)
         (syntax-violation type
                           "Invalid include syntax, requires string literal" file)))
-    
+
+    (define (resolve-include-path id path)
+      (let* ((source (id-source id))
+             (root (make-path (if source (source-file source) ""))))
+        (path-join (path-parent root) path)))
+
+   (define (read-relative-include id fn fold-case?)
+     (read-file (resolve-include-path id fn) fold-case?))
+
     (define (expand-include-file exp fold-case?)
       (match exp
         ((include) (syntax-violation (syntax->datum include) "Invalid include syntax" exp))
@@ -703,7 +714,7 @@
                                     (env-extend! (list mapping) common-env)
                                     (let ((rhs-expanded (fluid-let ((*phase* (+ 1 *phase*)))
                                                                    (expand-macro rhs))))
-                                      (register-macro! (binding-name (cdr mapping)) (make-transformer (evaluate-macro rhs-expanded)))
+                                      (register-macro! (binding-name (cdr mapping)) (make-transformer (*load-macro* rhs-expanded)))
                                       (loop (cdr ws)
                                             forms
                                             ;FIXME
@@ -735,7 +746,7 @@
                                                          ((let-syntax)    original-env)
                                                          ((letrec-syntax) extended-env))))
                                                      (map expand-macro rhs)))
-                                         (macros (map evaluate-macro rhs-expanded)))
+                                         (macros (map *load-macro* rhs-expanded)))
                                     (for-each (lambda (mapping macro rhs)
                                                 (register-macro! (binding-name (cdr mapping)) (make-transformer macro)))
                                               usage-diff
@@ -1198,57 +1209,70 @@
     ; TODO - prevent duplicate exports
     ;        duplicate exports of the same name
     ;        conflicting exports?
-    (define (expand-module t force-exports?)
-      (match t
-        ((keyword name declarations ___)
-         (let ((name (syntax->datum (scan-library-name name)))
-               (module-type (syntax->datum (car t))))
-           (unless (memq module-type '(program define-library))
-             (syntax-violation 'module "invalid module type" (car t)))
-           (call-with-values
-            (lambda () (scan-declarations declarations))
-            (lambda (imported-libraries imports exports body-forms)
-              (fluid-let ((*usage-env*        (make-unit-env))
-                          (*current-module*  name)
-                          (*syntax-reflected* #f))       ; +++ space
-                         
-                         (import-libraries-for-expand imported-libraries (map not imported-libraries) 0)
-                         ; TODO - tree shake import names that aren't used, dumb to store
-                         ;        all of that
-                         (env-import! keyword imports *usage-env*)
-                         
-                         (with-reified-env-table (lambda (reify-env-table)
-                                                   (scan-sequence module-type
-                                                                  make-local-mapping
-                                                                  body-forms
-                                                                  (lambda (forms syntax-definitions bound-variables)
-                                                                    (let* ((exports
-                                                                            (if force-exports?
-                                                                                (append exports (map (lambda (bvar) `(,(car bvar) ,(car bvar) 0)) bound-variables))
-                                                                              exports))
-                                                                           (exports
-                                                                            (map (lambda (mapping)
-                                                                                   (cons (id-name (car mapping))
-                                                                                         (let ((binding (binding (cadr mapping))))
-                                                                                           (or binding
-                                                                                               (syntax-violation
-                                                                                                'module "Unbound export" (cadr mapping)))
-                                                                                           binding)))
-                                                                                 exports))
-                                                                           (module (core::module
-                                                                                    name
-                                                                                    (if *syntax-reflected*
-                                                                                        (reify-env-table)
-                                                                                      #f)
-                                                                                    exports
-                                                                                    imports
-                                                                                    imported-libraries
-                                                                                    (current-builds imported-libraries)
-                                                                                    syntax-definitions
-                                                                                    (emit-body forms (bound-variables->emit-toplevel-if-bound? bound-variables))
-                                                                                    (generate-guid 'build))))
-                                                                      module))))))))))))
-    
+    (define (expand-module t with-loader additional-imports force-exports?)
+      (with-toplevel-parameters with-loader
+       (lambda ()
+         (let ((t (normalize-forms additional-imports t)))
+           (match t
+             ((keyword name declarations ___)
+              (let ((name (syntax->datum (scan-library-name name)))
+                    (module-type (syntax->datum (car t))))
+                (unless (memq module-type '(program define-library))
+                  (syntax-violation 'module "invalid module type" (car t)))
+                (call-with-values
+                 (lambda () (scan-declarations declarations))
+                 (lambda (imported-libraries imports exports body-forms)
+                   (fluid-let ((*usage-env*        (make-unit-env))
+                               (*current-module*  name)
+                               (*syntax-reflected* #f))       ; +++ space
+                              
+                              (*import-for-expand* imported-libraries 0)
+                              ; TODO - tree shake import names that aren't used, dumb to store
+                              ;        all of that
+                              (env-import! keyword imports *usage-env*)
+                              
+                              (with-reified-env-table
+                               (lambda (reify-env-table)
+                                 (scan-sequence
+                                  module-type
+                                  make-local-mapping
+                                  body-forms
+                                  (lambda (forms syntax-definitions bound-variables)
+                                    (let* ((exports
+                                            (if force-exports?
+                                                (append exports
+                                                        (map (lambda (bvar) `(,(car bvar) ,(car bvar) 0))
+                                                             bound-variables))
+                                              exports))
+                                           (exports
+                                            (map (lambda (mapping)
+                                                   (cons (id-name (car mapping))
+                                                         (let ((binding (binding (cadr mapping))))
+                                                           (or binding
+                                                               (syntax-violation
+                                                                'module "Unbound export" (cadr mapping)))
+                                                           binding)))
+                                                 exports))
+                                           (module (core::module
+                                                    name
+                                                    (if *syntax-reflected*
+                                                        (reify-env-table)
+                                                      #f)
+                                                    exports
+                                                    imports
+                                                    imported-libraries
+                                                    (current-builds imported-libraries)
+                                                    syntax-definitions
+                                                    (emit-body forms
+                                                               (bound-variables->emit-toplevel-if-bound? bound-variables))
+                                                    (generate-guid 'build))))
+                                      module)))))))))))))))
+
+    (define (current-builds imported-libraries)
+     (map (lambda (lib-entry)
+            (core::module-build (*load-module* (car lib-entry))))
+          imported-libraries))
+
     ; imports = ((<name> <module-ref> <binding>) ...)
     (define (env-import! keyword imports env)
       (env-extend! (map (lambda (import)
@@ -1479,7 +1503,7 @@
              (-
               (let ((module-ref (module-ref import-set)))
                 (if module-ref
-                    (let* ((module (load-module (syntax->datum module-ref)))
+                    (let* ((module (*load-module* (syntax->datum module-ref)))
                            (exports (core::module-exports module))
                            (imports
                             (map (lambda (mapping)
@@ -1595,96 +1619,42 @@
                        '()
                        (make-source "<eval>" 1 0)))
     
-    (define (loki-environment . import-specs)
-      (fluid-let ((*usage-env* (make-unit-env)))
-                 (env-import! eval-template (make-module-language) *usage-env*)
-                 (call-with-values
-                  (lambda ()
-                    (fluid-let ((*phase* 0))
-                               (scan-imports
-                                (map (lambda (spec)
-                                       (datum->syntax eval-template spec))
-                                     import-specs) '() '())))
-                  (lambda (imported-libraries imports)
-                    (make-environment imports)))))
+    (define (make-expander-environment with-loader import-specs)
+      (with-toplevel-parameters with-loader (lambda ()
+        (fluid-let ((*usage-env* (make-unit-env)))
+          (env-import! eval-template (make-module-language) *usage-env*)
+          (call-with-values
+            (lambda ()
+              (fluid-let ((*phase* 0))
+                (scan-imports
+                  (map (lambda (spec)
+                               (datum->syntax eval-template spec))
+                       import-specs) '() '())))
+            (lambda (imported-libraries imports)
+              (make-environment imports)))))))
     
-    (define (loki-eval exp env)
-      (with-toplevel-parameters
-       (lambda ()
-         (let* ((exp (datum->syntax eval-template exp))
-                (import-specs (environment->import-specs env))
-                (syn (normalize-forms import-specs (list exp)))
-                (module (expand-module syn #t))
-                (imports (core::module-imports module))
-                (exports (core::module-exports module)))
-           (imports->environment! env imports)
-           (for-each (lambda (export)
-                       (environment-name-set! env (car export) (binding-module (cdr export))))
-                     exports)
-           (register-module! module)
-           (import-module (core::module-name module))))))
-    
+        
     ;; Puts parameters to a consistent state for the toplevel
     ;; Old state is restored afterwards so that things will be
     ;; reentrant.
-    
     (define with-toplevel-parameters
-      (lambda (thunk)
-        (fluid-let ((*trace*              '())
-                    (*current-module*    #f)
-                    (*phase*              0)
-                    (*used*               (list '()))
-                    (*color*              (generate-color))
-                    (*usage-env*          *toplevel-env*)
-                    (*syntax-reflected*   #f)
-                    (*sequence-counter*   0)
-                    (*lambda-color*       (generate-lambda-color))
-                    (*binding-metadata*     (empty-binding-metadata)))
-                   (thunk))))
-    
-    (define (load-module name)
-      (or
-       (lookup-module/false name)
-       (begin (loki-load (module-name->path name))
-              (lookup-module name))))
-    
-    (define (loki-load file)
-      (let ((module (expand-file (wrap-path file))))
-        (import-module (core::module-name module))))
-    
-    ;; This may be used as a front end for the compiler.
-    ;; It expands a file consisting of a possibly empty sequence
-    ;; of libraries optionally followed by a <toplevel program>.
-    ;; The result is a sequence of vanilla r5rs-like toplevel
-    ;; definitions and expressions.
-    
-    (define (expand-file path)
-      (try-load-module-from-cache path (lambda ()
-                                         (with-toplevel-parameters
-                                          (lambda () (read-module-path path (lambda (content) (expand-module (normalize-forms '() content) #f))))))))
-    
-    (define (try-load-module-from-cache path thunk)
-      (let ((path-string (path->string path))
-            (cache-path (path->string (path-with-suffix path "so"))))
-        (unless (file-exists? path-string)
-          (error "file not found" path-string))
-        (if (and (file-exists? cache-path)
-                 (>= (file-mtime cache-path)
-                     (file-mtime path-string)))
-            (let* ((module (deserialize-module (syntax->datum (car (read-file cache-path #f)))))
-                   (imported-libraries (core::module-imported-libraries module)))
-              (for-each (lambda (imported-library) (load-module (car imported-library)))
-                        imported-libraries)
-              (register-module! module)
-              (debug "deserialized module from" cache-path)
-              module)
-          (let* ((module (thunk))
-                 (serialized (serialize-module module)))
-            (register-module! module)
-            (debug "caching module to" cache-path)
-            (with-output-to-file cache-path (lambda () (write serialized)))
-            module))))
-    
+      (lambda (with-loader thunk)
+        (with-loader (lambda (load-module load-macro import-for-expand)
+                     (fluid-let ((*trace*              '())
+                                 (*current-module*    #f)
+                                 (*load-module*       load-module)
+                                 (*load-macro*        load-macro)
+                                 (*import-for-expand* import-for-expand)
+                                 (*phase*              0)
+                                 (*used*               (list '()))
+                                 (*color*              (generate-color))
+                                 (*usage-env*          *toplevel-env*)
+                                 (*syntax-reflected*   #f)
+                                 (*sequence-counter*   0)
+                                 (*lambda-color*       (generate-lambda-color))
+                                 (*binding-metadata*     (empty-binding-metadata)))
+                                (thunk))))))
+
     (define (generate-anonymous-module imports body)
       `(,(datum->syntax toplevel-template 'program) (,(datum->syntax toplevel-template (generate-guid 'program)))
         ,@imports
@@ -1755,15 +1725,8 @@
       (map (lambda (name)
              (list name '(loki core module-primitives) (make-binding 'macro name '(0) '(loki core module-primitives))))
            module-language-names))
-    
-    ;;===================================================================
-    ;;
-    ;; Bootstrap module containing macros defined in this expander.
-    ;;
-    ;;===================================================================
-    
-    (register-module!
-     (let ((primitive-macro-mapping
+
+    (define primitive-macro-mapping
             `((lambda        . ,expand-lambda)
               (if            . ,expand-if)
               (set!          . ,expand-set!)
@@ -1781,58 +1744,8 @@
               (define        . ,invalid-form)
               (define-syntax . ,invalid-form)
               (_             . ,(lambda (x) (syntax-violation 'primitive "Invalid use of primitive macro" x)))
-              (...           . ,invalid-form))))
-       (core::module
-        '(loki core primitive-macros)
-        ;; envs
-        #f
-        ;; exports
-        (map (lambda (mapping)
-               (cons (car mapping) (make-binding 'macro (car mapping) '(0) '(loki core primitive-macros))))
-             primitive-macro-mapping)
-        ;; imports
-        '()
-        ;; imported-libraries
-        '()
-        ;; builds
-        '()
-        ;; syntax-defs
-        (map (lambda (mapping)
-               (cons (car mapping) (make-expander (cdr mapping))))
-             primitive-macro-mapping)
-        ;; forms
-        '()
-        ;; build
-        'system)))
-    
-    ;;===================================================================
-    ;;
-    ;; Bootstrap module containing compiler intrinsics.
-    ;;
-    ;;===================================================================
-    
-    (register-module!
-     (core::module
-      '(loki core intrinsics)
-      ;; envs
-      #f
-      ;; exports
-      (map (lambda (intrinsic)
-             (cons intrinsic (make-binding 'variable intrinsic '(0) '(loki core intrinsics))))
-           compiler-intrinsics)
-      ;; imports
-      '()
-      ;; imported-libraries
-      '()
-      ;; builds
-      '()
-      ;; syntax-defs
-      '()
-      ;; forms
-      '()
-      ;; build
-      'system))
-    
+              (...           . ,invalid-form)))
+
     
     ;; Initial environments:
     
@@ -1857,9 +1770,6 @@
     (runtime-add-primitive 'ex:source-file source-file)
     (runtime-add-primitive 'ex:source-line source-line)
     (runtime-add-primitive 'ex:source-column source-column)
-    (runtime-add-primitive 'ex:environment loki-environment)
-    (runtime-add-primitive 'ex:eval loki-eval)
-    (runtime-add-primitive 'ex:load loki-load)
     (runtime-add-primitive 'ex:syntax-violation syntax-violation)
     (runtime-add-primitive 'ex:features loki-features)
     

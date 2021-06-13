@@ -2,7 +2,6 @@
 (import (scheme write))
 (import (scheme process-context))
 (import (loki util))
-(import (prefix (loki compiler expander) ex:))
 (import (loki path))
 (import (loki compiler loader))
 (import (loki compiler runtime))
@@ -56,7 +55,7 @@
     (with-loki-command-line (loki-options-args options) (lambda ()
       (for-each
         (lambda (target)
-          (import-module (core::module-name (ex:expand-file (make-path target)))))
+          (load-module-from-cache (make-path target)))
         (loki-options-targets options))))))
 
 (with-exception-handler

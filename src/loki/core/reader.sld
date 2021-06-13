@@ -28,7 +28,9 @@
   (import (scheme base))
   (import (scheme char))
   (import (scheme case-lambda))
+  (import (scheme file))
   (import (loki util))
+  (import (loki path))
   (import (loki core printer))
   (import (loki core syntax))
   (cond-expand
@@ -41,6 +43,7 @@
   (export make-reader
           read-annotated
           read-datum
+          read-file
           get-lexeme
           reader-fold-case?-set!)
   (begin
@@ -146,6 +149,20 @@
                      ((d) (handle-lexeme reader type x labels #f)))
                     (resolve-labels reader labels)
                     d)))
+
+  (define (read-file-from-reader reader)
+     (let f ((x (read-annotated reader)))
+       (if (and (annotation? x) (eof-object? (annotation-expression x)))
+           '()
+         (cons x (f (read-annotated reader))))))
+  (define (read-file fn fold-case?)
+     (let* ((path (wrap-path fn))
+            (str (path->string path))
+            (p (open-input-file str))
+            (reader (make-reader p str)))
+       (reader-fold-case?-set! reader fold-case?)
+       (let ((content (read-file-from-reader reader)))
+         content)))
    
    ;;; Lexeme reader
    

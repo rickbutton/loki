@@ -5,10 +5,13 @@
   (import (scheme write))
   (import (loki match))
   (import (loki path))
+  (import (loki fs))
   (import (loki core reader))
   (import (loki core syntax))
   (import (loki compiler util))
   (import (loki compiler environment))
+  (import (loki compiler intrinsics))
+  (import (loki compiler expander))
   (import (loki compiler macro))
   (import (loki compiler runtime))
   (import (loki compiler binding))
@@ -17,26 +20,14 @@
   (import (srfi 1))
   (import (srfi 69))
   (export
-   import-libraries-for
-   import-libraries-for-run
-   import-module
-   register-module!
-   invoke-module!
-   lookup-module
-   lookup-module/false
-   current-builds
-   import-libraries-for-expand
-   evaluate-macro
-   read-module-path
-   read-file
-   read-relative-include
-   module-name->path
+   load-module
+   load-module-from-cache
    serialize-module
    deserialize-module)
   (begin
    
    (define *module-dirs* '("src"))
-   
+
    (define (serialize-export e) (cons (car e) (serialize-binding (cdr e))))
    (define (deserialize-export e) (cons (car e) (deserialize-binding (cdr e))))
    (define (serialize-import e)
@@ -81,34 +72,7 @@
                       (map deserialize-syntax-def syntax-defs)
                       (map core::deserialize forms)
                       build))))
-   
-   (define (resolve-include-path id path)
-     (let* ((source (id-source id))
-            (root (make-path (if source (source-file source) ""))))
-       (path-join (path-parent root) path)))
-   
-   (define (read-file-from-reader reader)
-     (let f ((x (read-annotated reader)))
-       (if (and (annotation? x) (eof-object? (annotation-expression x)))
-           '()
-         (cons x (f (read-annotated reader))))))
-   
-   (define (read-file fn fold-case?)
-     (let* ((path (wrap-path fn))
-            (str (path->string path))
-            (p (open-input-file str))
-            (reader (make-reader p str)))
-       (reader-fold-case?-set! reader fold-case?)
-       (let ((content (read-file-from-reader reader)))
-         content)))
-   
-   (define (read-relative-include id fn fold-case?)
-     (read-file (resolve-include-path id fn) fold-case?))
-   
-   (define (read-module-path fn thunk)
-     (let* ((content (read-file fn #f))
-            (output (thunk content))) output))
-   
+      
    (define (module-name-part->string p)
      (if (symbol? p) (symbol->string p)
        (number->string p)))
@@ -120,7 +84,6 @@
                            *module-dirs*)))
          (or (find (lambda (path) (file-exists? (path->string path))) options)
              (syntax-violation #f (string-append "File not found for module: " (write-to-string name)) name)))))
-   
    
    (define *phase-table* (make-hash-table))
    (define (make-module-instance-table) (make-hash-table))
@@ -153,7 +116,7 @@
                    (display (core::module-build module)) (newline)
                    (error
                     "Import failed: client was expanded against a different build of this module" name)))
-             (import-libraries-for (core::module-imported-libraries module)
+             (import-modules-for (core::module-imported-libraries module)
                                    (core::module-builds module)
                                    phase
                                    importer
@@ -162,14 +125,14 @@
                (phase-table-set! name phase-data)
                result)))))
    
-   (define (importer module phase)
+   (define (run-importer module phase)
      (if (and (= phase 0)
               (not (core::module-invoked? module)))
          (let ((result (invoke-module! module)))
            (core::module-invoked?-set! module #t)
            result)))
    
-   (define (import-libraries-for imports builds phase importer run-or-expand)
+   (define (import-modules-for imports builds phase importer run-or-expand)
      (for-each (lambda (import build)
                  (let ((name   (car import))
                        (levels (cdr import)))
@@ -179,17 +142,63 @@
                imports
                builds)
      #f)
-   (define (import-libraries-for-run imports builds phase)
-     (import-libraries-for imports
+   (define (import-modules-for-run imports builds phase)
+     (import-modules-for imports
                            builds
                            phase
-                           importer
+                           run-importer
                            'run))
+ 
+  (define (import-modules-for-expand imports phase)
+     (import-modules-for
+      imports
+      (map not imports)
+      phase
+      (lambda (module phase)
+        (if (and (>= phase 0)
+                 (not (core::module-visited? module)))
+            (begin
+             (load-reified-env-table (core::module-envs module))
+             (visit-module! module)
+             (core::module-visited?-set! module #t)))
+        (if (and (>= phase 1)
+                 (not (core::module-invoked? module)))
+            (begin
+             (invoke-module! module)
+             (core::module-invoked?-set! module #t))))
+      'expand))
    
    (define (import-module name)
      (let ((module (lookup-module name)))
-       (import-libraries-for-run (core::module-imported-libraries module) (core::module-builds module) 0)
-       (import-module* (core::module-name module) (core::module-build module) 0 importer 'run)))
+       (import-modules-for-run (core::module-imported-libraries module) (core::module-builds module) 0)
+       (import-module* (core::module-name module) (core::module-build module) 0 run-importer 'run)))
+
+  (define eval-template
+    (make-identifier 'eval-template
+                     '()
+                     '()
+                     0
+                     '()
+                     (make-source "<eval>" 1 0)))
+
+   (define (loki-environment . import-specs)
+     (make-expander-environment with-default-loader import-specs))
+
+   (define (loki-eval exp env)
+     (let* ((exp (datum->syntax eval-template exp))
+            (import-specs (environment->import-specs env))
+            (module (expand-module (list exp)
+                                   with-default-loader
+                                   import-specs
+                                   #t))
+            (imports (core::module-imports module))
+            (exports (core::module-exports module)))
+       (register-module! module)
+       (imports->environment! env imports)
+       (for-each (lambda (export)
+                   (environment-name-set! env (car export) (binding-module (cdr export))))
+                 exports)
+       (import-module (core::module-name module))))
    
    (define *module-table* (make-hash-table))
    (define register-module!
@@ -211,46 +220,58 @@
    (define (lookup-module/false name)
      (hash-table-ref/default *module-table* name #f))
    
-   
-   (define (current-builds imported-libraries)
-     (map (lambda (lib-entry)
-            (core::module-build (lookup-module (car lib-entry))))
-          imported-libraries))
-   
    ;; Register macros in module
    (define (visit-module! module)
      (for-all (lambda (def)
                 (let ((name (car def)) (macro (cdr def)))
                   (if (macro? macro)
                       (register-macro! name macro)
-                    (register-macro! name (make-transformer (evaluate-macro macro))))))
+                    (register-macro! name (make-transformer (load-macro-module macro))))))
               (core::module-syntax-defs module)))
-   
-   (define (import-libraries-for-expand imports builds phase)
-     (import-libraries-for
-      imports
-      builds
-      phase
-      (lambda (module phase)
-        (if (and (>= phase 0)
-                 (not (core::module-visited? module)))
-            (begin
-             (load-reified-env-table (core::module-envs module))
-             (visit-module! module)
-             (core::module-visited?-set! module #t)))
-        (if (and (>= phase 1)
-                 (not (core::module-invoked? module)))
-            (begin
-             (invoke-module! module)
-             (core::module-invoked?-set! module #t))))
-      'expand))
-   
-   (define (evaluate-macro module)
+
+  (define (load-module name)
+     (or
+      (lookup-module/false name)
+      (load-module-from-cache (module-name->path name))))
+
+  (define (load-macro-module module)
      (register-module! module)
      (core::module-visited?-set! module #f)
      (core::module-invoked?-set! module #f)
      (import-module (core::module-name module)))
    
+   (define (load-module-from-cache path)
+     (let* ((path (wrap-path path))
+            (path-string (path->string path))
+            (cache-path (path->string (path-with-suffix path "so"))))
+       (unless (file-exists? path-string)
+         (error "file not found" path-string))
+       (if (and (file-exists? cache-path)
+                (>= (file-mtime cache-path)
+                    (file-mtime path-string)))
+           (let* ((foo (debug "before deserialize"))
+                  (module (deserialize-module (syntax->datum (car (read-file cache-path #f)))))
+                  (imported-libraries (core::module-imported-libraries module)))
+             (for-each (lambda (imported-module) (load-module (car imported-module)))
+                       imported-libraries)
+             (register-module! module)
+             (import-module (core::module-name module))
+             (debug "deserialized module from" cache-path)
+             module)
+         (let* ((module (expand-module (read-file path #f)
+                                       with-default-loader '() #f))
+                (serialized (serialize-module module)))
+           (register-module! module)
+           (import-module (core::module-name module))
+           (debug "caching module to" cache-path)
+           (with-output-to-file cache-path (lambda () (write serialized)))
+           module))))
+
+   (define (with-default-loader thunk)
+     (thunk load-module
+            load-macro-module
+            import-modules-for-expand))
+      
    ;; Only instantiate part of the bootstrap module
    ;; that would be needed for invocation at runtime.
    
@@ -273,5 +294,66 @@
      '()
      ;; build
      'system))
+   
+    ;;===================================================================
+    ;;
+    ;; Bootstrap module containing intrinsics defined in (loki compiler intrisics)
+    ;;
+    ;;===================================================================
+   (register-module!
+    (core::module
+     '(loki core intrinsics)
+     ;; envs
+     #f
+     ;; exports
+     (map (lambda (intrinsic)
+            (cons intrinsic (make-binding 'variable intrinsic '(0) '(loki core intrinsics))))
+          compiler-intrinsics)
+     ;; imports
+     '()
+     ;; imported-libraries
+     '()
+     ;; builds
+     '()
+     ;; syntax-defs
+     '()
+     ;; forms
+     '()
+     ;; build
+     'system))
+   
+    ;;===================================================================
+    ;;
+    ;; Bootstrap module containing macros defined in (loki compiler expander)
+    ;;
+    ;;===================================================================
+   (register-module!
+    (core::module
+     '(loki core primitive-macros)
+     ;; envs
+     #f
+     ;; exports
+     (map (lambda (mapping)
+            (cons (car mapping) (make-binding 'macro (car mapping) '(0) '(loki core primitive-macros))))
+          primitive-macro-mapping)
+     ;; imports
+     '()
+     ;; imported-libraries
+     '()
+     ;; builds
+     '()
+     ;; syntax-defs
+     (map (lambda (mapping)
+            (cons (car mapping) (make-expander (cdr mapping))))
+          primitive-macro-mapping)
+     ;; forms
+     '()
+     ;; build
+     'system))
+   
+   
+   (runtime-add-primitive 'ex:load load-module-from-cache)
+   (runtime-add-primitive 'ex:eval loki-eval)
+   (runtime-add-primitive 'ex:environment loki-environment)
    
    ))
