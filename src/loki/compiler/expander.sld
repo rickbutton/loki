@@ -62,6 +62,8 @@
     (define *load-macro*  (lambda x (error "no *load-macro* set, can't evalute macros")))
     (define *import-for-expand* 
       (lambda x (error "no *import-for-expand* set, can't evalute macros")))
+    (define *gensym* 
+      (lambda x (error "no *gensym* set, can't generate symbols")))
     ;; car of this records bindings already referenced in current body
     ;; for detecting when later definitions may violate lexical scope
     (define *used*             (list '()))
@@ -169,7 +171,7 @@
       (cons (cons (id-name id)
                   (id-colors id))
             (make-binding-meta type
-                               (generate-guid (id-name id))
+                               (*gensym* (id-name id))
                                (list (source-level id))
                                attrs
                                *current-module*)))
@@ -194,6 +196,19 @@
                                    attrs
                                    #f))
         (make-local-mapping type id attrs)))
+
+    (define (make-module-toplevel-mapping type id attrs)
+      (let* ((module-prefix (if *current-module*
+                               (string-join (map core::module-name-part->string *current-module*) "~")
+                               "anon"))
+             (name (string->symbol (string-append module-prefix "#" (symbol->string (id-name id))))))
+        (cons (cons (id-name id)
+                    (id-colors id))
+              (make-binding-meta type
+                                 name
+                                 (list (source-level id))
+                                 attrs
+                                 *current-module*))))
     
     (define (binding-metadata-set! binding metadata)
       (set! *binding-metadata* (hashmap-set *binding-metadata* binding metadata)))
@@ -468,7 +483,7 @@
                         make-local-mapping
                         exps
                         (lambda (forms no-syntax-definitions no-bound-variables)
-                          (core::letrec '() (emit-body forms emit-never-toplevel)))))))
+                          (core::let '() (emit-body forms emit-never-toplevel)))))))
     
     (define (check-let-binding-names names)
       (for-all (lambda (name)
@@ -492,7 +507,7 @@
                                                   make-local-mapping
                                                   body
                                                   (lambda (body-forms syntax-definitions bound-variables)
-                                                    (core::letrec
+                                                    (core::let
                                                      (map (lambda (name binding val) (core::let-var (binding->core::ref binding) val))
                                                           names bindings val-forms)
                                                      (emit-body body-forms emit-never-toplevel)))))))))))
@@ -520,7 +535,7 @@
         ((or e) (expand e))
         ((or e es ___)
          (let ((x (generate-guid 'x)))
-           (core::letrec
+           (core::let
             (list (core::let-var (core::ref x) (expand e)))
             (list (core::if (core::ref x)
                             (core::ref x)
@@ -777,8 +792,8 @@
         (if (null? body-forms)
             (if (null? vars)
                 (reverse output)
-              (list (core::letrec (reverse vars)
-                                  (reverse output))))
+              (list (core::let (reverse vars)
+                               (reverse output))))
           (let* ((body-form (car body-forms))
                  (binding-or-false (car body-form))
                  (ref (if (binding? binding-or-false) (binding->core::ref binding-or-false) #f))
@@ -790,7 +805,7 @@
                         (cons (core::define-global! ref val) output)
                         vars)
                   (if (core::atomic? val)
-                      ;; if atomic, hoist up into the letrec, don't need
+                      ;; if atomic, hoist up into the let, don't need
                     ;; any fancy data flow graphs to figure this one out
                     (loop (cdr body-forms) output (cons (core::let-var ref val) vars))
                     ;; a regular local (define name value)
@@ -859,8 +874,8 @@
       (match exp
         ((- e ((? literal? literals) ___) clauses ___)
          (let ((input (core::ref (generate-guid 'input))))
-           (core::letrec (list (core::let-var input (expand e)))
-                         (list (process-clauses clauses input literals)))))))
+           (core::let (list (core::let-var input (expand e)))
+                      (list (process-clauses clauses input literals)))))))
     
     (define (process-clauses clauses input literals)
       (define (literal? pattern)
@@ -872,8 +887,8 @@
       (define (process-match input pattern sk fk)
         (if (not (core::ref? input))
             (let ((temp (core::ref (generate-guid 'temp))))
-              (core::letrec (list (core::let-var temp input))
-                            (list (process-match temp pattern sk fk))))
+              (core::let (list (core::let-var temp input))
+                         (list (process-match temp pattern sk fk))))
           (match pattern
             ((% free=? ...)       (syntax-violation 'syntax-case "Invalid use of ellipses" pattern))
             (()                 (core::if (core::apply-prim %null? input) sk fk))
@@ -887,8 +902,8 @@
                        fk))
             ((% free=? _) sk)
             ((? identifier? id)
-             (core::letrec (list (core::let-var (binding->core::ref (binding id)) input))
-                           (list sk)))
+             (core::let (list (core::let-var (binding->core::ref (binding id)) input))
+                        (list sk)))
             ((p (% free=? ...))
              (let* ((pvars (map car (pattern-vars p 0)))
                     (bindings (map binding pvars))
@@ -897,8 +912,8 @@
                         (= (length refs) 1))                          ; +++
                  (let ((ref (car refs)))
                    (core::if (core::apply-prim list? input)
-                             (core::letrec (list (core::let-var ref input))
-                                           (list sk))
+                             (core::let (list (core::let-var ref input))
+                                        (list sk))
                              fk))
                  (let ((columns (core::ref (generate-guid 'cols)))
                        (rest    (core::ref (generate-guid 'rest))))
@@ -1003,8 +1018,8 @@
                       (list (core::constant 'syntax-case) (core::constant "Invalid syntax-case match") input)))
         ((clause clauses ___)
          (let ((fail (core::ref (generate-guid 'fail))))
-           (core::letrec (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
-                         (list (process-clause clause input (core::apply fail '()))))))))
+           (core::let (list (core::let-var fail (core::lambda '() #f (list (process-clauses clauses input literals)))))
+                      (list (process-clause clause input (core::apply fail '()))))))))
     
     
     ;;=========================================================================
@@ -1235,7 +1250,7 @@
                                (lambda (reify-env-table)
                                  (scan-sequence
                                   module-type
-                                  make-local-mapping
+                                  make-module-toplevel-mapping
                                   body-forms
                                   (lambda (forms syntax-definitions bound-variables)
                                     (let* ((exports
@@ -1645,6 +1660,7 @@
                                  (*load-module*       load-module)
                                  (*load-macro*        load-macro)
                                  (*import-for-expand* import-for-expand)
+                                 (*gensym*             (make-gensym))
                                  (*phase*              0)
                                  (*used*               (list '()))
                                  (*color*              (generate-color))

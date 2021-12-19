@@ -3,8 +3,7 @@
   (import (scheme base))
   (import (scheme eval))
   (import (scheme write))
-  (cond-expand
-   (gauche (import (gauche base))))
+  (cond-expand (gauche (import (gauche base))))
   (export
    pretty
    map-vector
@@ -19,7 +18,9 @@
    fluid-let
    memp
    for-all
-   write-to-string)
+   write-to-string
+   string-join
+   pretty-print)
   (begin
    
    (define (map-vector fn vec)
@@ -109,5 +110,19 @@
      (let ((port (open-output-string)))
        (write obj port)
        (get-output-string port)))
+
+   (define (string-join strings delimiter)
+     (if (null? strings)
+         ""
+       (let loop ((strings (cdr strings)) (so-far (car strings)))
+         (if (null? strings)
+             so-far
+           (loop (cdr strings)
+                 (string-append so-far delimiter (car strings)))))))
+
+   (define (pretty-print obj)
+     (cond-expand
+       (loki (debug obj))
+       (gauche (write obj (make-write-controls :pretty #t)))))
    
    ))

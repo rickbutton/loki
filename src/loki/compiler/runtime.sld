@@ -37,7 +37,7 @@
                           quote
                           set!
                           define
-                          letrec
+                          let
                           
                           map
                           list
@@ -60,7 +60,8 @@
               (display ": " out)
               (display (exception-message err) out)
               (newline out)
-              (display (exception-irritants err) out)
+              (for-each (lambda (i) (display i out) (display " " out))
+                        (exception-irritants err))
               (newline out))
            (display err out)))
         (else
@@ -117,10 +118,10 @@
           (display ": ")
           (display (exception-message obj))
           (newline)
-          (display (exception-irritants obj))
+          (for-each (lambda (i) (display i) (display " "))
+                    (exception-irritants obj))
           (newline))
        (display obj))
-     (error obj)
      (exit 1))
    
    (define max-traces (* 1024 10))
@@ -293,7 +294,7 @@
    (runtime-add-primitive '%null?     null?)
    (runtime-add-primitive '%list?     list?)
    (runtime-add-primitive '%length    length)
-   (runtime-add-primitive '%car       car)
+   (runtime-add-primitive '%car       (lambda (arg) (if (pair? arg) (car arg) (error "wtf is happening" arg))))
    (runtime-add-primitive '%cdr       cdr)
    (runtime-add-primitive '%set-car!  set-car!)
    (runtime-add-primitive '%set-cdr!  set-cdr!)

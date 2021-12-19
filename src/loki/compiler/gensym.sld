@@ -16,6 +16,7 @@
              (hash-table-set! table id 0))
            (let ((out (open-output-string)))
              (write id out)
+             (display "~" out)
              (write (or value 0) out)
              (string->symbol (get-output-string out)))))))
    

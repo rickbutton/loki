@@ -52,14 +52,7 @@
                 (else (split a (+ 1 b)))))))
          (split 0 0))))
    
-   (define (string-join strings delimiter)
-     (if (null? strings)
-         ""
-       (let loop ((strings (cdr strings)) (so-far (car strings)))
-         (if (null? strings)
-             so-far
-           (loop (cdr strings)
-                 (string-append so-far delimiter (car strings)))))))
+   
    
    
    (define-record-type <posix-path>

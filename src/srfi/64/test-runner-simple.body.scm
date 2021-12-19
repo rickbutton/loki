@@ -54,6 +54,7 @@
                            (substring string right-start string-len)))))))
 
 (define (print runner format-string . args)
+  ;(%abort args)
   (apply format #t format-string args)
   (let ((port (%test-runner-log-port runner)))
     (when port

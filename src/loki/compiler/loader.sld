@@ -6,6 +6,7 @@
   (import (loki match))
   (import (loki path))
   (import (loki fs))
+  (import (loki profile))
   (import (loki core reader))
   (import (loki core syntax))
   (import (loki compiler util))
@@ -50,7 +51,7 @@
        ,(core::module-imported-libraries m)
        ,(core::module-builds m)
        ,(map serialize-syntax-def (core::module-syntax-defs m))
-       ,(map core::serialize (core::module-forms m))
+       ,(core::module->scheme m)
        ,(core::module-build m)))
    (define (deserialize-module m)
      (match m
@@ -73,11 +74,9 @@
                       (map core::deserialize forms)
                       build))))
       
-   (define (module-name-part->string p)
-     (if (symbol? p) (symbol->string p)
-       (number->string p)))
+   
    (define (module-name->path module-name)
-     (let ((name (map module-name-part->string module-name)))
+     (let ((name (map core::module-name-part->string module-name)))
        (let ((options (map (lambda (dir)
                              (let ((absolute (path-join (current-working-path) dir)))
                                (path-with-suffix (apply path-join absolute name) "sld")))
@@ -264,7 +263,7 @@
            (register-module! module)
            (import-module (core::module-name module))
            (debug "caching module to" cache-path)
-           (with-output-to-file cache-path (lambda () (write serialized)))
+           (with-output-to-file cache-path (lambda () (pretty-print serialized)))
            module))))
 
    (define (with-default-loader thunk)

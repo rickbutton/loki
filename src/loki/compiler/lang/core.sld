@@ -8,7 +8,7 @@
   (export core::anon-ref
           core::if
           core::let-var
-          core::letrec
+          core::let
           core::lambda
           core::lambda?
           core::set!
@@ -36,7 +36,8 @@
           core::atomic?
           core::module->scheme
           core::serialize
-          core::deserialize)
+          core::deserialize
+          core::module-name-part->string)
   (begin
    
    (define-record-type <core::let-var>
@@ -99,11 +100,11 @@
                    ((_ id args ...)
                     (core::apply (core::anon-ref id) (list args ...)))))
    
-   (define-record-type <core::letrec>
-     (core::letrec vars body)
-     core::letrec?
-     (vars core::letrec-vars)
-     (body core::letrec-body))
+   (define-record-type <core::let>
+     (core::let vars body)
+     core::let?
+     (vars core::let-vars)
+     (body core::let-body))
    
    (define-record-type <core::module>
      (make-core::module name envs exports imports imported-libraries builds syntax-defs forms build visited? invoked?)
@@ -134,8 +135,8 @@
    
    (define (core::serialize term)
      (match term
-       (($ <core::letrec> vars body)
-        `(letrec ,(map (lambda (var) (list (core::ref-name (core::let-var-name var)) (core::serialize (core::let-var-value var)))) vars)
+       (($ <core::let> vars body)
+        `(let ,(map (lambda (var) (list (core::ref-name (core::let-var-name var)) (core::serialize (core::let-var-value var)))) vars)
           ,@(map core::serialize body)))
        (($ <core::if> exp1 exp2 exp3) `(if ,(core::serialize exp1) ,(core::serialize exp2) ,(core::serialize exp3)))
        (($ <core::lambda> formals rest body)
@@ -153,8 +154,8 @@
    
    (define (core::deserialize term)
      (match term
-       (('letrec vars body ...)
-        (core::letrec (map (lambda (v) (core::let-var (core::deserialize (car v)) (core::deserialize (cadr v)))) vars)
+       (('let vars body ...)
+        (core::let (map (lambda (v) (core::let-var (core::deserialize (car v)) (core::deserialize (cadr v)))) vars)
                       (map core::deserialize body)))
        (('if exp1 exp2 exp3)
         (core::if (core::deserialize exp1) (core::deserialize exp2) (core::deserialize exp3)))
@@ -171,5 +172,9 @@
        ((proc args ...)
         (core::apply (core::deserialize proc) (map core::deserialize args)))))
    
+    (define (core::module-name-part->string p)
+      (if (symbol? p)
+        (symbol->string p)
+        (number->string p)))
    
    ))
